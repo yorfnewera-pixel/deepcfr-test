@@ -1,0 +1,98 @@
+═══════════════════════════════════════════════════════════════════
+  BUG REPORT: min_raise_increment = 1.0 вместо bb (state.bb не существует)
+═══════════════════════════════════════════════════════════════════
+
+АФФЕКТ
+======
+pokers State не хранит sb/bb. Python-код проверяет hasattr(state, 'bb'),
+не находит → fallback min_raise_increment = 1.0 вместо bb = 2.0.
+
+Последствия:
+1. Минрейз = 1.0 вместо 2.0 — агенты могут ставить меньше большого блайнда
+2. Некорректный клип: max(1.0, min(additional, remaining)) вместо max(2.0, ...)
+3. Искажение CFR: минимальный Raise меньше реального минрейза
+
+ПРИМЕР
+======
+sb=1.0, bb=2.0, pot=3.0, remaining=198.0
+
+С min_raise=1.0 (БАГ):
+  multiplier=0.02 → pot*0.02 = 0.06
+  min(0.06, 198) = 0.06
+  max(1.0, 0.06) = 1.0  ← Raise $1 — меньше BB!
+
+С min_raise=2.0 (ПРАВИЛЬНО):
+  multiplier=0.02 → pot*0.02 = 0.06
+  min(0.06, 198) = 0.06
+  max(2.0, 0.06) = 2.0  ← Raise $2 = BB — корректно
+
+КОРЕНЬ
+======
+pokers/src/state.rs: struct State не содержит полей sb/bb.
+pokers/src/game_logic.rs: from_deck() получает sb/bb как параметры,
+но не сохраняет их в State.
+
+ПАТЧ A: Добавить sb/bb в struct State (state.rs)
+─────────────────────────────────────────────────
+
+В pokers/src/state.rs, после min_bet:
+
+БЫЛО:
+    #[pyo3(get, set)]
+    pub min_bet: f64,
+
+    #[pyo3(get, set)]
+    pub final_state: bool,
+
+СТАЛО:
+    #[pyo3(get, set)]
+    pub min_bet: f64,
+
+    #[pyo3(get, set)]
+    pub sb: f64,
+
+    #[pyo3(get, set)]
+    pub bb: f64,
+
+    #[pyo3(get, set)]
+    pub final_state: bool,
+
+ПАТЧ B: Заполнить sb/bb в from_deck (game_logic.rs)
+────────────────────────────────────────────────────
+
+В pokers/src/game_logic.rs, блок let mut state = State { ... }:
+
+БЫЛО:
+    min_bet: bb,
+
+СТАЛО:
+    min_bet: bb,
+    sb: sb,
+    bb: bb,
+
+ПЕРЕСБОрКА
+==========
+maturin develop --release
+
+ПРОВЕРКА
+========
+import pokers as pkrs
+state = pkrs.State.from_seed(n_players=6, button=0, sb=1.0, bb=2.0, stake=200.0, seed=0)
+print(state.bb)  # → 2.0
+print(state.sb)  # → 1.0
+
+PYTHON-КОД (уже работает после патча)
+=====================================
+
+deep_cfr.py:
+  min_raise_increment = max(1.0, float(state.bb)) if hasattr(state, 'bb') and state.bb and float(state.bb) > 0 else 1.0
+
+  Теперь hasattr(state, 'bb') = True → min_raise_increment = max(1.0, 2.0) = 2.0 ✓
+
+random_agent.py:
+  min_raise = max(1.0, float(state.bb)) if hasattr(state, 'bb') and state.bb and float(state.bb) > 0 else 1.0
+
+  Аналогично → min_raise = 2.0 ✓
+
+ПРИМЕЧАНИЕ: hasattr guard можно упростить до float(state.bb),
+но лучше оставить на случай если sb/bb = 0 (маловероятно но безопасно).

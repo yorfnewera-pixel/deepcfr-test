@@ -1,0 +1,4 @@
+[     805ms] [ERROR] Refused to get unsafe header "X-Sg-Cs" @ https://www.google.com/:25
+[     805ms] [ERROR] Refused to get unsafe header "X-Sorry-Redirect" @ https://www.google.com/:25
+[    1727ms] [ERROR] Refused to get unsafe header "X-Sg-Cs" @ https://www.google.com/:25
+[    1727ms] [ERROR] Refused to get unsafe header "X-Sorry-Redirect" @ https://www.google.com/:25

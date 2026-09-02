@@ -1,0 +1,550 @@
+{
+  "runs": [
+    {
+      "seed": 107,
+      "samples": 48,
+      "mean_difference": 0.0,
+      "std_difference": 0.0,
+      "bb_per_100": 0.0,
+      "search_decisions": 16,
+      "reach_weighted_decisions": 16,
+      "blueprint_fallback_decisions": 14,
+      "action_comparisons": 16,
+      "action_changes": 0,
+      "search_decisions_by_stage": {
+        "flop": 16,
+        "turn": 0,
+        "river": 0
+      },
+      "action_changes_by_stage": {
+        "flop": 0,
+        "turn": 0,
+        "river": 0
+      },
+      "policy_l1_sum": 0.5827336863986573,
+      "policy_l1_max": 0.5797091955389169,
+      "policy_argmax_changes": 0,
+      "policy_l1_sum_by_stage": {
+        "flop": 0.5827336863986573,
+        "turn": 0.0,
+        "river": 0.0
+      },
+      "policy_argmax_changes_by_stage": {
+        "flop": 0,
+        "turn": 0,
+        "river": 0
+      },
+      "root_diagnostics": [
+        {
+          "action_label": "all_in",
+          "prior_log_ratio": 20.38637354556663,
+          "raw_ev_spread": null,
+          "policy_l1": 0.0,
+          "flags": [
+            "reach_weighted_beliefs",
+            "belief_low_ess_blueprint_fallback",
+            "belief_low_absolute_ess_blueprint_fallback",
+            "belief_low_ess_ratio_blueprint_fallback"
+          ]
+        },
+        {
+          "action_label": "call",
+          "prior_log_ratio": 17.025827419630485,
+          "raw_ev_spread": null,
+          "policy_l1": 0.0,
+          "flags": [
+            "reach_weighted_beliefs",
+            "belief_low_ess_blueprint_fallback",
+            "belief_low_absolute_ess_blueprint_fallback",
+            "belief_low_ess_ratio_blueprint_fallback"
+          ]
+        },
+        {
+          "action_label": "raise_1pot",
+          "prior_log_ratio": 8.419937152405772,
+          "raw_ev_spread": null,
+          "policy_l1": 0.0,
+          "flags": [
+            "reach_weighted_beliefs",
+            "belief_low_ess_blueprint_fallback",
+            "belief_low_absolute_ess_blueprint_fallback",
+            "belief_low_ess_ratio_blueprint_fallback"
+          ]
+        },
+        {
+          "action_label": "call",
+          "prior_log_ratio": 11.059796286952382,
+          "raw_ev_spread": null,
+          "policy_l1": 0.0,
+          "flags": [
+            "reach_weighted_beliefs",
+            "belief_low_ess_blueprint_fallback",
+            "belief_low_absolute_ess_blueprint_fallback",
+            "belief_low_ess_ratio_blueprint_fallback"
+          ]
+        },
+        {
+          "action_label": "fold",
+          "prior_log_ratio": 2.6792264286353187,
+          "raw_ev_spread": 157.0,
+          "policy_l1": 0.5797091955389169,
+          "flags": [
+            "reach_weighted_beliefs"
+          ]
+        },
+        {
+          "action_label": "call",
+          "prior_log_ratio": 52.305820490639434,
+          "raw_ev_spread": null,
+          "policy_l1": 0.0,
+          "flags": [
+            "reach_weighted_beliefs",
+            "belief_low_ess_blueprint_fallback",
+            "belief_low_absolute_ess_blueprint_fallback",
+            "belief_low_ess_ratio_blueprint_fallback"
+          ]
+        },
+        {
+          "action_label": "call",
+          "prior_log_ratio": 77.31641387408534,
+          "raw_ev_spread": null,
+          "policy_l1": 0.0,
+          "flags": [
+            "reach_weighted_beliefs",
+            "belief_low_ess_blueprint_fallback",
+            "belief_low_absolute_ess_blueprint_fallback",
+            "belief_low_ess_ratio_blueprint_fallback"
+          ]
+        },
+        {
+          "action_label": "all_in",
+          "prior_log_ratio": 4.324645527919558,
+          "raw_ev_spread": null,
+          "policy_l1": 0.0,
+          "flags": [
+            "reach_weighted_beliefs",
+            "belief_low_ess_blueprint_fallback",
+            "belief_low_absolute_ess_blueprint_fallback",
+            "belief_low_ess_ratio_blueprint_fallback"
+          ]
+        },
+        {
+          "action_label": "call",
+          "prior_log_ratio": 32.001369504418705,
+          "raw_ev_spread": null,
+          "policy_l1": 0.0,
+          "flags": [
+            "reach_weighted_beliefs",
+            "belief_low_ess_blueprint_fallback",
+            "belief_low_absolute_ess_blueprint_fallback",
+            "belief_low_ess_ratio_blueprint_fallback"
+          ]
+        },
+        {
+          "action_label": "call",
+          "prior_log_ratio": 62.14010619550174,
+          "raw_ev_spread": null,
+          "policy_l1": 0.0,
+          "flags": [
+            "reach_weighted_beliefs",
+            "belief_low_ess_blueprint_fallback",
+            "belief_low_absolute_ess_blueprint_fallback",
+            "belief_low_ess_ratio_blueprint_fallback"
+          ]
+        },
+        {
+          "action_label": "call",
+          "prior_log_ratio": 48.04997256389683,
+          "raw_ev_spread": 309.14453125,
+          "policy_l1": 0.0030244908597404493,
+          "flags": [
+            "reach_weighted_beliefs"
+          ]
+        },
+        {
+          "action_label": "all_in",
+          "prior_log_ratio": 2.6739139541882784,
+          "raw_ev_spread": null,
+          "policy_l1": 0.0,
+          "flags": [
+            "reach_weighted_beliefs",
+            "belief_low_ess_blueprint_fallback",
+            "belief_low_absolute_ess_blueprint_fallback",
+            "belief_low_ess_ratio_blueprint_fallback"
+          ]
+        },
+        {
+          "action_label": "all_in",
+          "prior_log_ratio": 4.744024737649,
+          "raw_ev_spread": 12.890625,
+          "policy_l1": 0.0,
+          "flags": [
+            "reach_weighted_beliefs",
+            "rollout_signal_below_noise_blueprint_fallback"
+          ]
+        },
+        {
+          "action_label": "call",
+          "prior_log_ratio": 10.34720037573966,
+          "raw_ev_spread": null,
+          "policy_l1": 0.0,
+          "flags": [
+            "reach_weighted_beliefs",
+            "belief_low_ess_blueprint_fallback",
+            "belief_low_absolute_ess_blueprint_fallback",
+            "belief_low_ess_ratio_blueprint_fallback"
+          ]
+        },
+        {
+          "action_label": "call",
+          "prior_log_ratio": 11.50213342427242,
+          "raw_ev_spread": null,
+          "policy_l1": 0.0,
+          "flags": [
+            "reach_weighted_beliefs",
+            "belief_low_ess_blueprint_fallback",
+            "belief_low_absolute_ess_blueprint_fallback",
+            "belief_low_ess_ratio_blueprint_fallback"
+          ]
+        },
+        {
+          "action_label": "all_in",
+          "prior_log_ratio": 7.121486644835996,
+          "raw_ev_spread": 21.97265625,
+          "policy_l1": 0.0,
+          "flags": [
+            "reach_weighted_beliefs",
+            "rollout_signal_below_noise_blueprint_fallback"
+          ]
+        }
+      ]
+    },
+    {
+      "seed": 109,
+      "samples": 48,
+      "mean_difference": -2.7708333333333335,
+      "std_difference": 19.19689645055505,
+      "bb_per_100": -138.54166666666669,
+      "search_decisions": 24,
+      "reach_weighted_decisions": 24,
+      "blueprint_fallback_decisions": 22,
+      "action_comparisons": 24,
+      "action_changes": 8,
+      "search_decisions_by_stage": {
+        "flop": 19,
+        "turn": 5,
+        "river": 0
+      },
+      "action_changes_by_stage": {
+        "flop": 8,
+        "turn": 0,
+        "river": 0
+      },
+      "policy_l1_sum": 0.8963291167314343,
+      "policy_l1_max": 0.7206364647343648,
+      "policy_argmax_changes": 0,
+      "policy_l1_sum_by_stage": {
+        "flop": 0.8963291167314343,
+        "turn": 0.0,
+        "river": 0.0
+      },
+      "policy_argmax_changes_by_stage": {
+        "flop": 0,
+        "turn": 0,
+        "river": 0
+      },
+      "root_diagnostics": [
+        {
+          "action_label": "raise_1pot",
+          "prior_log_ratio": 23.197963742931012,
+          "raw_ev_spread": null,
+          "policy_l1": 0.0,
+          "flags": [
+            "reach_weighted_beliefs",
+            "belief_low_ess_blueprint_fallback",
+            "belief_low_absolute_ess_blueprint_fallback",
+            "belief_low_ess_ratio_blueprint_fallback"
+          ]
+        },
+        {
+          "action_label": "all_in",
+          "prior_log_ratio": 0.9301486789052169,
+          "raw_ev_spread": null,
+          "policy_l1": 0.0,
+          "flags": [
+            "reach_weighted_beliefs",
+            "belief_low_ess_blueprint_fallback",
+            "belief_low_absolute_ess_blueprint_fallback",
+            "belief_low_ess_ratio_blueprint_fallback"
+          ]
+        },
+        {
+          "action_label": "fold",
+          "prior_log_ratio": 7.832135182604039,
+          "raw_ev_spread": null,
+          "policy_l1": 0.0,
+          "flags": [
+            "reach_weighted_beliefs",
+            "belief_low_ess_blueprint_fallback",
+            "belief_low_absolute_ess_blueprint_fallback",
+            "belief_low_ess_ratio_blueprint_fallback"
+          ]
+        },
+        {
+          "action_label": "all_in",
+          "prior_log_ratio": 4.639439614327531,
+          "raw_ev_spread": 82.34375,
+          "policy_l1": 0.7206364647343648,
+          "flags": [
+            "reach_weighted_beliefs"
+          ]
+        },
+        {
+          "action_label": "raise_1pot",
+          "prior_log_ratio": 20.211322753806385,
+          "raw_ev_spread": 73.90625,
+          "policy_l1": 0.0,
+          "flags": [
+            "reach_weighted_beliefs",
+            "rollout_signal_below_noise_blueprint_fallback"
+          ]
+        },
+        {
+          "action_label": "all_in",
+          "prior_log_ratio": 25.754102729037566,
+          "raw_ev_spread": null,
+          "policy_l1": 0.0,
+          "flags": [
+            "reach_weighted_beliefs",
+            "belief_low_ess_blueprint_fallback",
+            "belief_low_absolute_ess_blueprint_fallback",
+            "belief_low_ess_ratio_blueprint_fallback"
+          ]
+        },
+        {
+          "action_label": "raise_1pot",
+          "prior_log_ratio": 32.59896089778435,
+          "raw_ev_spread": null,
+          "policy_l1": 0.0,
+          "flags": [
+            "reach_weighted_beliefs",
+            "belief_low_ess_blueprint_fallback",
+            "belief_low_absolute_ess_blueprint_fallback",
+            "belief_low_ess_ratio_blueprint_fallback"
+          ]
+        },
+        {
+          "action_label": "all_in",
+          "prior_log_ratio": 16.049198193822278,
+          "raw_ev_spread": 11.125,
+          "policy_l1": 0.0,
+          "flags": [
+            "reach_weighted_beliefs",
+            "rollout_signal_below_noise_blueprint_fallback"
+          ]
+        },
+        {
+          "action_label": "raise_1pot",
+          "prior_log_ratio": 23.190349536047588,
+          "raw_ev_spread": null,
+          "policy_l1": 0.0,
+          "flags": [
+            "reach_weighted_beliefs",
+            "belief_low_ess_blueprint_fallback",
+            "belief_low_absolute_ess_blueprint_fallback",
+            "belief_low_ess_ratio_blueprint_fallback"
+          ]
+        },
+        {
+          "action_label": "call",
+          "prior_log_ratio": 56.970462771597944,
+          "raw_ev_spread": null,
+          "policy_l1": 0.0,
+          "flags": [
+            "reach_weighted_beliefs",
+            "belief_low_ess_blueprint_fallback",
+            "belief_low_absolute_ess_blueprint_fallback",
+            "belief_low_ess_ratio_blueprint_fallback"
+          ]
+        },
+        {
+          "action_label": "raise_1pot",
+          "prior_log_ratio": 4.643239980794194,
+          "raw_ev_spread": null,
+          "policy_l1": 0.0,
+          "flags": [
+            "reach_weighted_beliefs",
+            "belief_low_ess_blueprint_fallback",
+            "belief_low_absolute_ess_blueprint_fallback",
+            "belief_low_ess_ratio_blueprint_fallback"
+          ]
+        },
+        {
+          "action_label": "call",
+          "prior_log_ratio": 41.80467987660214,
+          "raw_ev_spread": 52.421875,
+          "policy_l1": 0.1756926519970695,
+          "flags": [
+            "reach_weighted_beliefs"
+          ]
+        },
+        {
+          "action_label": "all_in",
+          "prior_log_ratio": 11.998437930157579,
+          "raw_ev_spread": null,
+          "policy_l1": 0.0,
+          "flags": [
+            "reach_weighted_beliefs",
+            "belief_low_ess_blueprint_fallback",
+            "belief_low_absolute_ess_blueprint_fallback",
+            "belief_low_ess_ratio_blueprint_fallback"
+          ]
+        },
+        {
+          "action_label": "all_in",
+          "prior_log_ratio": 8.404264399990053,
+          "raw_ev_spread": null,
+          "policy_l1": 0.0,
+          "flags": [
+            "reach_weighted_beliefs",
+            "belief_low_ess_blueprint_fallback",
+            "belief_low_absolute_ess_blueprint_fallback",
+            "belief_low_ess_ratio_blueprint_fallback"
+          ]
+        },
+        {
+          "action_label": "fold",
+          "prior_log_ratio": 0.47156048741208356,
+          "raw_ev_spread": null,
+          "policy_l1": 0.0,
+          "flags": [
+            "reach_weighted_beliefs",
+            "belief_low_ess_blueprint_fallback",
+            "belief_low_absolute_ess_blueprint_fallback",
+            "belief_low_ess_ratio_blueprint_fallback"
+          ]
+        },
+        {
+          "action_label": "call",
+          "prior_log_ratio": 16.59777636266844,
+          "raw_ev_spread": null,
+          "policy_l1": 0.0,
+          "flags": [
+            "reach_weighted_beliefs",
+            "belief_low_ess_blueprint_fallback",
+            "belief_low_absolute_ess_blueprint_fallback",
+            "belief_low_ess_ratio_blueprint_fallback"
+          ]
+        },
+        {
+          "action_label": "raise_0.5pot",
+          "prior_log_ratio": 3.776136431433628,
+          "raw_ev_spread": null,
+          "policy_l1": 0.0,
+          "flags": [
+            "reach_weighted_beliefs",
+            "belief_low_ess_blueprint_fallback",
+            "belief_low_absolute_ess_blueprint_fallback",
+            "belief_low_ess_ratio_blueprint_fallback"
+          ]
+        },
+        {
+          "action_label": "call",
+          "prior_log_ratio": 68.548347469695,
+          "raw_ev_spread": null,
+          "policy_l1": 0.0,
+          "flags": [
+            "reach_weighted_beliefs",
+            "belief_low_ess_blueprint_fallback",
+            "belief_low_absolute_ess_blueprint_fallback",
+            "belief_low_ess_ratio_blueprint_fallback"
+          ]
+        },
+        {
+          "action_label": "call",
+          "prior_log_ratio": 6.319731710999202,
+          "raw_ev_spread": null,
+          "policy_l1": 0.0,
+          "flags": [
+            "reach_weighted_beliefs",
+            "belief_low_ess_blueprint_fallback",
+            "belief_low_absolute_ess_blueprint_fallback",
+            "belief_low_ess_ratio_blueprint_fallback"
+          ]
+        },
+        {
+          "action_label": "all_in",
+          "prior_log_ratio": 3.8018548934032017,
+          "raw_ev_spread": null,
+          "policy_l1": 0.0,
+          "flags": [
+            "reach_weighted_beliefs",
+            "belief_low_ess_blueprint_fallback",
+            "belief_low_absolute_ess_blueprint_fallback",
+            "belief_low_ess_ratio_blueprint_fallback"
+          ]
+        },
+        {
+          "action_label": "all_in",
+          "prior_log_ratio": 4.078683920070535,
+          "raw_ev_spread": null,
+          "policy_l1": 0.0,
+          "flags": [
+            "reach_weighted_beliefs",
+            "belief_low_ess_blueprint_fallback",
+            "belief_low_absolute_ess_blueprint_fallback",
+            "belief_low_ess_ratio_blueprint_fallback"
+          ]
+        },
+        {
+          "action_label": "raise_1pot",
+          "prior_log_ratio": 12.824857684481586,
+          "raw_ev_spread": null,
+          "policy_l1": 0.0,
+          "flags": [
+            "reach_weighted_beliefs",
+            "belief_low_ess_blueprint_fallback",
+            "belief_low_absolute_ess_blueprint_fallback",
+            "belief_low_ess_ratio_blueprint_fallback"
+          ]
+        },
+        {
+          "action_label": "all_in",
+          "prior_log_ratio": 2.18241669784324,
+          "raw_ev_spread": null,
+          "policy_l1": 0.0,
+          "flags": [
+            "reach_weighted_beliefs",
+            "belief_low_ess_blueprint_fallback",
+            "belief_low_absolute_ess_blueprint_fallback",
+            "belief_low_ess_ratio_blueprint_fallback"
+          ]
+        },
+        {
+          "action_label": "all_in",
+          "prior_log_ratio": 31.674417435096657,
+          "raw_ev_spread": null,
+          "policy_l1": 0.0,
+          "flags": [
+            "reach_weighted_beliefs",
+            "belief_low_ess_blueprint_fallback",
+            "belief_low_absolute_ess_blueprint_fallback",
+            "belief_low_ess_ratio_blueprint_fallback"
+          ]
+        }
+      ]
+    }
+  ],
+  "total_samples": 96,
+  "pooled_statistics": {
+    "mean_difference": -1.3854166666666667,
+    "std_difference": 13.574255657923441,
+    "standard_error": 1.3854166666666663,
+    "bb_per_100": -69.27083333333334,
+    "standard_error_bb_per_100": 69.27083333333331,
+    "t_statistic": -1.0000000000000002,
+    "ci95_low_bb_per_100": -205.0416666666666,
+    "ci95_high_bb_per_100": 66.49999999999994,
+    "power_status": "insufficient_power"
+  }
+}

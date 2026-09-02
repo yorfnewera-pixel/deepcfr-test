@@ -1,0 +1,151 @@
+- generic [ref=e1]:
+  - 'button "Аккаунт Google: Амбивалентность инсинуации (yorfnewera@gmail.com)" [ref=e390] [cursor=pointer]':
+    - img [ref=e10]
+  - main [ref=e12]:
+    - generic:
+      - button "Главное меню" [ref=e391] [cursor=pointer]:
+        - img [ref=e121]: menu
+      - button "Новый чат" [disabled] [ref=e392]:
+        - generic [ref=e127]: Gemini
+    - generic [ref=e15]:
+      - link "Сменить план" [ref=e393]:
+        - img [ref=e130]: spark
+        - generic [ref=e132]: Сменить план
+      - button "Временный чат" [ref=e394] [cursor=pointer]:
+        - img [ref=e22]
+    - generic [ref=e27]:
+      - navigation "Боковая панель" [ref=e395]:
+        - generic [ref=e30]:
+          - button "Поиск" [ref=e396] [cursor=pointer]:
+            - img [ref=e139]: search
+          - generic [ref=e31]:
+            - group [ref=e32]:
+              - link "Новый чат" [ref=e397] [cursor=pointer]:
+                - /url: /app
+                - img [ref=e145]: edit_square
+                - generic [ref=e149]: Новый чат
+            - generic [ref=e150]:
+              - link "Мой контент" [ref=e398] [cursor=pointer]:
+                - /url: mystuff
+                - img [ref=e156]: family_star
+                - generic [ref=e157]: Мой контент
+              - generic [ref=e159]:
+                - link "Блокноты" [ref=e399] [cursor=pointer]:
+                  - /url: /notebooks/view
+                  - generic [ref=e162]: Блокноты
+                  - img [ref=e165]: keyboard_arrow_right
+                - generic "Новый блокнот" [ref=e400] [cursor=pointer]:
+                  - img [ref=e170]: add_2
+                  - generic [ref=e171]: Новый блокнот
+              - generic [ref=e173]:
+                - link "Gem-боты" [ref=e401] [cursor=pointer]:
+                  - /url: /gems/view
+                  - generic [ref=e177]: Gem-боты
+                  - img [ref=e180]: keyboard_arrow_right
+                - region
+              - generic [ref=e183]:
+                - heading "Чаты" [level=1] [ref=e402]
+                - region [ref=e186]:
+                  - button "DeepPDCFR+ обсуждение с opencode Закрепленный чат" [ref=e403] [cursor=pointer]:
+                    - generic [ref=e189]: DeepPDCFR+ обсуждение с opencode
+                    - generic [ref=e190]:
+                      - img [ref=e192]: push_pin
+                      - generic [ref=e193]: Закрепленный чат
+                  - button "Алгоритмы для 6-max No-Limit Hold'em Закрепленный чат" [ref=e404] [cursor=pointer]:
+                    - generic [ref=e197]: Алгоритмы для 6-max No-Limit Hold'em
+                    - generic [ref=e198]:
+                      - img [ref=e200]: push_pin
+                      - generic [ref=e201]: Закрепленный чат
+                  - 'button "Deep CFR: Успех без Scaling и PER Закрепленный чат" [ref=e405] [cursor=pointer]':
+                    - generic [ref=e205]: "Deep CFR: Успех без Scaling и PER"
+                    - generic [ref=e206]:
+                      - img [ref=e208]: push_pin
+                      - generic [ref=e209]: Закрепленный чат
+                  - button "Гайд как сделать порт в опенкод Закрепленный чат" [ref=e406] [cursor=pointer]:
+                    - generic [ref=e213]: Гайд как сделать порт в опенкод
+                    - generic [ref=e214]:
+                      - img [ref=e216]: push_pin
+                      - generic [ref=e217]: Закрепленный чат
+                  - 'button "Deep CFR с бутстрапингом: теория и практика" [ref=e407] [cursor=pointer]':
+                    - generic [ref=e221]: "Deep CFR с бутстрапингом: теория и практика"
+                  - 'button "Claude: Бесплатное использование и подписка" [ref=e408] [cursor=pointer]':
+                    - generic [ref=e226]: "Claude: Бесплатное использование и подписка"
+                  - button "Superpowers плагин и правила проекта" [ref=e409] [cursor=pointer]:
+                    - generic [ref=e231]: Superpowers плагин и правила проекта
+                  - 'button "Обучение Deep CFR: Loss и Эксплуатируемость" [ref=e410] [cursor=pointer]':
+                    - generic [ref=e236]: "Обучение Deep CFR: Loss и Эксплуатируемость"
+                  - 'button "RLcard: Monkey Patching vs. Site-Packages" [ref=e411] [cursor=pointer]':
+                    - generic [ref=e241]: "RLcard: Monkey Patching vs. Site-Packages"
+                  - button "Installing Grounding DINO on Windows" [ref=e412] [cursor=pointer]:
+                    - generic [ref=e246]: Installing Grounding DINO on Windows
+                  - button "Устранение ошибок памяти при обучении YOLO" [ref=e413] [cursor=pointer]:
+                    - generic [ref=e251]: Устранение ошибок памяти при обучении YOLO
+                  - button "Покер-румы с выводом в России" [ref=e414] [cursor=pointer]:
+                    - generic [ref=e256]: Покер-румы с выводом в России
+                  - 'button "Алгоритмы покера: от CFR до RL" [ref=e415] [cursor=pointer]':
+                    - generic [ref=e261]: "Алгоритмы покера: от CFR до RL"
+                  - button "Алгоритмы для равновесия Нэша в покере" [ref=e416] [cursor=pointer]:
+                    - generic [ref=e266]: Алгоритмы для равновесия Нэша в покере
+                  - button "Мозг, детство и радость без скальпеля" [ref=e417] [cursor=pointer]:
+                    - generic [ref=e271]: Мозг, детство и радость без скальпеля
+                  - button "Алгоритмы покера лучше Deep CFR" [ref=e418] [cursor=pointer]:
+                    - generic [ref=e276]: Алгоритмы покера лучше Deep CFR
+                  - button "Алгоритмы покера лучше DeepCFR" [ref=e419] [cursor=pointer]:
+                    - generic [ref=e281]: Алгоритмы покера лучше DeepCFR
+            - group [ref=e42]:
+              - button "История действий в приложениях Gemini" [ref=e420] [cursor=pointer]:
+                - img [ref=e287]: history
+                - generic [ref=e291]: История
+              - button "Settings & help" [ref=e421] [cursor=pointer]:
+                - img [ref=e295]: settings_2
+                - generic [ref=e299]: Настройки и справка
+            - generic [ref=e302]:
+              - img [ref=e303]: circle
+              - generic [ref=e304]:
+                - button "Великобритания" [ref=e422]
+                - generic [ref=e306]: По IP-адресу
+                - generic [ref=e307]: •
+                - button "Обновить" [ref=e423]
+      - generic [ref=e65]:
+        - generic [ref=e66]:
+          - heading "Чат с Gemini" [level=1] [ref=e424]
+          - generic [ref=e72]:
+            - generic [ref=e73]:
+              - generic [ref=e310]: Здравствуйте, Амбивалентность!
+              - heading "С чего начнем?" [level=1] [ref=e425]:
+                - generic [ref=e312]: С чего начнем?
+            - generic [ref=e314]:
+              - button "🖼️ Создать изображение, кнопка, нажмите, чтобы воспользоваться инструментом" [ref=e426] [cursor=pointer]:
+                - generic [ref=e317]: 🖼️ Создать изображение
+              - button "🎸 Создать музыку, кнопка, нажмите, чтобы воспользоваться инструментом" [ref=e427] [cursor=pointer]:
+                - generic [ref=e320]: 🎸 Создать музыку
+              - button "Улучши мой день, кнопка, нажмите, чтобы воспользоваться инструментом" [ref=e428] [cursor=pointer]:
+                - generic [ref=e323]: Улучши мой день
+              - button "Научи меня, кнопка, нажмите, чтобы воспользоваться инструментом" [ref=e429] [cursor=pointer]:
+                - generic [ref=e326]: Научи меня
+              - button "Напишите что-нибудь, кнопка, нажмите, чтобы воспользоваться инструментом" [ref=e430] [cursor=pointer]:
+                - generic [ref=e329]: Напишите что-нибудь
+        - generic [ref=e91]:
+          - group [ref=e92]:
+            - generic [ref=e95]:
+              - textbox "Введите запрос для Gemini" [active] [ref=e431]:
+                - text: Спросить Gemini
+                - paragraph [ref=e101]
+              - generic [ref=e102]:
+                - button "Открыть меню загрузки файлов" [ref=e432] [cursor=pointer]:
+                  - img [ref=e336]: add_2
+                - button "Инструменты" [ref=e433]:
+                  - img [ref=e343]: page_info
+                  - generic [ref=e346]: Инструменты
+              - generic [ref=e103]:
+                - button "Открыть меню выбора режима" [ref=e434]:
+                  - generic [ref=e353]:
+                    - generic [ref=e354]: Думающая
+                    - img [ref=e355]: keyboard_arrow_down
+                - generic [ref=e104]:
+                  - button "Микрофон" [ref=e435] [cursor=pointer]:
+                    - img [ref=e109]: mic
+                  - generic:
+                    - button "Отправить сообщение" [disabled]:
+                      - img: send
+          - paragraph [ref=e114]

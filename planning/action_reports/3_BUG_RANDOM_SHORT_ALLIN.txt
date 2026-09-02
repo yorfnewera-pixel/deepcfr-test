@@ -1,0 +1,85 @@
+═══════════════════════════════════════════════════════════════════
+  BUG REPORT: RandomAgent не может сделать short all-in Raise
+═══════════════════════════════════════════════════════════════════
+
+АФФЕКТ
+======
+RandomAgent не может отправить Raise когда remaining_after_call < min_raise.
+Фильтр `min_raise <= a <= remaining` отсекает все опции → fallback на Call.
+Short all-in Raise (легальный в покере) становится Call.
+
+ПРИМЕР
+======
+remaining=1.0, min_raise=2.0 (bb)
+
+options до фильтра: [2.0, half_pot, full_pot, remaining=1.0]
+Фильтр min_raise <= a <= remaining:
+  2.0 <= 1.0? → НЕТ → отсечено
+  half_pot > remaining? → ДА → отсечено
+  full_pot > remaining? → ДА → отсечено
+  1.0 <= 1.0? → ДА, но 1.0 < 2.0 (min_raise) → отсечено
+
+options после фильтра: [] → ПУСТО → return Call
+
+Игрок коллит вместо short all-in Raise. $1 остаётся неиспользованным.
+
+ТЕКУЩИЙ КОД (НЕВЕРНЫЙ)
+========================
+    options = [a for a in options if min_raise <= a <= remaining]
+    if not options:
+        if pkrs.ActionEnum.Call in state.legal_actions:
+            return pkrs.Action(pkrs.ActionEnum.Call)
+        return pkrs.Action(pkrs.ActionEnum.Fold)
+
+Фильтр `min_raise <= a` не нужен когда remaining < min_raise.
+Rust clamp автоматически обработает short all-in.
+
+ФИКС
+=====
+
+Заменить фильтр и добавить remaining как fallback:
+
+    options = [a for a in options if a <= remaining]
+    if not options and remaining > 0:
+        options = [remaining]
+
+    if not options:
+        if pkrs.ActionEnum.Call in state.legal_actions:
+            return pkrs.Action(pkrs.ActionEnum.Call)
+        return pkrs.Action(pkrs.ActionEnum.Fold)
+
+Объяснение:
+1. Убрали `min_raise <= a` из фильтра — short all-in суммы (< min_raise) проходят
+2. `if not options and remaining > 0: options = [remaining]` —
+   если все pot-опции > remaining, берём remaining как short all-in
+3. Rust clamp: если bet = call + remaining > stake → bet = stake → auto all-in
+4. Если remaining = 0 (полный колл занял стек) → options пуст → Call (корректно)
+
+ПОЧЕМУ ЭТО БЕЗОПАСНО
+=====================
+
+- Rust current_player_can_raise() уже гарантирует: remaining > CHIP_EPSILON
+  (иначе Raise не был бы в legal_actions, и мы бы не зашли в этот блок)
+- Short all-in Raise легален по правилам покера
+- Rust clamp защищает от float-перебора (bet > stake → bet = stake)
+- round(additional, 2) чистит float-шум
+
+СВЯЗЬ С BUG_SHORT_ALLIN.txt
+============================
+
+Это тот же баг, но в RandomAgent. DeepCFRAgent уже исправлен
+(клип max(min_raise, min(additional, remaining)) + Rust clamp).
+
+ТЕСТ-КЕЙС
+=========
+
+remaining=1.0, min_raise=2.0:
+
+ДО фикса:
+  options после фильтра: [] → Call → stake остаётся 1.0
+
+ПОСЛЕ фикса:
+  options после фильтра: [1.0] (remaining)
+  additional = round(1.0, 2) = 1.0
+  Action(Raise, 1.0)
+  Rust: bet = call + 1.0 → short all-in → stake = 0.0 ✓

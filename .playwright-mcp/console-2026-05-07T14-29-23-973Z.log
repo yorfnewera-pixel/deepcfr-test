@@ -1,0 +1,6 @@
+[     802ms] [LOG] 🎉 working version is: serp_20260507_091547_ET-17a7080af18231f126564a9ce7a1a1b2ebf27a2c @ https://duck.ai/dist/duckai-dist/entry.duckai.b46ed98181c25b41911d.js:1
+[    1110ms] [WARNING] An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing. @ about:srcdoc:0
+[   67368ms] [WARNING] LaTeX-incompatible input and strict mode is set to 'warn': Accented Unicode text character "ã" used in math mode [unicodeTextInMathMode] @ https://duck.ai/dist/duckai-dist/chunk.3010.2120ca5a7063a3c6592b.js:0
+[   67369ms] [WARNING] LaTeX-incompatible input and strict mode is set to 'warn': Accented Unicode text character "ã" used in math mode [unicodeTextInMathMode] @ https://duck.ai/dist/duckai-dist/chunk.3010.2120ca5a7063a3c6592b.js:0
+[   87600ms] [WARNING] LaTeX-incompatible input and strict mode is set to 'warn': Accented Unicode text character "ã" used in math mode [unicodeTextInMathMode] @ https://duck.ai/dist/duckai-dist/chunk.3010.2120ca5a7063a3c6592b.js:0
+[   87601ms] [WARNING] LaTeX-incompatible input and strict mode is set to 'warn': Accented Unicode text character "ã" used in math mode [unicodeTextInMathMode] @ https://duck.ai/dist/duckai-dist/chunk.3010.2120ca5a7063a3c6592b.js:0

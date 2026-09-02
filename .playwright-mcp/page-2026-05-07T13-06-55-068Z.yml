@@ -1,0 +1,4 @@
+- generic [active] [ref=e1]:
+  - link "Войти" [ref=e6] [cursor=pointer]:
+    - /url: https://accounts.google.com/ServiceLogin?passive=1209600&continue=https://gemini.google.com/&followup=https://gemini.google.com/&ec=GAZAkgU
+  - main [ref=e8]

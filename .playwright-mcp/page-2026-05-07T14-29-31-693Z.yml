@@ -1,0 +1,103 @@
+- generic [ref=e1]:
+  - main [ref=e24]:
+    - generic [ref=e26]:
+      - generic [ref=e27]:
+        - generic [ref=e28]:
+          - img [ref=e29]
+          - generic [ref=e41]: Duck.ai
+        - button "Скрыть боковую панель, CTRL + ⇧ + S" [ref=e42] [cursor=pointer]:
+          - img [ref=e43]
+      - button "Запустить чат CTRL + ⇧ + O" [ref=e46] [cursor=pointer]:
+        - generic [ref=e47]:
+          - img [ref=e48]
+          - text: Запустить чат
+        - generic [ref=e50]: CTRL + ⇧ + O
+      - generic [ref=e53]:
+        - button "Новый голосовой чат" [ref=e54] [cursor=pointer]:
+          - generic [ref=e55]:
+            - img [ref=e56]
+            - text: Новый голосовой чат
+        - button "Новое изображение CTRL + ⇧ + I" [ref=e58] [cursor=pointer]:
+          - generic [ref=e59]:
+            - img [ref=e60]
+            - text: Новое изображение
+          - generic [ref=e62]: CTRL + ⇧ + I
+      - generic [ref=e63]:
+        - button "Настройки и другое" [ref=e64] [cursor=pointer]:
+          - generic [ref=e65]:
+            - generic [ref=e66]:
+              - img [ref=e67]
+              - generic [ref=e71]: Настройки и другое
+            - generic [ref=e72]:
+              - generic [ref=e73]: Free
+              - img [ref=e74]
+        - generic [ref=e76]:
+          - generic [ref=e77]:
+            - text: от
+            - link "DuckDuckGo" [ref=e78] [cursor=pointer]:
+              - /url: https://duckduckgo.com/about
+          - generic [ref=e79]: "|"
+          - link "Скачать приложение" [ref=e80] [cursor=pointer]:
+            - /url: https://duckduckgo.com/app?origin=funnel_duckai_website__sidebargettheapplink
+    - generic [ref=e81]:
+      - generic:
+        - generic:
+          - img
+          - generic:
+            - img
+        - paragraph: Перетащите фотографии или PDF-файлы
+      - generic [ref=e84]:
+        - generic [ref=e85]:
+          - heading "Все чаты конфиденциальны" [level=1] [ref=e88]:
+            - text: Все чаты
+            - button "конфиденциальны" [ref=e89] [cursor=pointer]:
+              - img [ref=e90]
+              - text: конфиденциальны
+          - generic [ref=e98]:
+            - generic:
+              - button "Удалить чат" [disabled]:
+                - img
+            - generic [ref=e100]:
+              - textbox "Задавайте любые вопросы, сохраняя конфиденциальность" [active] [ref=e102]
+              - generic [ref=e103]:
+                - generic [ref=e104]:
+                  - button "Настрой ответы" [ref=e107] [cursor=pointer]:
+                    - img [ref=e109]
+                  - button "Добавьте фотографии или PDF-файлы" [ref=e113] [cursor=pointer]:
+                    - img [ref=e114]
+                - generic [ref=e116]:
+                  - button "Режим рассуждения" [expanded] [ref=e119] [cursor=pointer]:
+                    - generic [ref=e120]:
+                      - img [ref=e122]
+                      - generic [ref=e124]: Быстрый
+                  - button "Haiku 4.5" [ref=e126] [cursor=pointer]:
+                    - generic [ref=e127]: Haiku 4.5
+                    - img [ref=e128]
+                - button "Отправить" [disabled] [ref=e131]:
+                  - img [ref=e132]
+                - generic:
+                  - button "Остановить генерацию" [disabled]:
+                    - img
+        - listitem [ref=e139]:
+          - img [ref=e141]
+          - paragraph [ref=e154]:
+            - generic [ref=e155]: Приватные чаты с Duck.ai на любом сайте — через боковую панель в нашем бесплатном браузере.
+            - link "Скачать браузер" [ref=e156] [cursor=pointer]:
+              - /url: https://duckduckgo.com/browser?origin=funnel_duckai_website__browserupsellpromo
+              - img [ref=e157]
+              - text: Скачать браузер
+          - button [ref=e159] [cursor=pointer]:
+            - img [ref=e160]
+  - iframe [ref=e163]:
+    
+  - menu "Режим рассуждения" [ref=e165]:
+    - menuitemradio "Рассуждения Ответ занимает чуть больше времени." [ref=e166] [cursor=pointer]:
+      - img [ref=e168]
+      - generic [ref=e170]:
+        - generic [ref=e171]: Рассуждения
+        - generic [ref=e172]: Ответ занимает чуть больше времени.
+    - menuitemradio "Быстрый Моментальные ответы." [checked] [ref=e173] [cursor=pointer]:
+      - img [ref=e175]
+      - generic [ref=e177]:
+        - generic [ref=e178]: Быстрый
+        - generic [ref=e179]: Моментальные ответы.

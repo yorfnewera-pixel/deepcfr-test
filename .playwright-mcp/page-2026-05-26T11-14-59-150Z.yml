@@ -1,0 +1,51 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - progressbar [ref=e6]
+      - main [ref=e14]:
+        - generic [ref=e15]:
+          - generic [ref=e18]:
+            - img [ref=e20]
+            - generic [ref=e25]: Вход через аккаунт Google
+          - generic [ref=e26]:
+            - heading "Выберите аккаунт" [level=1] [ref=e27]
+            - generic [ref=e29]:
+              - text: Переход в приложение "
+              - button "FreeModel" [ref=e30] [cursor=pointer]
+              - text: "\""
+        - generic [ref=e33]:
+          - list [ref=e41]:
+            - listitem [ref=e42]:
+              - link "yorfnewera@gmail.com" [ref=e43] [cursor=pointer]:
+                - generic [ref=e48]: yorfnewera@gmail.com
+            - listitem [ref=e49]:
+              - link "Использовать другой аккаунт" [ref=e50] [cursor=pointer]:
+                - generic [ref=e51]:
+                  - img [ref=e53]
+                  - generic [ref=e56]: Использовать другой аккаунт
+          - generic [ref=e59]:
+            - text: Прежде чем начать работу с приложением "FreeModel", вы можете ознакомиться с его
+            - link "политикой конфиденциальности" [ref=e60] [cursor=pointer]:
+              - /url: https://freemodel.dev/privacy
+            - text: и
+            - link "условиями использования" [ref=e61] [cursor=pointer]:
+              - /url: https://freemodel.dev/terms
+            - text: .
+    - contentinfo [ref=e66]:
+      - combobox "Изменение языковых настроек Русский" [ref=e70] [cursor=pointer]:
+        - generic:
+          - generic: Русский
+        - generic:
+          - img
+      - list [ref=e72]:
+        - listitem [ref=e73]:
+          - link "Справка" [ref=e74] [cursor=pointer]:
+            - /url: https://support.google.com/accounts?hl=ru&p=account_iph
+        - listitem [ref=e75]:
+          - link "Конфиденциальность" [ref=e76] [cursor=pointer]:
+            - /url: https://accounts.google.com/TOS?loc=FR&hl=ru&privacy=true
+        - listitem [ref=e77]:
+          - link "Условия" [ref=e78] [cursor=pointer]:
+            - /url: https://accounts.google.com/TOS?loc=FR&hl=ru
+  - iframe [ref=e79]:
+    

@@ -1,0 +1,44 @@
+- generic [ref=e1]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - progressbar [ref=e6]
+      - main [ref=e14]:
+        - generic [ref=e15]:
+          - img [ref=e18]
+          - generic [ref=e23]:
+            - heading "Вход" [level=1] [ref=e24]
+            - generic [ref=e25]: с аккаунтом Google. Этот аккаунт будет доступен другим приложениям Google в браузере.
+        - generic [ref=e28]:
+          - generic [ref=e33]:
+            - generic [ref=e38]:
+              - textbox "Телефон или адрес эл. почты" [active] [ref=e39]
+              - generic: Телефон или адрес эл. почты
+            - button "Забыли адрес электронной почты?" [ref=e43] [cursor=pointer]
+          - generic [ref=e46]:
+            - text: Не ваш компьютер? Включите гостевой режим, чтобы защитить данные в аккаунте.
+            - link "Подробнее об использовании гостевого режима (внешняя ссылка, откроется в новом окне)" [ref=e47] [cursor=pointer]:
+              - /url: https://support.google.com/chrome/answer/6130773?hl=ru
+              - text: Подробнее об использовании гостевого режима
+        - generic [ref=e49]:
+          - button "Далее" [ref=e53]:
+            - generic [ref=e56]: Далее
+          - button "Создать аккаунт" [ref=e62]:
+            - generic [ref=e65]: Создать аккаунт
+    - contentinfo [ref=e69]:
+      - combobox "Изменение языковых настроек Русский" [ref=e73] [cursor=pointer]:
+        - generic:
+          - generic: Русский
+        - generic:
+          - img
+      - list [ref=e75]:
+        - listitem [ref=e76]:
+          - link "Справка" [ref=e77] [cursor=pointer]:
+            - /url: https://support.google.com/accounts?hl=ru&p=account_iph
+        - listitem [ref=e78]:
+          - link "Конфиденциальность" [ref=e79] [cursor=pointer]:
+            - /url: https://accounts.google.com/TOS?loc=RU&hl=ru&privacy=true
+        - listitem [ref=e80]:
+          - link "Условия" [ref=e81] [cursor=pointer]:
+            - /url: https://accounts.google.com/TOS?loc=RU&hl=ru
+  - iframe [ref=e82]:
+    

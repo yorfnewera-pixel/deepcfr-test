@@ -1,0 +1,49 @@
+{
+  "runs": [
+    {
+      "seed": 107,
+      "samples": 48,
+      "mean_difference": 0.0,
+      "std_difference": 0.0,
+      "bb_per_100": 0.0,
+      "search_decisions": 14,
+      "reach_weighted_decisions": 14,
+      "blueprint_fallback_decisions": 0,
+      "action_comparisons": 14,
+      "action_changes": 0,
+      "search_decisions_by_stage": {
+        "flop": 14,
+        "turn": 0,
+        "river": 0
+      },
+      "action_changes_by_stage": {
+        "flop": 0,
+        "turn": 0,
+        "river": 0
+      }
+    },
+    {
+      "seed": 109,
+      "samples": 48,
+      "mean_difference": 0.0,
+      "std_difference": 0.0,
+      "bb_per_100": 0.0,
+      "search_decisions": 15,
+      "reach_weighted_decisions": 15,
+      "blueprint_fallback_decisions": 0,
+      "action_comparisons": 15,
+      "action_changes": 0,
+      "search_decisions_by_stage": {
+        "flop": 15,
+        "turn": 0,
+        "river": 0
+      },
+      "action_changes_by_stage": {
+        "flop": 0,
+        "turn": 0,
+        "river": 0
+      }
+    }
+  ],
+  "total_samples": 96
+}

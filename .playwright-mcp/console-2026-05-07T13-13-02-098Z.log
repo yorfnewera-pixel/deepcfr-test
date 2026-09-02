@@ -1,0 +1,8 @@
+[     215ms] [LOG] %c%s color: red; background: yellow; font-size: 24px; ВНИМАНИЕ! @ https://www.gstatic.com/_/mss/boq-chrome-webstore/_/js/k=boq-chrome-webstore.ChromeWebStoreConsumerFeUi.ru.OWe1F6fT1lA.2018.O/am=gIEBAAAAsw/d=1/excm=_b,_tp,categoryview/ed=1/dg=0/wt=2/ujg=1/rs=AEP720JXQrWdIuPWn0yn17Pek7c2aeJ7tw/dti=1/m=_b,_tp:414
+[     215ms] [LOG] %c%s font-size: 18px; Используя эту консоль, вы можете подвергнуться атаке Self-XSS, что позволит злоумышленникам совершать действия от вашего имени и получать доступ к вашим данным.
+Не вводите и не вставляйте программный код, который не понимаете. @ https://www.gstatic.com/_/mss/boq-chrome-webstore/_/js/k=boq-chrome-webstore.ChromeWebStoreConsumerFeUi.ru.OWe1F6fT1lA.2018.O/am=gIEBAAAAsw/d=1/excm=_b,_tp,categoryview/ed=1/dg=0/wt=2/ujg=1/rs=AEP720JXQrWdIuPWn0yn17Pek7c2aeJ7tw/dti=1/m=_b,_tp:414
+[    5647ms] [ERROR] Failed to load resource: the server responded with a status of 429 () @ https://feedback-pa.clients6.google.com/v1/survey/trigger/trigger_anonymous?key=AIzaSyA0vwca3tL87eYFZub4l3oBUxBL9Em8QVQ:0
+[    9198ms] Error: store.subscribe called too early
+    at Object.subscribe (chrome-extension://omghfjlpggmjjaagoclmmobgdodcjboh/common.js:19:72990)
+    at q.connectedCallback (chrome-extension://omghfjlpggmjjaagoclmmobgdodcjboh/common.js:19:127)
+    at chrome-extension://omghfjlpggmjjaagoclmmobgdodcjboh/pages/congratulations/congratulations.js:465:7318

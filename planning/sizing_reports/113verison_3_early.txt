@@ -1,0 +1,1075 @@
+Использую `writing-plans` для итогового плана внедрения осторожного Q-assisted sizing. План ниже рассчитан на работу агентом в несколько этапов; текущий код не изменялся.
+
+# Q-Assisted Sizing With CFR Priority
+
+> **Для агента:** использовать `subagent-driven-development` или `executing-plans`. Каждый этап выполнять отдельно, сначала тесты, затем код. Не подключать Q к основной sizing policy до прохождения offline shadow-проверок.
+
+**Цель:** добавить Q как вспомогательную аппроксимацию несыгранных доступных sizing-анкеров, сохранив grounded CFR-значения сыгранных анкеров и рабочий чистый CFR-режим как обязательный baseline.
+
+**Архитектура:**
+
+```text
+advantage_sizing_net:
+    текущая CFR sizing policy и regret matching
+
+sizing_q_net:
+    Q(state, anchor_size) для оценки несыгранных анкеров
+
+grounded values:
+    приоритетный сигнал для реально кредитуемых анкеров
+
+q_hybrid:
+    grounded values для credited anchors
+    Q estimates для legal uncredited anchors
+    illegal anchors исключаются
+    затем EV → regrets → regret matching
+```
+
+`q_hybrid` должен быть feature flag. При выключенном флаге результат и sampling текущего `sizing_cfr_mode` должны оставаться без изменений.
+
+**Tech Stack:** Python 3.11, PyTorch, NumPy, `pokers`, pytest, существующие `SizingAdvantageBuffer`, `SizingQBuffer`, sizing diagnostics.
+
+---
+
+## Зафиксированные дополнения v3
+
+Этот документ является единым планом. Уточнения ниже включены в задачи
+плана, а не образуют другой эксперимент.
+
+Последовательность выполнения:
+
+```text
+1. Task 1 и Task 13: зафиксировать full-buffer baseline и проверить epochs.
+2. Task 2 и Task 3: зафиксировать семантику anchor-ов и parity чистого CFR.
+3. Task 4 и Task 9: измерить Q coverage и ranking на checkpoint.
+4. Task 5, Task 6 и Task 10: offline shadow hybrid.
+5. Task 7, Task 11 и Task 12: feature flag и короткий online A/B.
+6. Task 15--17: holdout gate и игровой A/B.
+```
+
+Если ranking audit не пройден, это запрещает только online `q_hybrid`.
+Он не отменяет shadow diagnostics и не меняет чистый CFR baseline.
+
+## Task 1: Зафиксировать baseline и конфигурацию
+
+**Файлы:**
+
+- Modify: `config.yaml`
+- Modify: `src/utils/config.py`
+- Modify: `src/core/deep_cfr.py`
+- Test: `tests/test_sizing_q_regret.py`
+
+Добавить явные параметры:
+
+```yaml
+full_buffer_training: true
+advantage_epochs: 3
+strategy_epochs: 3
+sizing_advantage_epochs: 3
+sizing_strategy_epochs: 3
+sizing_q_epochs: 3
+
+sizing_policy_source: cfr
+sizing_q_hybrid_enabled: false
+sizing_q_hybrid_min_samples: 5000
+sizing_q_hybrid_require_anchor_coverage: true
+sizing_q_hybrid_require_q_ready: true
+sizing_q_hybrid_blend_credited: false
+sizing_q_hybrid_uncredited_floor: 0.0
+```
+
+Допустимые значения:
+
+```text
+sizing_policy_source: cfr
+    текущий baseline
+
+sizing_policy_source: q_hybrid
+    экспериментальный режим
+```
+
+Не менять текущие рабочие значения:
+
+```yaml
+sizing_cfr_mode: true
+sizing_cfr_regret_grounded_ev: true
+sizing_credit_mask_enabled: true
+sizing_q_enabled: true
+sizing_probe_prob_start: 0.0
+sizing_probe_prob_end: 0.0
+sizing_lookahead_enabled: false
+sizing_bucket_explore_prob: 0.2
+```
+
+Для full-buffer режима:
+
+```text
+action advantage и sizing advantage очищаются перед новой итерацией;
+strategy, sizing strategy и sizing-Q replay остаются persistent;
+одна epoch использует каждую строку текущего buffer ровно один раз;
+target networks синхронизируются после соответствующего обучения.
+```
+
+Добавить в checkpoint metadata:
+
+```python
+{
+    "sizing_policy_source": ...,
+    "sizing_q_hybrid_enabled": ...,
+    "sizing_q_hybrid_min_samples": ...,
+    "sizing_q_hybrid_require_anchor_coverage": ...,
+}
+```
+
+Тесты:
+
+```text
+default sizing_policy_source == "cfr"
+default hybrid disabled
+старые checkpoint загружаются с fallback на cfr
+```
+
+---
+
+## Task 2: Зафиксировать семантику credited и uncredited anchors
+
+**Файлы:**
+
+- Modify: `src/core/deep_cfr.py`
+- Test: `tests/test_sizing_q_regret.py`
+
+Ввести явные множества для sizing state:
+
+```text
+legal_indices:
+    доступные анкеры после availability/legal mask
+
+credited_indices:
+    анкеры, для которых есть grounded value в текущем traversal
+
+uncredited_indices:
+    legal_indices - credited_indices
+
+illegal_indices:
+    все остальные
+```
+
+Не путать:
+
+```text
+available != credited
+regret == 0 != uncredited
+```
+
+Правила:
+
+```text
+illegal:
+    никогда не участвуют в EV, regrets или policy
+
+credited:
+    имеют grounded value и приоритетный CFR target
+
+uncredited legal:
+    могут получить provisional Q value только в q_hybrid
+
+zero regret:
+    остаётся нулевым regret;
+    Q не должен автоматически превращать его в положительный regret
+```
+
+Добавить helper:
+
+```python
+def _split_sizing_anchor_indices(
+    self,
+    state,
+    credit_mask,
+):
+    ...
+```
+
+Возвращать:
+
+```python
+legal_mask
+credit_mask
+legal_indices
+credited_indices
+uncredited_indices
+```
+
+Тесты:
+
+1. Недоступные анкеры не входят в `legal_indices`.
+2. `credited_indices` является подмножеством legal.
+3. uncredited anchors не путаются с zero-regret anchors.
+4. all-in boundary корректно считается legal только когда разрешён текущей availability-логикой.
+5. При отсутствии credit все legal anchors остаются uncredited.
+
+---
+
+## Task 3: Не менять текущий CFR sizing baseline
+
+**Файлы:**
+
+- Modify: `src/core/deep_cfr.py` только при необходимости
+- Test: `tests/test_sizing_q_regret.py`
+- Test: `tests/test_hybrid_outcome_sampling.py`
+
+До добавления hybrid зафиксировать regression behavior текущей ветки:
+
+```python
+if self.sizing_cfr_mode:
+    advantage_sizing_net
+    regret_matching_anchors
+```
+
+Проверить, что при:
+
+```yaml
+sizing_policy_source: cfr
+sizing_q_hybrid_enabled: false
+```
+
+не меняются:
+
+```text
+full_probs
+sampled_anchor_idx
+sizing_traversal_samples
+K_sampled
+K_credited
+EV_sizing
+sizing_cf_regrets
+sizing_advantage_buffer rows
+sizing_strategy_buffer rows
+```
+
+На фиксированном seed допустимо сравнение:
+
+```text
+точные значения при сохранённом RNG order
+```
+
+Если добавление диагностических вызовов меняет RNG sequence, все новые diagnostics должны быть RNG-free.
+
+---
+
+## Task 4: Добавить Q-аудит качества по anchor ranking
+
+**Файлы:**
+
+- Create: `tools/diagnose_sizing_q_ranking.py`
+- Test: `tests/test_sizing_q_regret.py`
+
+Инструмент должен работать на checkpoint и сохранённых sizing-Q samples.
+
+Для каждого sample/state:
+
+```text
+получить Q(state, все 15 anchors)
+применить availability mask
+выделить legal anchors
+получить grounded target там, где он доступен
+```
+
+Считать:
+
+```text
+Q MSE на credited anchors
+Q MAE на credited anchors
+pairwise ranking accuracy
+top-1 ranking accuracy
+top-k overlap
+legal-only ranking accuracy
+```
+
+Pairwise metric:
+
+```text
+если grounded[a] > grounded[b],
+проверить Q[a] > Q[b]
+```
+
+Не сравнивать Q с `q_anchor - ev`, если текущий target установлен как clean:
+
+```text
+grounded - EV_sizing
+```
+
+Для Q нужно использовать именно Q-target semantics из `SizingQBuffer`.
+
+Выводить отдельно:
+
+```text
+NORMAL
+MIN_RAISE
+ALL_IN
+UNKNOWN
+source=0
+source=1
+source=2
+```
+
+Команда:
+
+```powershell
+py tools/diagnose_sizing_q_ranking.py `
+  --checkpoint models/v20_full3/multi_checkpoint_iter_5.pt `
+  --output models/v20_full3/q_ranking_iter5.json
+```
+
+Минимальные условия допуска к shadow hybrid:
+
+```text
+Q buffer достиг min_total_samples
+есть coverage по anchors
+legal-only pairwise ranking не хуже random baseline
+```
+
+Если эти условия не выполнены, hybrid должен автоматически fallback в `cfr`.
+
+---
+
+## Task 5: Добавить offline shadow hybrid
+
+**Файлы:**
+
+- Modify: `tools/diagnose_sizing_input_discrimination.py`
+- Create: `tools/diagnose_sizing_hybrid.py`
+- Test: `tests/test_sizing_q_regret.py`
+
+Shadow режим не должен менять checkpoint, training buffers или production policy.
+
+Для одного sizing state построить три distributions:
+
+```text
+cfr:
+    full_probs от advantage_sizing_net
+
+q:
+    Q по всем legal anchors
+    baseline/advantage conversion
+    regret matching
+
+hybrid:
+    grounded для credited
+    Q для uncredited legal
+    regret matching
+```
+
+Для hybrid:
+
+```python
+values = q_values.copy()
+
+values[credited_indices] = grounded_values[credited_indices]
+values[illegal_indices] = 0.0
+
+ev = weighted_baseline(values, ...)
+regrets = values - ev
+regrets[illegal_indices] = 0.0
+policy = regret_matching_anchors(regrets, min_prob=...)
+```
+
+Важное ограничение:
+
+```text
+Q не заменяет grounded credited values.
+Q используется только для legal uncredited anchors.
+```
+
+Сравнивать:
+
+```text
+TV(cfr, grounded policy)
+TV(q, grounded policy)
+TV(hybrid, grounded policy)
+TV(..., uniform)
+```
+
+Также:
+
+```text
+entropy
+top anchor
+legal anchor count
+credited count
+uncredited count
+max Q-min Q
+value spread
+```
+
+До подключения в traversal нужно проверить shadow на фиксированном holdout.
+
+---
+
+## Task 6: Определить корректный baseline для Q uncredited anchors
+
+**Файлы:**
+
+- Modify: `src/core/deep_cfr.py`
+- Test: `tests/test_sizing_q_regret.py`
+
+Не использовать автоматически `Q` как абсолютный EV без проверки scale.
+
+Для первого hybrid режима использовать:
+
+```text
+credited:
+    grounded value
+
+uncredited:
+    Q prediction
+```
+
+Но baseline для regret должен быть определён явно.
+
+Рекомендуемый первый вариант:
+
+```python
+ev_hybrid = sum(
+    current_anchor_policy[k] * values[k]
+    for k in legal_indices
+)
+```
+
+Затем:
+
+```python
+regrets[k] = values[k] - ev_hybrid
+```
+
+Если текущая policy не должна участвовать в hybrid baseline, добавить отдельный режим, но не смешивать его с первым экспериментом.
+
+Не использовать:
+
+```text
+Q overwrite для всех anchors
+Q overwrite для credited anchors
+Q-derived arbitrary temperature
+Q-derived manual neighbor interpolation
+```
+
+Тесты на маленьком искусственном примере:
+
+```text
+credited anchor 0.50: grounded=0.20
+uncredited 0.75: Q=0.30
+uncredited 1.25: Q=0.05
+illegal 0.33
+```
+
+Проверить:
+
+```text
+0.50 и 0.75 получают policy mass согласно regrets;
+1.25 не получает положительную массу;
+0.33 получает ровно 0;
+grounded 0.50 не заменяется Q.
+```
+
+---
+
+## Task 7: Подключить hybrid только в sizing policy path
+
+**Файлы:**
+
+- Modify: `src/core/deep_cfr.py:1702-1820`
+- Test: `tests/test_sizing_q_regret.py`
+- Test: `tests/test_hybrid_outcome_sampling.py`
+
+Добавить отдельный helper:
+
+```python
+def _build_q_hybrid_sizing_policy(
+    self,
+    state,
+    sizing_state_tensor,
+    full_cfr_probs,
+    grounded_by_idx,
+    legal_mask,
+    iteration,
+):
+    ...
+```
+
+Поведение:
+
+```text
+если hybrid disabled:
+    вернуть текущий full_cfr_probs
+
+если Q not ready:
+    вернуть текущий full_cfr_probs
+
+если нет legal uncredited anchors:
+    вернуть текущий full_cfr_probs
+
+иначе:
+    Q оценивает только legal anchors
+    grounded заменяет Q только в credited indices
+    policy строится через sizing regret matching
+```
+
+Не менять hybrid-режимом:
+
+```text
+action advantage policy
+opponent action sampling
+opponent sizing sampling до отдельного решения
+K-collapse representative rule
+importance weights
+sizing Q training target
+```
+
+Первый вариант можно подключать только для traverser full-node sizing. Opponent sizing оставить на текущем `use_q=False` и текущем CFR sizing path, пока не будет отдельного A/B.
+
+Это ограничивает blast radius.
+
+---
+
+## Task 8: Не позволить Q менять dominant CFR anchor без основания
+
+Твоя поправка про 20% правильна: exploration не должен отнимать у dominant anchor его обычную CFR-массу.
+
+Текущий механизм оставить:
+
+```text
+80%:
+    выбрать наиболее вероятный доступный anchor в bucket через argmax
+
+20%:
+    выбрать случайный доступный anchor внутри этого bucket
+```
+
+Это bucket-level exploration, а не 20% игры для каждого из 15 anchors и не
+равномерный floor по anchors. Для bucket-ов `small=[0.10, 0.25]`,
+`medium=[0.33, 0.50, 0.66, 0.75]`,
+`large=[1.00, ..., 3.00]` условная вероятность недоминирующего anchor в
+exploration-событии равна соответственно 10%, 5% и примерно 2.22%.
+Dominant anchor сохраняет свою CFR-массу и дополнительно может быть выбран
+во время exploration.
+
+Не заменять эту sampling policy Q-guided choice на первом этапе.
+
+В hybrid режиме Q влияет только на value/regret vector для uncredited anchors. Однако для защиты baseline добавить diagnostics:
+
+```text
+cfr_top_anchor
+hybrid_top_anchor
+cfr_mass_on_top
+hybrid_mass_on_top
+mass_delta_total_variation
+```
+
+Порог на первом shadow/run не применять автоматически. Сначала только логировать.
+
+Если hybrid резко переносит массу с dominant CFR anchor, это должно быть видно в логе, но не должно маскироваться под обычный sizing exploration.
+
+---
+
+## Task 9: Уточнить сбор Q samples
+
+**Файлы:**
+
+- Modify: `src/core/deep_cfr.py`
+- Modify: `src/core/buffers.py`
+- Test: `tests/test_sizing_q_regret.py`
+
+Логировать реальное Q coverage:
+
+```text
+samples_total
+unique_states
+samples_by_anchor
+unique_states_by_anchor
+samples_by_source
+samples_by_selected_kind
+legal_samples
+illegal_samples
+anchor availability counts
+anchor credited counts
+anchor selected counts
+```
+
+Не считать 20% bucket exploration равномерным покрытием 15 anchors.
+
+При этом не менять exploration distribution в рамках первого hybrid patch.
+
+Добавить отчёт:
+
+```text
+условная вероятность выбранного anchor внутри bucket
+фактическая частота anchor в Q buffer
+```
+
+Поскольку bucket sizes различаются:
+
+```text
+small: 2 anchors
+medium: 4 anchors
+large: 9 anchors
+```
+
+фактическая частота должна измеряться по 15 anchors, а не выводиться из единого `explore=0.2`.
+
+---
+
+## Task 10: Добавить shadow-сравнение на уже сохранённом checkpoint
+
+**Файлы:**
+
+- Create: `tools/evaluate_sizing_hybrid_checkpoint.py`
+- Test: `tests/test_sizing_q_regret.py`
+
+Инструмент должен работать без нового training.
+
+Для checkpoint:
+
+```text
+models/v20_full3/multi_checkpoint_iter_5.pt
+```
+
+собрать:
+
+```text
+CFR baseline
+Q-only diagnostic
+Q-hybrid diagnostic
+uniform
+```
+
+На одном фиксированном наборе sizing states сохранить:
+
+```text
+policy vector по 15 anchors
+legal mask
+credit mask
+grounded values
+Q values
+CFR values
+EV
+regrets
+entropy
+top anchors
+```
+
+Нельзя использовать этот shadow output как доказательство игрового EV без независимого rollout holdout.
+
+---
+
+## Task 11: Подготовить online A/B
+
+**Файлы:**
+
+- Modify: `src/training/train.py`
+- Modify: `src/core/deep_cfr.py`
+- Test: `tests/test_training_regressions.py`
+
+Добавить CLI/config режим:
+
+```text
+--sizing-policy-source cfr
+--sizing-policy-source q_hybrid
+```
+
+Сохранить checkpoint metadata:
+
+```text
+sizing_policy_source
+q_ready
+q_buffer_size
+q_anchor_coverage
+hybrid_credited_count
+hybrid_uncredited_count
+```
+
+Первый online A/B:
+
+```text
+Arm A:
+    sizing_policy_source=cfr
+
+Arm B:
+    sizing_policy_source=q_hybrid
+```
+
+Одинаковые:
+
+```text
+seed
+initial checkpoint
+traversals
+iterations
+full-buffer epochs
+action policy
+sizing buckets
+availability masks
+Q training schedule
+```
+
+Не менять одновременно:
+
+```text
+epochs
+Q target formula
+K-collapse
+exploration probability
+action network
+```
+
+---
+
+## Task 12: Добавить hybrid diagnostics в traversal
+
+**Файлы:**
+
+- Modify: `src/core/deep_cfr.py`
+- Modify: `src/training/train.py`
+- Test: `tests/test_hybrid_outcome_sampling.py`
+
+На каждой итерации логировать:
+
+```text
+hybrid_calls
+hybrid_fallback_not_ready
+hybrid_fallback_no_uncredited
+credited_mean
+uncredited_mean
+legal_mean
+q_used_rows
+grounded_used_rows
+cfr_vs_hybrid_tv_mean
+q_vs_cfr_tv_mean
+q_policy_mass_delta
+```
+
+Отдельно:
+
+```text
+hybrid changed top anchor count
+hybrid changed policy mass > threshold count
+```
+
+Для sizing Q:
+
+```text
+Q buffer size
+Q full epochs
+Q actual steps
+Q expected steps
+Q loss
+Q ranking diagnostics
+```
+
+Не печатать только общий `Sizing anchor loss`; он недостаточен для оценки hybrid.
+
+---
+
+## Task 13: Проверить полные эпохи и Q training
+
+**Файлы:**
+
+- Modify: `tests/test_training_regressions.py`
+- Modify: `tests/test_sizing_q_regret.py`
+
+Проверить при текущем:
+
+```yaml
+full_buffer_training: true
+advantage_epochs: 3
+strategy_epochs: 3
+sizing_advantage_epochs: 3
+sizing_strategy_epochs: 3
+sizing_q_epochs: 3
+```
+
+Ожидаемо:
+
+```text
+action advantage:
+    expected = 3 × ceil(n / 1024)
+
+strategy:
+    expected = 3 × ceil(n / 1024)
+
+sizing advantage:
+    expected = 3 × ceil(n / 256)
+
+sizing strategy:
+    expected = 3 × ceil(n / 128)
+
+sizing Q:
+    expected = 3 × ceil(n / 256)
+```
+
+Проверить:
+
+```text
+sizing Q реально обучается;
+Q target не меняется в зависимости от hybrid policy;
+hybrid не запускается до q_ready;
+action Q не создаётся при use_q_baseline=false;
+sizing advantage fresh coverage = 100%;
+sizing advantage fresh_share = 1.0;
+sizing advantage stale_rows = 0;
+target networks синхронизируются после обучения;
+actual_steps == expected_steps для всех активных сетей.
+```
+
+---
+
+## Task 14: Проверить текущий sizing checkpoint до online hybrid
+
+**Команды:**
+
+```powershell
+$py = 'C:\Users\Cassmall\AppData\Local\Programs\Python\Python311\python.exe'
+
+& $py tools\diagnose_sizing_input_discrimination.py `
+  -c models\v20_full3\multi_checkpoint_iter_5.pt `
+  --target clean `
+  -o models\v20_full3\sizing_input_iter5_clean.txt
+
+& $py tools\diagnose_sizing_accumulation.py `
+  --dir models\v20_full3 `
+  --iters 5 `
+  -o models\v20_full3\sizing_accumulation_iter5.txt
+
+& $py tools\diagnose_sizing_q_ranking.py `
+  --checkpoint models\v20_full3\multi_checkpoint_iter_5.pt `
+  --output models\v20_full3\q_ranking_iter5.json
+```
+
+Если `q_ranking` ещё не реализован, сначала выполнить Tasks 1–5. Не включать hybrid только на основании:
+
+```text
+Q loss
+Q buffer size
+Q ready flag
+```
+
+Нужна проверка ranking/coverage.
+
+---
+
+## Task 15: Offline holdout gate
+
+Для Q допуска к online hybrid зафиксировать минимальные условия:
+
+```text
+1. Q buffer >= sizing_q_hybrid_min_samples.
+2. Есть coverage по legal anchors.
+3. Q ranking accuracy выше random baseline.
+4. Q не имеет catastrophic error на legal/all-in samples.
+5. Grounded credited values остаются лучше Q-only на credited holdout.
+6. Hybrid не ухудшает policy distance к grounded holdout относительно CFR baseline без статистически заметного объяснения.
+```
+
+Не требовать заранее конкретного качества EV. На этом этапе проверяется корректность и полезность Q как аппроксиматора.
+
+---
+
+## Task 16: Online A/B на коротком запуске
+
+Сначала:
+
+```powershell
+py -m src.training.train `
+  --self-play-multi `
+  --seed 1 `
+  --iterations 1 `
+  --traversals 200 `
+  --sizing-policy-source cfr `
+  --save-dir models/qhybrid_cfr_smoke `
+  --log-dir logs/qhybrid_cfr_smoke `
+  --profile-level coarse
+```
+
+Затем с теми же параметрами:
+
+```powershell
+py -m src.training.train `
+  --self-play-multi `
+  --seed 1 `
+  --iterations 1 `
+  --traversals 200 `
+  --sizing-policy-source q_hybrid `
+  --save-dir models/qhybrid_hybrid_smoke `
+  --log-dir logs/qhybrid_hybrid_smoke `
+  --profile-level coarse
+```
+
+Сравнить:
+
+```text
+nodes/root
+time/node
+K_sampled
+K_credited
+raise frequency
+hybrid fallbacks
+mass delta
+Q used rows
+sizing-Q loss
+strategy sizing loss
+```
+
+Если hybrid меняет дерево чрезмерно, остановить online эксперимент и вернуться к shadow diagnostics.
+
+---
+
+## Task 17: Игровой A/B
+
+После smoke:
+
+```text
+CFR baseline vs Q-hybrid
+```
+
+на одинаковых:
+
+```text
+checkpoint
+board/deck schedule
+32k hands
+seed 1
+seed 2
+common random numbers
+inference thresholds
+```
+
+Сравнивать:
+
+```text
+blueprint - uniform
+q_hybrid - uniform
+q_hybrid - cfr
+min_available - max_available
+mean anchor multiplier
+raise frequency
+EV на hero raise states
+policy entropy
+```
+
+Не использовать старый oracle как сертификатор. Для локальных anchor values применять:
+
+```text
+policy construction rollouts
++
+независимый holdout rollout
+```
+
+чтобы не выбирать лучший anchor по тому же шумному rollout, на котором он оценивается.
+
+---
+
+## Task 18: Что нельзя менять в этой задаче
+
+Не менять одновременно с Q-hybrid:
+
+```text
+sizing_bucket_groups
+sizing_bucket_explore_prob
+sizing_min_prob
+sizing_cfr_regret_grounded_ev
+sizing_credit_mask_enabled
+sizing_accumulation_center_prev
+sizing_availability_on_input
+action advantage
+action Q
+full-buffer epoch counts
+K-collapse algorithm
+```
+
+Также не менять одновременно:
+
+```text
+sizing_accumulation_center_prev
+sizing_availability_on_input
+sizing_cfr_regret_grounded_ev
+sizing_credit_mask_enabled
+```
+
+Не подключать Q к:
+
+```text
+opponent action policy
+action advantage
+action Q
+opponent sizing
+```
+
+пока не завершён отдельный sizing-only A/B.
+
+---
+
+## Критерии успеха
+
+### Техническая корректность
+
+```text
+1. cfr mode полностью совпадает с текущим baseline.
+2. hybrid fallback работает, когда Q not ready.
+3. illegal anchors всегда имеют zero policy mass.
+4. grounded credited values никогда не заменяются Q.
+5. uncredited legal anchors получают Q только в hybrid.
+6. Q не меняет собственные training targets.
+7. Q buffer coverage логируется по 15 anchors.
+8. action Q остаётся выключенной.
+9. full epochs действительно покрывают buffer.
+10. checkpoint lifecycle сохраняет режим и diagnostics.
+```
+
+### Качество
+
+Не требовать немедленного выигрыша против random. Сначала:
+
+```text
+Q ranking > random
+hybrid policy не хуже CFR на grounded holdout
+```
+
+Затем:
+
+```text
+q_hybrid лучше cfr на независимом sizing gate
+```
+
+и только потом:
+
+```text
+q_hybrid лучше uniform по игровой метрике
+```
+
+## Итоговая последовательность
+
+```text
+CFR policy
+    ↓
+real sampled sizing anchors
+    ↓
+grounded values для credited anchors
+
+Q training
+    ↓
+Q(state, size) для legal uncredited anchors
+    ↓
+offline ranking/coverage audit
+
+если Q прошла audit:
+    grounded + Q hybrid
+    ↓
+sizing regrets
+    ↓
+regret matching
+    ↓
+K-collapse sampling
+
+если Q не прошла audit:
+    остаёмся на чистом CFR baseline
+```
+
+Да, я согласен с твоим уточнением: текущая bucket exploration не должна рассматриваться как гарантия равномерного исследования 15 анкоров. Но её роль может быть именно такой, как ты описал: в основном сохранять доминирующий CFR anchor и лишь иногда пробовать альтернативы внутри каждого доступного bucket-а. Q нужна не для того, чтобы отнять массу у доминирующего анкера заранее, а чтобы дать оценку legal uncredited anchors в отдельном hybrid-режиме.

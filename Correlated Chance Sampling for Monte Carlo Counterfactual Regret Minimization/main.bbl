@@ -1,0 +1,355 @@
+\begin{thebibliography}{51}
+\providecommand{\natexlab}[1]{#1}
+\providecommand{\url}[1]{\texttt{#1}}
+\expandafter\ifx\csname urlstyle\endcsname\relax
+  \providecommand{\doi}[1]{doi: #1}\else
+  \providecommand{\doi}{doi: \begingroup \urlstyle{rm}\Url}\fi
+
+\bibitem[Avron et~al.(2016)Avron, Sindhwani, Yang, and Mahoney]{avron2016quasi}
+Haim Avron, Vikas Sindhwani, Jiyan Yang, and Michael~W Mahoney.
+\newblock Quasi-monte carlo feature maps for shift-invariant kernels.
+\newblock \emph{Journal of Machine Learning Research}, 17\penalty0
+  (120):\penalty0 1--38, 2016.
+
+\bibitem[Baghal(2025)]{baghal2025pasur}
+Sina Baghal.
+\newblock Solving pasur using gpu-accelerated counterfactual regret
+  minimization.
+\newblock \emph{arXiv preprint arXiv:2508.06559}, 2025.
+
+\bibitem[Bertram et~al.(2024)Bertram, F{\"u}rnkranz, and
+  M{\"u}ller]{bertram2024efficiently}
+Timo Bertram, Johannes F{\"u}rnkranz, and Martin M{\"u}ller.
+\newblock Efficiently training neural networks for imperfect information games
+  by sampling information sets.
+\newblock In \emph{German Conference on Artificial Intelligence (K{\"u}nstliche
+  Intelligenz)}, pages 17--29. Springer, 2024.
+
+\bibitem[Brown and Sandholm(2018)]{brown2018superhuman}
+Noam Brown and Tuomas Sandholm.
+\newblock Superhuman ai for heads-up no-limit poker: Libratus beats top
+  professionals.
+\newblock \emph{Science}, 359\penalty0 (6374):\penalty0 418--424, 2018.
+
+\bibitem[Brown and Sandholm(2019{\natexlab{a}})]{brown2019solving}
+Noam Brown and Tuomas Sandholm.
+\newblock Solving imperfect-information games via discounted regret
+  minimization.
+\newblock In \emph{Proceedings of the AAAI Conference on Artificial
+  Intelligence}, volume~33, pages 1829--1836, 2019{\natexlab{a}}.
+
+\bibitem[Brown and Sandholm(2019{\natexlab{b}})]{brown2019superhuman}
+Noam Brown and Tuomas Sandholm.
+\newblock Superhuman ai for multiplayer poker.
+\newblock \emph{Science}, 365\penalty0 (6456):\penalty0 885--890,
+  2019{\natexlab{b}}.
+
+\bibitem[Brown et~al.(2019)Brown, Lerer, Gross, and Sandholm]{brown2019deep}
+Noam Brown, Adam Lerer, Sam Gross, and Tuomas Sandholm.
+\newblock Deep counterfactual regret minimization.
+\newblock In \emph{International conference on machine learning}, pages
+  793--802. PMLR, 2019.
+
+\bibitem[Brown et~al.(2020)Brown, Bakhtin, Lerer, and Gong]{brown2020combining}
+Noam Brown, Anton Bakhtin, Adam Lerer, and Qucheng Gong.
+\newblock Combining deep reinforcement learning and search for
+  imperfect-information games.
+\newblock \emph{Advances in neural information processing systems},
+  33:\penalty0 17057--17069, 2020.
+
+\bibitem[Buchholz et~al.(2018)Buchholz, Wenzel, and Mandt]{buchholz2018quasi}
+Alexander Buchholz, Florian Wenzel, and Stephan Mandt.
+\newblock Quasi-monte carlo variational inference.
+\newblock In \emph{Proceedings of the 35th International Conference on Machine
+  Learning}, volume~80 of \emph{Proceedings of Machine Learning Research},
+  pages 667--676. PMLR, 2018.
+
+\bibitem[Burch et~al.(2012)Burch, Lanctot, Szafron, and
+  Gibson]{burch2012efficient}
+Neil Burch, Marc Lanctot, Duane Szafron, and Richard Gibson.
+\newblock Efficient monte carlo counterfactual regret minimization in games
+  with many player actions.
+\newblock \emph{Advances in neural information processing systems}, 25, 2012.
+
+\bibitem[Cranley and Patterson(1976)]{cranley1976randomization}
+Roy Cranley and Thomas~NL Patterson.
+\newblock Randomization of number theoretic methods for multiple integration.
+\newblock \emph{SIAM Journal on Numerical Analysis}, 13\penalty0 (6):\penalty0
+  904--914, 1976.
+
+\bibitem[Davis et~al.(2020)Davis, Schmid, and Bowling]{davis2020low}
+Trevor Davis, Martin Schmid, and Michael Bowling.
+\newblock Low-variance and zero-variance baselines for extensive-form games.
+\newblock In \emph{International Conference on Machine Learning}, pages
+  2392--2401. PMLR, 2020.
+
+\bibitem[Farina et~al.(2020)Farina, Kroer, and Sandholm]{farina2020stochastic}
+Gabriele Farina, Christian Kroer, and Tuomas Sandholm.
+\newblock Stochastic regret minimization in extensive-form games.
+\newblock In \emph{International Conference on Machine Learning}, pages
+  3018--3028. PMLR, 2020.
+
+\bibitem[Farina et~al.(2021)Farina, Kroer, and Sandholm]{farina2021faster}
+Gabriele Farina, Christian Kroer, and Tuomas Sandholm.
+\newblock Faster game solving via predictive blackwell approachability:
+  Connecting regret matching and mirror descent.
+\newblock In \emph{Proceedings of the AAAI Conference on Artificial
+  Intelligence}, volume~35, pages 5363--5371, 2021.
+
+\bibitem[Gibson et~al.(2012)Gibson, Lanctot, Burch, Szafron, and
+  Bowling]{gibson2012generalized}
+Richard Gibson, Marc Lanctot, Neil Burch, Duane Szafron, and Michael Bowling.
+\newblock Generalized sampling and variance in counterfactual regret
+  minimization.
+\newblock In \emph{Proceedings of the AAAI Conference on Artificial
+  Intelligence}, volume~26, pages 1355--1361, 2012.
+
+\bibitem[Halton(1960)]{halton1960efficiency}
+John~H Halton.
+\newblock On the efficiency of certain quasi-random sequences of points in
+  evaluating multi-dimensional integrals.
+\newblock \emph{Numerische Mathematik}, 2\penalty0 (1):\penalty0 84--90, 1960.
+
+\bibitem[Johanson et~al.(2012)Johanson, Bard, Lanctot, Gibson, and
+  Bowling]{johanson2012efficient}
+Michael Johanson, Nolan Bard, Marc Lanctot, Richard~G Gibson, and Michael
+  Bowling.
+\newblock Efficient nash equilibrium approximation through monte carlo
+  counterfactual regret minimization.
+\newblock In \emph{AAMAS}, pages 837--846, 2012.
+
+\bibitem[Kova{\v{r}}{\'\i}k et~al.(2022)Kova{\v{r}}{\'\i}k, Schmid, Burch,
+  Bowling, and Lis{\'y}]{kovarik2022rethinking}
+Vojt{\v{e}}ch Kova{\v{r}}{\'\i}k, Martin Schmid, Neil Burch, Michael Bowling,
+  and Viliam Lis{\'y}.
+\newblock Rethinking formal models of partially observable multiagent decision
+  making.
+\newblock \emph{Artificial Intelligence}, 303:\penalty0 103645, 2022.
+
+\bibitem[Lanctot et~al.(2009)Lanctot, Waugh, Zinkevich, and
+  Bowling]{lanctot2009monte}
+Marc Lanctot, Kevin Waugh, Martin Zinkevich, and Michael Bowling.
+\newblock Monte carlo sampling for regret minimization in extensive games.
+\newblock \emph{Advances in neural information processing systems}, 22, 2009.
+
+\bibitem[Li and Huang(2025)]{li2025efficient}
+Boning Li and Longbo Huang.
+\newblock Efficient online pruning and abstraction for imperfect information
+  extensive-form games.
+\newblock In \emph{The Thirteenth International Conference on Learning
+  Representations}, 2025.
+
+\bibitem[Li and Huang(2026{\natexlab{a}})]{li2026effective}
+Boning Li and Longbo Huang.
+\newblock Effective, efficient, and general information abstraction for
+  imperfect-information extensive-form games.
+\newblock \emph{arXiv preprint arXiv:2605.10900}, 2026{\natexlab{a}}.
+
+\bibitem[Li and Huang(2026{\natexlab{b}})]{li2026parallel}
+Boning Li and Longbo Huang.
+\newblock Real-time parallel counterfactual regret minimization.
+\newblock \emph{arXiv preprint arXiv:2605.19928}, 2026{\natexlab{b}}.
+
+\bibitem[Li et~al.(2024)Li, Fang, and Huang]{li2024rl}
+Boning Li, Zhixuan Fang, and Longbo Huang.
+\newblock Rl-cfr: improving action abstraction for imperfect information
+  extensive-form games with reinforcement learning.
+\newblock In \emph{Proceedings of the 41st International Conference on Machine
+  Learning}, pages 27752--27770, 2024.
+
+\bibitem[Li et~al.(2026)Li, Wang, and Huang]{li2026pokerskill}
+Boning Li, Baoxiang Wang, and Longbo Huang.
+\newblock Pokerskill: Llms can play expert-level poker without training or
+  solvers.
+\newblock \emph{arXiv preprint arXiv:2605.30094}, 2026.
+
+\bibitem[Lis{\'y} et~al.(2015)Lis{\'y}, Lanctot, and Bowling]{lisy2015online}
+Viliam Lis{\'y}, Marc Lanctot, and Michael~H Bowling.
+\newblock Online monte carlo counterfactual regret minimization for search in
+  imperfect information games.
+\newblock In \emph{AAMAS}, pages 27--36, 2015.
+
+\bibitem[Madow and Madow(1944)]{madow1944theory}
+William~G Madow and Lillian~H Madow.
+\newblock On the theory of systematic sampling, i.
+\newblock \emph{The Annals of Mathematical Statistics}, 15\penalty0
+  (1):\penalty0 1--24, 1944.
+
+\bibitem[Mania et~al.(2018)Mania, Guy, and Recht]{mania2018simple}
+Horia Mania, Aurelia Guy, and Benjamin Recht.
+\newblock Simple random search of static linear policies is competitive for
+  reinforcement learning.
+\newblock \emph{Advances in neural information processing systems}, 31, 2018.
+
+\bibitem[McAleer et~al.(2023)McAleer, Farina, Lanctot, and
+  Sandholm]{mcaleer2023escher}
+Stephen~Marcus McAleer, Gabriele Farina, Marc Lanctot, and Tuomas Sandholm.
+\newblock Escher: Eschewing importance sampling in games by computing a history
+  value function to estimate regret.
+\newblock In \emph{The Eleventh International Conference on Learning
+  Representations}, 2023.
+
+\bibitem[Meng et~al.(2025)Meng, Chen, Li, Yang, Zhang, and
+  Gao]{meng2025reducing}
+Linjian Meng, Wubing Chen, Wenbin Li, Tianpei Yang, Youzhi Zhang, and Yang Gao.
+\newblock Reducing variance of stochastic optimization for approximating nash
+  equilibria in normal-form games.
+\newblock In \emph{Forty-second International Conference on Machine Learning},
+  2025.
+
+\bibitem[Meng et~al.(2026{\natexlab{a}})Meng, Yang, Zhang, Ge, and
+  Gao]{meng2026faster}
+Linjian Meng, Tianpei Yang, Youzhi Zhang, Zhenxing Ge, and Yang Gao.
+\newblock Faster game solving via asymmetry of step sizes.
+\newblock In \emph{Proceedings of the AAAI Conference on Artificial
+  Intelligence}, volume~40, pages 17161--17169, 2026{\natexlab{a}}.
+
+\bibitem[Meng et~al.(2026{\natexlab{b}})Meng, Zhang, Yang, Li, Ding, and
+  Gao]{meng2026parameterfree}
+Linjian Meng, Youzhi Zhang, Shangdong Yang, Wenbin Li, Tianyu Ding, and Yang
+  Gao.
+\newblock A faster parameter-free regret matching algorithm.
+\newblock In \emph{The Fourteenth International Conference on Learning
+  Representations}, 2026{\natexlab{b}}.
+
+\bibitem[Mohamed et~al.(2020)Mohamed, Rosca, Figurnov, and
+  Mnih]{mohamed2020monte}
+Shakir Mohamed, Mihaela Rosca, Michael Figurnov, and Andriy Mnih.
+\newblock Monte carlo gradient estimation in machine learning.
+\newblock \emph{Journal of Machine Learning Research}, 21\penalty0
+  (132):\penalty0 1--62, 2020.
+
+\bibitem[Morav{\v{c}}{\'\i}k et~al.(2017)Morav{\v{c}}{\'\i}k, Schmid, Burch,
+  Lis{\'y}, Morrill, Bard, Davis, Waugh, Johanson, and
+  Bowling]{moravcik2017deepstack}
+Matej Morav{\v{c}}{\'\i}k, Martin Schmid, Neil Burch, Viliam Lis{\'y}, Dustin
+  Morrill, Nolan Bard, Trevor Davis, Kevin Waugh, Michael Johanson, and Michael
+  Bowling.
+\newblock {DeepStack}: Expert-level artificial intelligence in heads-up
+  no-limit poker.
+\newblock \emph{Science}, 356\penalty0 (6337):\penalty0 508--513, 2017.
+
+\bibitem[Niederreiter(1992)]{niederreiter1992random}
+Harald Niederreiter.
+\newblock \emph{Random number generation and quasi-Monte Carlo methods}.
+\newblock SIAM, 1992.
+
+\bibitem[Owen(1997)]{owen1997monte}
+Art~B Owen.
+\newblock Monte carlo variance of scrambled net quadrature.
+\newblock \emph{SIAM Journal on Numerical Analysis}, 34\penalty0 (5):\penalty0
+  1884--1910, 1997.
+
+\bibitem[Peshkin and Shelton(2002)]{peshkin2002learning}
+Leonid Peshkin and Christian~R Shelton.
+\newblock Learning from scarce experience.
+\newblock In \emph{Proceedings of the Nineteenth International Conference on
+  Machine Learning}, pages 498--505, 2002.
+
+\bibitem[Qi et~al.(2024)Qi, Falin, Ting, Dengbing, Zhemei, and
+  Yunfeng]{qi2024accelerating}
+Ju~Qi, Hei Falin, Feng Ting, Yi~Dengbing, Fang Zhemei, and Luo Yunfeng.
+\newblock Accelerating nash equilibrium convergence in monte carlo settings
+  through counterfactual value based fictitious play.
+\newblock \emph{Advances in Neural Information Processing Systems},
+  37:\penalty0 108088--108115, 2024.
+
+\bibitem[Schmid et~al.(2019)Schmid, Burch, Lanctot, Moravcik, Kadlec, and
+  Bowling]{schmid2019variance}
+Martin Schmid, Neil Burch, Marc Lanctot, Matej Moravcik, Rudolf Kadlec, and
+  Michael Bowling.
+\newblock Variance reduction in monte carlo counterfactual regret minimization
+  (vr-mccfr) for extensive form games using baselines.
+\newblock In \emph{Proceedings of the AAAI Conference on Artificial
+  Intelligence}, volume~33, pages 2157--2164, 2019.
+
+\bibitem[Schmid et~al.(2023)Schmid, Morav{\v{c}}{\'\i}k, Burch, Kadlec,
+  Davidson, Waugh, Bard, Timbers, Lanctot, Holland, et~al.]{schmid2023student}
+Martin Schmid, Matej Morav{\v{c}}{\'\i}k, Neil Burch, Rudolf Kadlec, Josh
+  Davidson, Kevin Waugh, Nolan Bard, Finbarr Timbers, Marc Lanctot, G~Zacharias
+  Holland, et~al.
+\newblock Student of games: A unified learning algorithm for both perfect and
+  imperfect information games.
+\newblock \emph{Science Advances}, 9\penalty0 (46):\penalty0 eadg3256, 2023.
+
+\bibitem[Sobol(1967)]{sobol1967distribution}
+Ilya~M Sobol.
+\newblock Distribution of points in a cube and approximate evaluation of
+  integrals.
+\newblock \emph{USSR Computational mathematics and mathematical physics},
+  7:\penalty0 86--112, 1967.
+
+\bibitem[Srinivasan et~al.(2018)Srinivasan, Lanctot, Zambaldi, P{\'e}rolat,
+  Tuyls, Munos, and Bowling]{srinivasan2018actor}
+Sriram Srinivasan, Marc Lanctot, Vin{\'i}cius~Flores Zambaldi, Julien
+  P{\'e}rolat, Karl Tuyls, R{\'e}mi Munos, and Michael Bowling.
+\newblock Actor-critic policy optimization in partially observable multiagent
+  environments.
+\newblock In \emph{Advances in Neural Information Processing Systems 31
+  (NeurIPS 2018)}, pages 3426--3439, 2018.
+
+\bibitem[Steinberger et~al.(2020)Steinberger, Lerer, and
+  Brown]{steinberger2020dream}
+Eric Steinberger, Adam Lerer, and Noam Brown.
+\newblock Dream: Deep regret minimization with advantage baselines and
+  model-free learning.
+\newblock \emph{arXiv preprint arXiv:2006.10410}, 2020.
+
+\bibitem[{\v{S}}ustr et~al.(2019){\v{S}}ustr, Kova{\v{r}}{\'\i}k, and
+  Lis{\'y}]{sustr2019monte}
+Michal {\v{S}}ustr, Vojt{\v{e}}ch Kova{\v{r}}{\'\i}k, and Viliam Lis{\'y}.
+\newblock Monte carlo continual resolving for online strategy computation in
+  imperfect information games.
+\newblock In \emph{Proceedings of the 18th International Conference on
+  Autonomous Agents and MultiAgent Systems}, pages 224--232, 2019.
+
+\bibitem[{\v{S}}ustr et~al.(2020){\v{S}}ustr, Schmid, Morav{\v{c}}{\'\i}k,
+  Burch, Lanctot, and Bowling]{sustr2020sound}
+Michal {\v{S}}ustr, Martin Schmid, Matej Morav{\v{c}}{\'\i}k, Neil Burch, Marc
+  Lanctot, and Michael Bowling.
+\newblock Sound search in imperfect information games.
+\newblock \emph{arXiv preprint arXiv:2006.08740}, 2020.
+
+\bibitem[Sychrovsk{\'y} et~al.(2025)Sychrovsk{\'y}, Schmid, Sustr, and
+  Bowling]{sychrovsky2025meta}
+David Sychrovsk{\'y}, Martin Schmid, Michal Sustr, and Michael Bowling.
+\newblock Meta-learning in self-play regret minimization.
+\newblock \emph{arXiv preprint arXiv:2504.18917}, 2025.
+
+\bibitem[Tammelin(2014)]{tammelin2014solving}
+Oskari Tammelin.
+\newblock Solving large imperfect information games using cfr+.
+\newblock \emph{arXiv preprint arXiv:1407.5042}, 2014.
+
+\bibitem[Waugh et~al.(2015)Waugh, Morrill, Bagnell, and
+  Bowling]{waugh2015solving}
+Kevin Waugh, Dustin Morrill, James Bagnell, and Michael Bowling.
+\newblock Solving games with functional regret estimation.
+\newblock In \emph{Proceedings of the AAAI Conference on Artificial
+  Intelligence}, volume~29, 2015.
+
+\bibitem[Xu et~al.(2024)Xu, Li, Fu, Fu, Xing, and Cheng]{xu2024dynamic}
+Hang Xu, Kai Li, Haobo Fu, Qiang Fu, Junliang Xing, and Jian Cheng.
+\newblock Dynamic discounted counterfactual regret minimization.
+\newblock In \emph{The Twelfth International Conference on Learning
+  Representations}, 2024.
+
+\bibitem[Xu et~al.(2026)Xu, Li, Fu, Fu, Xing, and Cheng]{xu2026deep}
+Hang Xu, Kai Li, Haobo Fu, Qiang Fu, Junliang Xing, and Jian Cheng.
+\newblock Deep (predictive) discounted counterfactual regret minimization.
+\newblock In \emph{Proceedings of the AAAI Conference on Artificial
+  Intelligence}, volume~40, pages 17284--17292, 2026.
+
+\bibitem[Zhang et~al.(2026)Zhang, McAleer, and Sandholm]{zhang2026faster}
+Naifeng Zhang, Stephen~Marcus McAleer, and Tuomas Sandholm.
+\newblock Faster game solving via hyperparameter schedules.
+\newblock In \emph{Proceedings of the AAAI Conference on Artificial
+  Intelligence}, volume~40, pages 17319--17326, 2026.
+
+\bibitem[Zinkevich et~al.(2007)Zinkevich, Johanson, Bowling, and
+  Piccione]{zinkevich2007regret}
+Martin Zinkevich, Michael Johanson, Michael Bowling, and Carmelo Piccione.
+\newblock Regret minimization in games with incomplete information.
+\newblock \emph{Advances in neural information processing systems}, 20, 2007.
+
+\end{thebibliography}

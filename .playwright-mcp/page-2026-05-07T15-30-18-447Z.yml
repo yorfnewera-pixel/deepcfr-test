@@ -1,0 +1,121 @@
+- generic [ref=e2]:
+  - generic [ref=e5]:
+    - navigation "Sidebar" [ref=e7]:
+      - generic [ref=e8]:
+        - generic:
+          - link "Home":
+            - /url: /new
+            - img "Claude"
+        - button "Open sidebar" [ref=e10] [cursor=pointer]:
+          - generic [ref=e11]:
+            - img [ref=e13]
+            - img [ref=e16]
+      - generic [ref=e18]:
+        - generic [ref=e19]:
+          - link "New chat" [ref=e22] [cursor=pointer]:
+            - /url: /new
+            - generic:
+              - img [ref=e26]
+              - generic:
+                - generic: New chat
+          - link "Search" [ref=e30] [cursor=pointer]:
+            - /url: "#"
+            - generic:
+              - img [ref=e33]
+              - generic:
+                - generic: Search
+        - generic [ref=e35]:
+          - generic [ref=e36]:
+            - link "Chats" [ref=e38] [cursor=pointer]:
+              - /url: /recents
+              - generic:
+                - img [ref=e41]
+                - generic:
+                  - generic: Chats
+            - link "Projects" [ref=e45] [cursor=pointer]:
+              - /url: /projects
+              - generic:
+                - img [ref=e48]
+                - generic:
+                  - generic: Projects
+            - link "Artifacts" [ref=e54] [cursor=pointer]:
+              - /url: /artifacts/my
+              - generic:
+                - img [ref=e57]
+                - generic:
+                  - generic: Artifacts
+            - link "Code" [ref=e63] [cursor=pointer]:
+              - /url: /upgrade
+              - generic:
+                - img [ref=e66]
+                - generic:
+                  - generic:
+                    - generic: Code
+            - link "Customize" [ref=e71] [cursor=pointer]:
+              - /url: /customize
+              - generic:
+                - img [ref=e75]
+                - generic:
+                  - generic: Customize
+          - generic [ref=e80]:
+            - generic [ref=e81]:
+              - button [expanded]:
+                - text: Recents
+                - generic: Hide
+            - list [ref=e82]:
+              - listitem [ref=e83]:
+                - link [ref=e85] [cursor=pointer]:
+                  - /url: /chat/5bfb8204-ff35-495c-a7f4-f1b5ada2f170
+              - listitem [ref=e86]:
+                - link [ref=e88] [cursor=pointer]:
+                  - /url: /chat/354328ad-5d18-4a93-af37-118f8eff627e
+              - listitem [ref=e89]:
+                - link [ref=e91] [cursor=pointer]:
+                  - /url: /chat/ed54c6a8-79b1-4516-8312-2f75dd66457a
+        - link "Get apps and extensions" [ref=e96] [cursor=pointer]:
+          - /url: /downloads
+          - img [ref=e99]
+        - button "Alex, Settings" [ref=e105] [cursor=pointer]:
+          - generic [ref=e109]: A
+          - generic:
+            - generic [ref=e110]:
+              - generic: Alex
+              - generic: Free plan
+            - img [ref=e112]
+    - generic [ref=e114]:
+      - main [ref=e117]:
+        - generic [ref=e118]:
+          - text: Free plan
+          - link "Upgrade" [ref=e121] [cursor=pointer]:
+            - /url: /upgrade
+        - generic [ref=e125]:
+          - img [ref=e129]
+          - generic [ref=e131]: Evening, Alex
+        - group [ref=e136]:
+          - generic [ref=e139]:
+            - generic [ref=e140]:
+              - textbox "Write your prompt to Claude" [active] [ref=e142]:
+                - paragraph [ref=e143]
+              - generic:
+                - generic: How can I help you today?
+            - generic [ref=e144]:
+              - button "Add files, connectors, and more" [ref=e147] [cursor=pointer]:
+                - img [ref=e149]
+              - 'button "Model: Sonnet 4.6" [ref=e154] [cursor=pointer]':
+                - generic [ref=e157]: Sonnet 4.6
+                - img [ref=e159]
+              - button "Use voice mode" [ref=e164] [cursor=pointer]:
+                - img [ref=e167]
+          - status [ref=e175]:
+            - generic [ref=e179]:
+              - generic [ref=e182]:
+                - text: You are out of free
+                - link "messages" [ref=e183] [cursor=pointer]:
+                  - /url: https://support.claude.com/en/articles/11647753-understanding-usage-and-length-limits
+                - text: until 9:10 PM
+              - link "Get more" [ref=e185] [cursor=pointer]:
+                - /url: /upgrade?hide_free=true&from=ratelimit
+      - button "Use incognito" [ref=e189] [cursor=pointer]:
+        - img [ref=e191]
+  - region "Notifications (F8)":
+    - list

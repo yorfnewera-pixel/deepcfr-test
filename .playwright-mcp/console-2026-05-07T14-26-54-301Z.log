@@ -1,0 +1,2 @@
+[    1416ms] [LOG] 🎉 working version is: serp_20260507_091547_ET-17a7080af18231f126564a9ce7a1a1b2ebf27a2c @ https://duck.ai/dist/duckai-dist/entry.duckai.b46ed98181c25b41911d.js:1
+[    1834ms] [WARNING] An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing. @ about:srcdoc:0

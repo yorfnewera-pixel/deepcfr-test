@@ -1,0 +1,124 @@
+- generic [ref=e2]:
+  - generic [ref=e229]:
+    - navigation "Sidebar" [ref=e231]:
+      - generic [ref=e232]:
+        - generic:
+          - link "Home":
+            - /url: /new
+            - img "Claude"
+        - button "Open sidebar" [ref=e234] [cursor=pointer]:
+          - generic [ref=e235]:
+            - img [ref=e237]
+            - img [ref=e240]
+      - generic [ref=e242]:
+        - generic [ref=e243]:
+          - link "New chat" [ref=e246] [cursor=pointer]:
+            - /url: /new
+            - generic:
+              - img [ref=e250]
+              - generic:
+                - generic: New chat
+          - link "Search" [ref=e254] [cursor=pointer]:
+            - /url: "#"
+            - generic:
+              - img [ref=e257]
+              - generic:
+                - generic: Search
+        - generic [ref=e259]:
+          - generic [ref=e260]:
+            - link "Chats" [ref=e262] [cursor=pointer]:
+              - /url: /recents
+              - generic:
+                - img [ref=e265]
+                - generic:
+                  - generic: Chats
+            - link "Projects" [ref=e269] [cursor=pointer]:
+              - /url: /projects
+              - generic:
+                - img [ref=e272]
+                - generic:
+                  - generic: Projects
+            - link "Artifacts" [ref=e278] [cursor=pointer]:
+              - /url: /artifacts/my
+              - generic:
+                - img [ref=e281]
+                - generic:
+                  - generic: Artifacts
+            - link "Code" [ref=e287] [cursor=pointer]:
+              - /url: /upgrade
+              - generic:
+                - img [ref=e290]
+                - generic:
+                  - generic:
+                    - generic: Code
+            - link "Customize" [ref=e295] [cursor=pointer]:
+              - /url: /customize
+              - generic:
+                - img [ref=e299]
+                - generic:
+                  - generic: Customize
+          - paragraph [ref=e305]: Your chats will show up here
+        - link "Get apps and extensions" [ref=e310] [cursor=pointer]:
+          - /url: /downloads
+          - img [ref=e313]
+        - button "Alex, Settings" [ref=e319] [cursor=pointer]:
+          - generic [ref=e323]: A
+          - generic:
+            - generic [ref=e324]:
+              - generic: Alex
+              - generic: Free plan
+            - img [ref=e326]
+    - generic [ref=e328]:
+      - main [ref=e331]:
+        - generic [ref=e332]:
+          - text: Free plan
+          - link "Upgrade" [ref=e335] [cursor=pointer]:
+            - /url: /upgrade
+        - generic [ref=e339]:
+          - img [ref=e343]
+          - generic [ref=e345]: Good afternoon, Alex
+        - generic [ref=e347]:
+          - group [ref=e350]:
+            - generic [ref=e353]:
+              - generic [ref=e354]:
+                - textbox "Write your prompt to Claude" [active] [ref=e356]:
+                  - paragraph [ref=e357]
+                - generic:
+                  - generic: How can I help you today?
+              - generic [ref=e358]:
+                - button "Add files, connectors, and more" [ref=e361] [cursor=pointer]:
+                  - img [ref=e363]
+                - 'button "Model: Sonnet 4.6 Adaptive" [ref=e368] [cursor=pointer]':
+                  - generic [ref=e369]:
+                    - generic [ref=e371]: Sonnet 4.6
+                    - generic [ref=e372]: Adaptive
+                  - img [ref=e374]
+                - button "Use voice mode" [ref=e379] [cursor=pointer]:
+                  - img [ref=e382]
+            - generic:
+              - status
+          - tablist "Prompt categories" [ref=e391]:
+            - tab "Write" [ref=e392] [cursor=pointer]:
+              - generic [ref=e393]:
+                - img [ref=e395]
+                - generic [ref=e397]: Write
+            - tab "Learn" [ref=e398] [cursor=pointer]:
+              - generic [ref=e399]:
+                - img [ref=e401]
+                - generic [ref=e403]: Learn
+            - tab "Code" [ref=e404] [cursor=pointer]:
+              - generic [ref=e405]:
+                - img [ref=e407]
+                - generic [ref=e409]: Code
+            - tab "Life stuff" [ref=e410] [cursor=pointer]:
+              - generic [ref=e411]:
+                - img [ref=e413]
+                - generic [ref=e415]: Life stuff
+            - tab "Claude’s choice" [ref=e416] [cursor=pointer]:
+              - generic [ref=e417]:
+                - img [ref=e419]
+                - generic [ref=e421]: Claude’s choice
+      - button "Use incognito" [ref=e425] [cursor=pointer]:
+        - img [ref=e427]
+  - region "Notifications (F8)":
+    - list

@@ -1,0 +1,173 @@
+═══════════════════════════════════════════════════════════════════
+  BUG REPORT: Short All-In Raise некорректно конвертируется в Call
+═══════════════════════════════════════════════════════════════════
+
+АФФЕКТ
+======
+Когда remaining_after_call < min_raise (например remaining=$1, min_raise=$2),
+Python конвертирует action_type=2 (Raise) в Call. Это:
+
+1. Нарушает правила покера — short all-in Raise легален
+2. Искажает CFR regret — regret для Raise считается вдоль Call-траектории
+3. Рассогласование Rust↔Python — Rust даёт Raise в legal_actions, Python его игнорирует
+
+ТЕКУЩЕЕ ПОВЕДЕНИЕ (НЕВЕРНОЕ)
+=============================
+
+Rust current_player_can_raise():
+  remaining_stake_after_call > CHIP_EPSILON  → 1.0 > 1e-9 → TRUE
+  → Raise В legal_actions
+
+Python (deep_cfr.py, action_type_to_pokers_action):
+  if remaining_after_call < min_raise_increment:    # 1.0 < 2.0 → TRUE
+      return pkrs.Action(pkrs.ActionEnum.Call)      # ← НЕВЕРНО! Должен быть Raise
+
+CFR:
+  get_legal_action_types() видит Raise → добавляет action_type=2
+  CFR выбирает action_type=2 → получает Call
+  regret[Raise] = value(Call) → НЕВЕРНО
+
+ПРАВИЛЬНОЕ ПОВЕДЕНИЕ
+====================
+
+По правилам покера: игрок может поставить все оставшиеся фишки как Raise,
+даже если сумма меньше минрейза. Это называется "short all-in".
+Следующие игроки могут только коллить — short all-in не reopen betting.
+
+В нашей архитектуре (Rust clamp):
+  additional = max(min_raise, min(additional, remaining_after_call))
+  # Если remaining < min_raise → additional = remaining (через clamp клипа)
+  additional = round(additional, 2)
+  return pkrs.Action(pkrs.ActionEnum.Raise, additional)
+
+Rust обработает:
+  bet = call_amount + additional  (additional = remaining = 1.0)
+  bet = call_amount + 1.0
+  if bet > stake: bet = stake     # clamp если float-перебор
+  → Корректный short all-in Raise
+
+ПРИМЕР
+======
+stake=21.0, min_bet=20.0, bet_chips=0.0, bb=2.0
+
+call_amount = 20.0 - 0.0 = 20.0
+remaining_after_call = 21.0 - 20.0 = 1.0
+min_raise_increment = 2.0 (bb)
+
+НЕВЕРНО (сейчас):
+  1.0 < 2.0 → return Call
+  Игрок коллит $20, оставляет $1 неиспользованными
+
+ВЕРНО (после фикса):
+  additional = max(2.0, min(network_amount, 1.0)) = max(2.0, 1.0) = 2.0
+  Но 2.0 > remaining (1.0) → Rust clamp:
+  bet = 20.0 + 2.0 = 22.0 > 21.0 → bet = 21.0
+  bet_chips = 21.0, stake = 0.0 → ALL-IN на $21
+
+ИЛИ проще: additional = min(additional, remaining_after_call) = 1.0
+  bet = 20.0 + 1.0 = 21.0 ≤ 21.0 → OK
+  bet_chips = 21.0, stake = 0.0 → ALL-IN на $21
+
+ФИКС
+====
+
+1. УДАЛИТЬ из deep_cfr.py (action_type_to_pokers_action):
+
+   if remaining_after_call < min_raise_increment:
+       if pkrs.ActionEnum.Call in state.legal_actions:
+           return pkrs.Action(pkrs.ActionEnum.Call)
+       return pkrs.Action(pkrs.ActionEnum.Fold)
+
+2. УДАЛИТЬ из random_agent.py аналогичный блок:
+
+   if remaining < min_raise:
+       if pkrs.ActionEnum.Call in state.legal_actions:
+           return pkrs.Action(pkrs.ActionEnum.Call)
+       return pkrs.Action(pkrs.ActionEnum.Fold)
+
+3. ОСТАВИТЬ клип + round + return Raise — Rust clamp разберётся:
+
+   additional = max(min_raise_increment, min(additional, remaining_after_call))
+   additional = round(additional, 2)
+   return pkrs.Action(pkrs.ActionEnum.Raise, additional)
+
+   Когда remaining < min_raise:
+   additional = max(min_raise, min(network_amount, remaining)) = min_raise
+   Но Rust clamp сделает bet = stake → auto all-in
+
+   АЛЬТЕРНАТИВА (чище): НЕ делать max(min_raise) когда remaining < min_raise
+   additional = min(additional, remaining_after_call)
+   additional = round(additional, 2)
+   # additional может быть < min_raise — это OK для short all-in
+   return pkrs.Action(pkrs.ActionEnum.Raise, additional)
+
+4. ОПЦИОНАЛЬНО: поправить Rust current_player_can_raise() для полноты:
+
+   Сейчас:
+     remaining_stake_after_call > CHIP_EPSILON
+
+   Лучше (для корректного reopen betting):
+     remaining_stake_after_call >= min_raise_increment
+
+   Но это УБИРАЕТ short all-in из legal_actions полностью,
+   что тоже не совсем верно по правилам покера.
+
+   РЕШЕНИЕ: оставить как есть (Raise в legal_actions),
+   но Python всегда отправляет Raise (никогда не fallback на Call).
+
+ЗАМЕЧАНИЕ О REOPEN BETTING
+===========================
+
+Short all-in не reopen betting — следующий игрок не может рейзить.
+Это нужно фиксить в Rust legal_actions(), но это ОТДЕЛЬНАЯ задача.
+
+Сейчас pokers позволяет рейзить после short all-in (некорректно).
+Для Deep CFR обучения это не критично — ситуация редкая.
+
+═══════════════════════════════════════════════════════════════════
+ВЛИЯНИЕ НА СУЩЕСТВУЮЩИЙ ПАТЧ (TOTAL_FIX.txt)
+═══════════════════════════════════════════════════════════════════
+
+Изменения в ШАГЕ 6 документации:
+
+6A. deep_cfr.py — УДАЛИТЬ блок remaining_after_call < min_raise_increment:
+    Строки 203-206 в текущем коде:
+
+        if remaining_after_call < min_raise_increment:
+            if pkrs.ActionEnum.Call in state.legal_actions:
+                return pkrs.Action(pkrs.ActionEnum.Call)
+            return pkrs.Action(pkrs.ActionEnum.Fold)
+
+    Удалить эти 4 строки. Клип уже обеспечивает additional ≤ remaining_after_call.
+
+6B. random_agent.py — УДАЛИТЬ блок remaining < min_raise:
+    Строки 31-34 в текущем коде:
+
+        if remaining < min_raise:
+            if pkrs.ActionEnum.Call in state.legal_actions:
+                return pkrs.Action(pkrs.ActionEnum.Call)
+            return pkrs.Action(pkrs.ActionEnum.Fold)
+
+    Удалить эти 4 строки. options-фильтр уже отсекает невалидные суммы.
+
+═══════════════════════════════════════════════════════════════════
+ТЕСТ-КЕЙС
+═══════════════════════════════════════════════════════════════════
+
+Сценарий: stake=21.0, min_bet=20.0, bet_chips=0.0, bb=2.0
+
+1. current_player_can_raise(): remaining=1.0 > 1e-9 → Raise в legal_actions
+2. action_type=2 (Raise) выбран CFR
+3. Python: additional = min(network_amount, 1.0) = 1.0
+4. round(1.0, 2) = 1.0
+5. Action(Raise, 1.0)
+6. Rust: bet = 20.0 + 1.0 = 21.0 ≤ 21.0 → OK, short all-in
+7. stake = 0.0, bet_chips = 21.0 → корректный оллин
+
+НЕВЕРНЫЙ путь (сейчас):
+1. current_player_can_raise(): remaining=1.0 > 1e-9 → Raise в legal_actions
+2. action_type=2 (Raise) выбран CFR
+3. Python: 1.0 < 2.0 → return Call
+4. Action(Call)
+5. bet_chips = 20.0, stake = 1.0 → $1 не использован
+6. CFR regret[Raise] = value(Call) → НЕВЕРНО

@@ -1,0 +1,129 @@
+- generic [ref=e2]:
+  - generic [ref=e229]:
+    - navigation "Sidebar" [ref=e231]:
+      - generic [ref=e232]:
+        - generic:
+          - link "Home":
+            - /url: /new
+            - img "Claude"
+        - button "Open sidebar" [ref=e234] [cursor=pointer]:
+          - generic [ref=e235]:
+            - img [ref=e237]
+            - img [ref=e240]
+      - generic [ref=e242]:
+        - generic [ref=e243]:
+          - link "New chat" [ref=e246] [cursor=pointer]:
+            - /url: /new
+            - generic:
+              - img [ref=e250]
+              - generic:
+                - generic: New chat
+          - link "Search" [ref=e254] [cursor=pointer]:
+            - /url: "#"
+            - generic:
+              - img [ref=e257]
+              - generic:
+                - generic: Search
+        - generic [ref=e259]:
+          - generic [ref=e260]:
+            - link "Chats" [ref=e262] [cursor=pointer]:
+              - /url: /recents
+              - generic:
+                - img [ref=e265]
+                - generic:
+                  - generic: Chats
+            - link "Projects" [ref=e269] [cursor=pointer]:
+              - /url: /projects
+              - generic:
+                - img [ref=e272]
+                - generic:
+                  - generic: Projects
+            - link "Artifacts" [ref=e278] [cursor=pointer]:
+              - /url: /artifacts/my
+              - generic:
+                - img [ref=e281]
+                - generic:
+                  - generic: Artifacts
+            - link "Code" [ref=e287] [cursor=pointer]:
+              - /url: /upgrade
+              - generic:
+                - img [ref=e290]
+                - generic:
+                  - generic:
+                    - generic: Code
+            - link "Customize" [ref=e295] [cursor=pointer]:
+              - /url: /customize
+              - generic:
+                - img [ref=e299]
+                - generic:
+                  - generic: Customize
+          - paragraph [ref=e305]: Your chats will show up here
+        - link "Get apps and extensions" [ref=e310] [cursor=pointer]:
+          - /url: /downloads
+          - img [ref=e313]
+        - button "Alex, Settings" [ref=e319] [cursor=pointer]:
+          - generic [ref=e323]: A
+          - generic:
+            - generic [ref=e324]:
+              - generic: Alex
+              - generic: Free plan
+            - img [ref=e326]
+    - generic [ref=e433]:
+      - banner [ref=e434]:
+        - generic [ref=e435]:
+          - generic [ref=e438]:
+            - button "Untitled, rename chat" [ref=e439] [cursor=pointer]:
+              - generic [ref=e441]: Untitled
+            - button "More options" [ref=e443] [cursor=pointer]:
+              - img [ref=e445]
+          - generic [ref=e447]:
+            - text: Free plan
+            - link "Upgrade" [ref=e450] [cursor=pointer]:
+              - /url: /upgrade
+            - button "Dismiss upgrade banner" [ref=e451] [cursor=pointer]:
+              - img [ref=e453]
+      - generic [ref=e457]:
+        - status [ref=e458]: Claude is responding
+        - generic [ref=e459]:
+          - generic [ref=e462]:
+            - 'heading "You said: What is the current version and API for SwipeToDismiss in Material 3 for Jetpack Compose?" [level=2] [ref=e463]'
+            - generic [ref=e464]:
+              - paragraph [ref=e469]: What is the current version and API for SwipeToDismiss in Material 3 for Jetpack Compose? Show the latest import path and usage example.
+              - group "Message actions" [ref=e470]:
+                - generic [ref=e472]:
+                  - generic [ref=e473]: 16:19
+                  - button "Edit" [ref=e476] [cursor=pointer]:
+                    - img [ref=e478]
+                  - button "Copy" [ref=e481] [cursor=pointer]:
+                    - generic [ref=e482]:
+                      - img [ref=e484]
+                      - img [ref=e487]
+          - img [ref=e495]
+        - generic [ref=e499]:
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - img
+          - group [ref=e501]:
+            - generic:
+              - status
+            - generic [ref=e504]:
+              - textbox "Write your prompt to Claude" [active] [ref=e507]:
+                - paragraph [ref=e508]: Write a message…
+              - generic [ref=e509]:
+                - button "Add files, connectors, and more" [ref=e512] [cursor=pointer]:
+                  - img [ref=e514]
+                - 'button "Model: Sonnet 4.6 Adaptive" [ref=e519] [cursor=pointer]':
+                  - generic [ref=e520]:
+                    - generic [ref=e522]: Sonnet 4.6
+                    - generic [ref=e523]: Adaptive
+                  - img [ref=e525]
+                - button "Stop response" [ref=e529] [cursor=pointer]:
+                  - img [ref=e530]
+          - note [ref=e532]:
+            - link "Claude is AI and can make mistakes. Please double-check responses." [ref=e533] [cursor=pointer]:
+              - /url: https://support.anthropic.com/en/articles/8525154-claude-is-providing-incorrect-or-misleading-responses-what-s-going-on
+  - region "Notifications (F8)":
+    - list

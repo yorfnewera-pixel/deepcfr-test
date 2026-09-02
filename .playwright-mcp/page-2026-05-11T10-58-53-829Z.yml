@@ -1,0 +1,134 @@
+- generic [ref=e2]:
+  - generic [ref=e5]:
+    - navigation "Sidebar" [ref=e7]:
+      - generic [ref=e8]:
+        - link "Home" [ref=e10] [cursor=pointer]:
+          - /url: /new
+          - img "Claude" [ref=e11]
+        - button "Close sidebar" [pressed] [ref=e14] [cursor=pointer]:
+          - img [ref=e17]
+      - generic [ref=e19]:
+        - generic [ref=e20]:
+          - link "New chat" [ref=e23] [cursor=pointer]:
+            - /url: /new
+            - generic [ref=e24]:
+              - img [ref=e28]
+              - generic [ref=e31]: New chat
+              - generic [ref=e33]: Ctrl+⇧+O
+          - link "Search" [ref=e36] [cursor=pointer]:
+            - /url: "#"
+            - generic [ref=e37]:
+              - img [ref=e40]
+              - generic [ref=e43]: Search
+              - generic [ref=e45]: Ctrl+K
+        - generic [ref=e46]:
+          - generic [ref=e47]:
+            - link "Chats" [ref=e49] [cursor=pointer]:
+              - /url: /recents
+              - generic [ref=e50]:
+                - img [ref=e53]
+                - generic [ref=e57]: Chats
+            - link "Projects" [ref=e59] [cursor=pointer]:
+              - /url: /projects
+              - generic [ref=e60]:
+                - img [ref=e63]
+                - generic [ref=e68]: Projects
+            - link "Artifacts" [ref=e71] [cursor=pointer]:
+              - /url: /artifacts/my
+              - generic [ref=e72]:
+                - img [ref=e75]
+                - generic [ref=e81]: Artifacts
+            - link "Code" [ref=e83] [cursor=pointer]:
+              - /url: /upgrade
+              - generic [ref=e84]:
+                - img [ref=e87]
+                - generic [ref=e93]: Code
+              - generic [ref=e94]: Upgrade
+            - link "Customize" [ref=e96] [cursor=pointer]:
+              - /url: /customize
+              - generic [ref=e97]:
+                - img [ref=e101]
+                - generic [ref=e104]: Customize
+          - generic [ref=e108]:
+            - button "Recents Hide" [expanded] [ref=e110] [cursor=pointer]:
+              - text: Recents
+              - generic [ref=e111]: Hide
+            - list [ref=e112]:
+              - listitem [ref=e113]:
+                - link "WDDM GPU спайки в Deep CFR training" [ref=e115] [cursor=pointer]:
+                  - /url: /chat/6143d3ed-652e-4881-ac8d-044356506b30
+                  - generic [ref=e117]: WDDM GPU спайки в Deep CFR training
+              - listitem [ref=e118]:
+                - link "Сходимость Deep CFR для 6-player No-Limit Hold'em" [ref=e120] [cursor=pointer]:
+                  - /url: /chat/5bfb8204-ff35-495c-a7f4-f1b5ada2f170
+                  - generic [ref=e122]: Сходимость Deep CFR для 6-player No-Limit Hold'em
+              - listitem [ref=e123]:
+                - link "Polyak averaging vs hard copy для DCFR+ bootstrapping" [ref=e125] [cursor=pointer]:
+                  - /url: /chat/354328ad-5d18-4a93-af37-118f8eff627e
+                  - generic [ref=e127]: Polyak averaging vs hard copy для DCFR+ bootstrapping
+              - listitem [ref=e128]:
+                - link "SwipeToDismiss in Material 3 Compose" [ref=e130] [cursor=pointer]:
+                  - /url: /chat/ed54c6a8-79b1-4516-8312-2f75dd66457a
+                  - generic [ref=e132]: SwipeToDismiss in Material 3 Compose
+        - button "Alex, Settings" [ref=e135] [cursor=pointer]:
+          - generic [ref=e139]: A
+          - generic [ref=e140]:
+            - generic [ref=e141]:
+              - generic [ref=e142]: Alex
+              - generic [ref=e143]: Free plan
+            - generic [ref=e144]:
+              - button "Get apps and extensions" [ref=e146]:
+                - img [ref=e148]
+              - img [ref=e150]
+    - generic [ref=e152]:
+      - main [ref=e155]:
+        - generic [ref=e156]:
+          - text: Free plan
+          - link "Upgrade" [ref=e159] [cursor=pointer]:
+            - /url: /upgrade
+        - generic [ref=e164]:
+          - img [ref=e168]
+          - generic [ref=e170]: Good afternoon, Alex
+        - generic [ref=e172]:
+          - group [ref=e175]:
+            - generic [ref=e178]:
+              - generic [ref=e179]:
+                - textbox "Write your prompt to Claude" [active] [ref=e181]:
+                  - paragraph [ref=e182]
+                - generic:
+                  - generic: How can I help you today?
+              - generic [ref=e183]:
+                - button "Add files, connectors, and more" [ref=e186] [cursor=pointer]:
+                  - img [ref=e188]
+                - 'button "Model: Sonnet 4.6" [ref=e193] [cursor=pointer]':
+                  - generic [ref=e196]: Sonnet 4.6
+                  - img [ref=e198]
+                - button "Use voice mode" [ref=e203] [cursor=pointer]:
+                  - img [ref=e206]
+            - generic:
+              - status
+          - tablist "Prompt categories" [ref=e225]:
+            - tab "Write" [ref=e226] [cursor=pointer]:
+              - generic [ref=e227]:
+                - img [ref=e229]
+                - generic [ref=e231]: Write
+            - tab "Learn" [ref=e232] [cursor=pointer]:
+              - generic [ref=e233]:
+                - img [ref=e235]
+                - generic [ref=e237]: Learn
+            - tab "Code" [ref=e238] [cursor=pointer]:
+              - generic [ref=e239]:
+                - img [ref=e241]
+                - generic [ref=e243]: Code
+            - tab "Life stuff" [ref=e244] [cursor=pointer]:
+              - generic [ref=e245]:
+                - img [ref=e247]
+                - generic [ref=e249]: Life stuff
+            - tab "Claude’s choice" [ref=e250] [cursor=pointer]:
+              - generic [ref=e251]:
+                - img [ref=e253]
+                - generic [ref=e255]: Claude’s choice
+      - button "Use incognito" [ref=e216] [cursor=pointer]:
+        - img [ref=e218]
+  - region "Notifications (F8)":
+    - list

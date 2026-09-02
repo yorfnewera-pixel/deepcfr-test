@@ -1,0 +1,143 @@
+{
+  "seed": 107,
+  "requested_deals": 16,
+  "natural": {
+    "completed_deals": 16,
+    "failed_deals": 0,
+    "failure_messages": [],
+    "streets": {
+      "turn": {
+        "decisions": 0,
+        "mean_probability_mass": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "chosen_action_frequency": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "mean_entropy": 0.0,
+        "mean_latency_milliseconds": 0.0
+      },
+      "river": {
+        "decisions": 0,
+        "mean_probability_mass": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "chosen_action_frequency": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "mean_entropy": 0.0,
+        "mean_latency_milliseconds": 0.0
+      }
+    }
+  },
+  "constructed_spots": {
+    "turn": {
+      "legal_action_labels": [
+        "check",
+        "raise_0.5pot",
+        "all_in"
+      ],
+      "decisions": 1,
+      "mean_probability_mass": [
+        0.0,
+        0.009789853356778622,
+        0.0,
+        0.9741564393043518,
+        0.0,
+        0.016053741797804832
+      ],
+      "mean_entropy": 0.1371296293217968,
+      "latency_milliseconds": 0.5748999974457547
+    },
+    "river": {
+      "legal_action_labels": [
+        "check",
+        "raise_0.5pot",
+        "all_in"
+      ],
+      "decisions": 1,
+      "mean_probability_mass": [
+        0.0,
+        0.03765147179365158,
+        0.0,
+        0.8977677226066589,
+        0.0,
+        0.06458073854446411
+      ],
+      "mean_entropy": 0.39723321338975615,
+      "latency_milliseconds": 0.5363999953260645
+    },
+    "response_to_bet_turn": {
+      "legal_action_labels": [
+        "fold",
+        "call",
+        "raise_1pot",
+        "all_in"
+      ],
+      "decisions": 1,
+      "mean_probability_mass": [
+        6.212795415194705e-05,
+        0.0,
+        0.00013097487681079656,
+        0.0,
+        0.9997549653053284,
+        5.1910392357967794e-05
+      ],
+      "mean_entropy": 0.0025299246135005106,
+      "latency_milliseconds": 0.4647999958251603
+    }
+  },
+  "search_probe": {
+    "action_label": "all_in",
+    "action_is_legal": true,
+    "belief_particles": 2,
+    "latency_milliseconds": 27.514199995493982,
+    "root_blueprint_policy": [
+      6.212795548591818e-05,
+      0.0,
+      0.00013097487962300417,
+      0.0,
+      0.9997549867714185,
+      5.191039347255407e-05
+    ],
+    "root_search_policy": [
+      0.0010000519003224792,
+      0.0,
+      0.2138775531197544,
+      0.0,
+      0.5812494874888703,
+      0.20387290749105288
+    ],
+    "raw_ev": [
+      -10.0,
+      null,
+      400.0,
+      null,
+      305.0,
+      400.0
+    ],
+    "diagnostic_flags": [
+      "uniform_beliefs_not_solver_valid"
+    ]
+  }
+}

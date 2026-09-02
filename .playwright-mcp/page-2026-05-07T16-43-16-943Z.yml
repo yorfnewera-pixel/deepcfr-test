@@ -1,0 +1,359 @@
+- generic [ref=e1]:
+  - 'button "Аккаунт Google: Амбивалентность инсинуации (yorfnewera@gmail.com)" [ref=e8] [cursor=pointer]':
+    - img [ref=e10]
+  - main [ref=e12]:
+    - generic:
+      - button "Главное меню" [ref=e14] [cursor=pointer]:
+        - img [ref=e17]: menu
+      - button "Новый чат" [ref=e21] [cursor=pointer]:
+        - generic [ref=e23]: Gemini
+    - generic [ref=e25]:
+      - generic [ref=e350]: VR-DeepPDCFR+ Новые Возможности и Результаты
+      - generic [ref=e26]:
+        - link "Сменить план" [ref=e29]:
+          - img [ref=e30]: spark
+          - generic [ref=e32]: Сменить план
+        - generic [ref=e35]:
+          - button "Поделиться чатом" [ref=e352] [cursor=pointer]:
+            - img [ref=e353]: share
+          - button "Открыть меню действий с чатом." [ref=e357] [cursor=pointer]:
+            - img [ref=e358]: more_vert
+    - generic [ref=e45]:
+      - navigation "Боковая панель" [ref=e46]:
+        - generic [ref=e48]:
+          - button "Поиск" [ref=e50] [cursor=pointer]:
+            - img [ref=e51]: search
+          - generic [ref=e54]:
+            - group [ref=e55]:
+              - link "Новый чат" [ref=e57] [cursor=pointer]:
+                - /url: /app
+                - img [ref=e60]: edit_square
+                - generic [ref=e64]: Новый чат
+            - generic [ref=e65]:
+              - link "Мой контент" [ref=e84] [cursor=pointer]:
+                - /url: mystuff
+                - img [ref=e87]: family_star
+                - generic [ref=e88]: Мой контент
+              - generic [ref=e263]:
+                - link "Блокноты" [ref=e265] [cursor=pointer]:
+                  - /url: /notebooks/view
+                  - generic [ref=e266]: Блокноты
+                  - img [ref=e269]: keyboard_arrow_right
+                - generic "Новый блокнот" [ref=e271] [cursor=pointer]:
+                  - img [ref=e274]: add_2
+                  - generic [ref=e275]: Новый блокнот
+              - generic [ref=e276]:
+                - link "Gem-боты" [ref=e279] [cursor=pointer]:
+                  - /url: /gems/view
+                  - generic [ref=e280]: Gem-боты
+                  - img [ref=e283]: keyboard_arrow_right
+                - region
+              - generic [ref=e92]:
+                - heading "Чаты" [level=1] [ref=e94]
+                - region [ref=e95]:
+                  - button "DeepPDCFR+ обсуждение с opencode Закрепленный чат" [ref=e97] [cursor=pointer]:
+                    - generic [ref=e98]: DeepPDCFR+ обсуждение с opencode
+                    - generic [ref=e99]:
+                      - img [ref=e101]: push_pin
+                      - generic [ref=e102]: Закрепленный чат
+                  - button "Алгоритмы для 6-max No-Limit Hold'em Закрепленный чат" [ref=e104] [cursor=pointer]:
+                    - generic [ref=e105]: Алгоритмы для 6-max No-Limit Hold'em
+                    - generic [ref=e106]:
+                      - img [ref=e108]: push_pin
+                      - generic [ref=e109]: Закрепленный чат
+                  - 'button "Deep CFR: Успех без Scaling и PER Закрепленный чат" [ref=e111] [cursor=pointer]':
+                    - generic [ref=e112]: "Deep CFR: Успех без Scaling и PER"
+                    - generic [ref=e113]:
+                      - img [ref=e115]: push_pin
+                      - generic [ref=e116]: Закрепленный чат
+                  - button "Гайд как сделать порт в опенкод Закрепленный чат" [ref=e118] [cursor=pointer]:
+                    - generic [ref=e119]: Гайд как сделать порт в опенкод
+                    - generic [ref=e120]:
+                      - img [ref=e122]: push_pin
+                      - generic [ref=e123]: Закрепленный чат
+                  - button "VR-DeepPDCFR+ Новые Возможности и Результаты" [ref=e125] [cursor=pointer]:
+                    - generic [ref=e126]: VR-DeepPDCFR+ Новые Возможности и Результаты
+                  - button "Superpowers плагин и правила проекта" [ref=e129] [cursor=pointer]:
+                    - generic [ref=e130]: Superpowers плагин и правила проекта
+                  - 'button "Обучение Deep CFR: Loss и Эксплуатируемость" [ref=e133] [cursor=pointer]':
+                    - generic [ref=e134]: "Обучение Deep CFR: Loss и Эксплуатируемость"
+                  - 'button "RLcard: Monkey Patching vs. Site-Packages" [ref=e137] [cursor=pointer]':
+                    - generic [ref=e138]: "RLcard: Monkey Patching vs. Site-Packages"
+                  - button "Installing Grounding DINO on Windows" [ref=e141] [cursor=pointer]:
+                    - generic [ref=e142]: Installing Grounding DINO on Windows
+                  - button "Устранение ошибок памяти при обучении YOLO" [ref=e145] [cursor=pointer]:
+                    - generic [ref=e146]: Устранение ошибок памяти при обучении YOLO
+                  - button "Покер-румы с выводом в России" [ref=e149] [cursor=pointer]:
+                    - generic [ref=e150]: Покер-румы с выводом в России
+                  - 'button "Алгоритмы покера: от CFR до RL" [ref=e153] [cursor=pointer]':
+                    - generic [ref=e154]: "Алгоритмы покера: от CFR до RL"
+                  - button "Алгоритмы для равновесия Нэша в покере" [ref=e157] [cursor=pointer]:
+                    - generic [ref=e158]: Алгоритмы для равновесия Нэша в покере
+                  - button "Мозг, детство и радость без скальпеля" [ref=e161] [cursor=pointer]:
+                    - generic [ref=e162]: Мозг, детство и радость без скальпеля
+                  - button "Алгоритмы покера лучше Deep CFR" [ref=e165] [cursor=pointer]:
+                    - generic [ref=e166]: Алгоритмы покера лучше Deep CFR
+                  - button "Алгоритмы покера лучше DeepCFR" [ref=e169] [cursor=pointer]:
+                    - generic [ref=e170]: Алгоритмы покера лучше DeepCFR
+                  - 'button "Навальный и Волков: Кремлевские Реформы" [ref=e173] [cursor=pointer]':
+                    - generic [ref=e174]: "Навальный и Волков: Кремлевские Реформы"
+            - group [ref=e176]:
+              - button "История действий в приложениях Gemini" [ref=e178] [cursor=pointer]:
+                - img [ref=e181]: history
+                - generic [ref=e185]: История
+              - button "Settings & help" [ref=e187] [cursor=pointer]:
+                - img [ref=e190]: settings_2
+                - generic [ref=e194]: Настройки и справка
+            - generic [ref=e302]:
+              - img [ref=e303]: circle
+              - generic [ref=e304]:
+                - button "Великобритания" [ref=e305]
+                - generic [ref=e306]: По IP-адресу
+                - generic [ref=e307]: •
+                - button "Обновить" [ref=e308]
+      - generic [ref=e202]:
+        - generic [ref=e203]:
+          - heading "Чат с Gemini" [level=1] [ref=e204]
+          - generic [ref=e361]:
+            - generic [ref=e367]:
+              - generic [ref=e368]:
+                - button "00README.json" [ref=e372] [cursor=pointer]:
+                  - img "Значок JSON-файла" [ref=e373]
+                  - generic [ref=e374]: 00README
+                  - generic [ref=e375]: JSON
+                - button "2511.08174v1.pdf" [ref=e379] [cursor=pointer]:
+                  - img "Значок PDF-файла" [ref=e380]
+                  - generic [ref=e381]: 2511.08174v1
+                  - generic [ref=e382]: PDF
+                - button "aaai2026.bib" [ref=e386] [cursor=pointer]:
+                  - img "Значок BIB-файла" [ref=e387]
+                  - generic [ref=e388]: aaai2026
+                  - generic [ref=e389]: BIB
+                - button "aaai2026.bst" [ref=e393] [cursor=pointer]:
+                  - img "Значок Неизвестно-файла" [ref=e394]
+                  - generic [ref=e395]: aaai2026.bst
+                  - generic [ref=e396]: Неизвестно
+                - button "aaai2026.sty" [ref=e400] [cursor=pointer]:
+                  - img "Значок STY-файла" [ref=e401]
+                  - generic [ref=e402]: aaai2026
+                  - generic [ref=e403]: STY
+                - button "deeppdcfr.tex" [ref=e407] [cursor=pointer]:
+                  - img "Значок TEX-файла" [ref=e408]
+                  - generic [ref=e409]: deeppdcfr
+                  - generic [ref=e410]: TEX
+              - button "Прокрутить к следующим файлам" [ref=e411] [cursor=pointer]:
+                - img [ref=e412]: chevron_right
+            - generic [ref=e418]:
+              - generic:
+                - generic:
+                  - generic:
+                    - generic:
+                      - generic:
+                        - button "Прослушать":
+                          - img: volume_up
+                    - menu
+              - generic [ref=e419]:
+                - generic [ref=e424]:
+                  - generic:
+                    - generic:
+                      - img
+                - generic [ref=e426]:
+                  - button [ref=e433]:
+                    - generic [ref=e435]:
+                      - status:
+                        - generic: Показать процесс размышления
+                      - img [ref=e437]: expand_more
+                  - heading "Ответ Gemini" [level=2] [ref=e440]
+                  - generic [ref=e444]:
+                    - paragraph
+                    - paragraph [ref=e445]:
+                      - generic [ref=e446]:
+                        - generic [ref=e447]: VR-DeepPDCFR+
+                        - text: (Variance Reduction Deep Predictive Discounted Counterfactual Regret Minimization) — это новый безмодельный нейросетевой алгоритм минимизации контрфактического сожаления (CFR), представленный в исследовательской работе
+                      - generic:
+                        - generic:
+                          - superscript [ref=e448]
+                          - superscript [ref=e449]
+                          - superscript [ref=e450]
+                          - superscript [ref=e451]
+                      - text: .
+                      - button "Посмотреть сведения об источниках. Откроется боковая панель." [ref=e455] [cursor=pointer]:
+                        - generic [ref=e456]:
+                          - img [ref=e457]: link
+                          - text: "+1"
+                    - paragraph [ref=e458]:
+                      - generic [ref=e459]: Основная цель алгоритма — эффективно интегрировать продвинутые варианты табличного CFR (такие как PDCFR+ и DCFR+) в глубокое обучение для решения больших игр с неполной информацией
+                      - generic:
+                        - generic:
+                          - superscript [ref=e460]
+                          - superscript [ref=e461]
+                          - superscript [ref=e462]
+                          - superscript [ref=e463]
+                          - superscript [ref=e464]
+                          - superscript [ref=e465]
+                          - superscript [ref=e466]
+                          - superscript [ref=e467]
+                          - superscript [ref=e468]
+                      - text: .
+                      - button "Посмотреть сведения об источниках. Откроется боковая панель." [ref=e472] [cursor=pointer]:
+                        - generic [ref=e473]:
+                          - img [ref=e474]: link
+                          - text: "+2"
+                    - heading "Основные новшества по сравнению с DeepCFR" [level=3] [ref=e475]
+                    - paragraph [ref=e476]:
+                      - generic [ref=e477]: В отличие от классического DeepCFR, который фокусируется на аппроксимации ванильного CFR или LinearCFR
+                      - superscript [ref=e478]
+                      - text: ", VR-DeepPDCFR+ вводит следующие ключевые изменения:"
+                      - button "Посмотреть сведения об источниках. Откроется боковая панель." [ref=e482] [cursor=pointer]:
+                        - img [ref=e483]: link
+                    - list [ref=e484]:
+                      - listitem [ref=e485]:
+                        - paragraph
+                        - paragraph [ref=e486]:
+                          - generic [ref=e487]:
+                            - generic [ref=e488]: "Использование преимуществ (Advantages) вместо сожалений:"
+                            - text: Алгоритм напрямую аппроксимирует накопленные преимущества, которые легче обобщаются нейронными сетями по сравнению с ненормированными значениями контрфактических сожалений
+                          - generic:
+                            - generic:
+                              - superscript [ref=e489]
+                              - superscript [ref=e490]
+                              - superscript [ref=e491]
+                              - superscript [ref=e492]
+                          - text: .
+                          - button "Посмотреть сведения об источниках. Откроется боковая панель." [ref=e496] [cursor=pointer]:
+                            - generic [ref=e497]:
+                              - img [ref=e498]: link
+                              - text: "+2"
+                      - listitem [ref=e499]:
+                        - paragraph
+                        - paragraph [ref=e500]:
+                          - generic [ref=e501]:
+                            - generic [ref=e502]: "Механизм бутстраппинга (Bootstrapping):"
+                            - text: Вместо использования огромного буфера репликации со всеми прошлыми итерациями (как в DeepCFR), VR-DeepPDCFR+ обновляет накопленные преимущества, основываясь на результатах предыдущей итерации
+                          - generic:
+                            - generic:
+                              - superscript [ref=e503]
+                              - superscript [ref=e504]
+                              - superscript [ref=e505]
+                              - superscript [ref=e506]
+                              - superscript [ref=e507]
+                              - superscript [ref=e508]
+                              - superscript [ref=e509]
+                              - superscript [ref=e510]
+                          - text: .
+                          - generic [ref=e511]: Это необходимо для реализации механизмов дисконтирования и обрезки (clipping) из продвинутых вариантов CFR
+                          - generic:
+                            - generic:
+                              - superscript [ref=e512]
+                              - superscript [ref=e513]
+                              - superscript [ref=e514]
+                              - superscript [ref=e515]
+                          - text: .
+                          - button "Посмотреть сведения об источниках. Откроется боковая панель." [ref=e519] [cursor=pointer]:
+                            - generic [ref=e520]:
+                              - img [ref=e521]: link
+                              - text: "+4"
+                      - listitem [ref=e522]:
+                        - paragraph
+                        - paragraph [ref=e523]:
+                          - generic [ref=e524]:
+                            - generic [ref=e525]: "Снижение дисперсии (Variance Reduction):"
+                            - text: Вводится вспомогательная оценочная сеть (value network), выполняющая роль «базовой линии» (baseline)
+                          - generic:
+                            - generic:
+                              - superscript [ref=e526]
+                              - superscript [ref=e527]
+                              - superscript [ref=e528]
+                              - superscript [ref=e529]
+                          - text: .
+                          - generic [ref=e530]: Это позволяет значительно снизить высокую дисперсию, возникающую при одиночном сэмплировании действий в безмодельной среде
+                          - superscript [ref=e531]
+                          - text: .
+                          - button "Посмотреть сведения об источниках. Откроется боковая панель." [ref=e535] [cursor=pointer]:
+                            - generic [ref=e536]:
+                              - img [ref=e537]: link
+                              - text: "+3"
+                      - listitem [ref=e538]:
+                        - paragraph
+                        - paragraph [ref=e539]:
+                          - generic [ref=e540]:
+                            - generic [ref=e541]: "Дисконтирование и обрезка:"
+                            - text: Алгоритм применяет операции дисконтирования и обнуления (clipping) отрицательных накопленных преимуществ на каждой итерации, имитируя поведение DCFR+ и PDCFR+ для ускорения сходимости
+                          - generic:
+                            - generic:
+                              - superscript [ref=e542]
+                              - superscript [ref=e543]
+                              - superscript [ref=e544]
+                              - superscript [ref=e545]
+                          - text: .
+                          - button "Посмотреть сведения об источниках. Откроется боковая панель." [ref=e549] [cursor=pointer]:
+                            - generic [ref=e550]:
+                              - img [ref=e551]: link
+                              - text: "+1"
+                      - listitem [ref=e552]:
+                        - paragraph
+                        - paragraph [ref=e553]:
+                          - generic [ref=e554]:
+                            - generic [ref=e555]: "Предсказательная сеть:"
+                            - text: Для реализации PDCFR+ добавляется отдельная нейронная сеть, которая предсказывает преимущества следующей итерации для более точного обновления стратегии
+                          - superscript [ref=e556]
+                          - text: .
+                          - button "Посмотреть сведения об источниках. Откроется боковая панель." [ref=e560] [cursor=pointer]:
+                            - img [ref=e561]: link
+                    - heading "Результаты" [level=3] [ref=e562]
+                    - paragraph [ref=e563]:
+                      - generic [ref=e564]: Благодаря этим нововведениям, VR-DeepPDCFR+ демонстрирует более быструю сходимость и лучшую устойчивость в играх с неполной информацией (включая покер) по сравнению с предыдущими нейросетевыми методами
+                      - generic:
+                        - generic:
+                          - superscript [ref=e565]
+                          - superscript [ref=e566]
+                          - superscript [ref=e567]
+                          - superscript [ref=e568]
+                      - text: .
+                      - button "Посмотреть сведения об источниках. Откроется боковая панель." [ref=e572] [cursor=pointer]:
+                        - generic [ref=e573]:
+                          - img [ref=e574]: link
+                          - text: "+1"
+                  - button "Источники" [ref=e580]:
+                    - img [ref=e581]: link
+                    - generic [ref=e582]: Источники
+              - generic [ref=e588]:
+                - button "Хороший ответ" [ref=e590] [cursor=pointer]:
+                  - img [ref=e591]: thumb_up
+                - button "Плохой ответ" [ref=e595] [cursor=pointer]:
+                  - img [ref=e596]: thumb_down
+                - button "Повторить" [ref=e601] [cursor=pointer]:
+                  - img [ref=e602]: refresh
+                - button "Копировать" [ref=e606]:
+                  - img [ref=e607]: content_copy
+                - button "Показать другие варианты" [ref=e613]:
+                  - img [ref=e614]: more_vert
+        - generic [ref=e228]:
+          - group [ref=e229]:
+            - generic [ref=e232]:
+              - textbox "Введите запрос для Gemini" [active] [ref=e237]:
+                - text: Спросить Gemini
+                - paragraph [ref=e238]
+              - generic [ref=e239]:
+                - button "Открыть меню загрузки файлов" [ref=e333] [cursor=pointer]:
+                  - img [ref=e334]: add_2
+                - button "Инструменты" [ref=e618]:
+                  - img [ref=e619]: page_info
+                  - generic [ref=e622]: Инструменты
+              - generic [ref=e240]:
+                - button "Открыть меню выбора режима" [ref=e243]:
+                  - generic [ref=e245]:
+                    - generic [ref=e246]: Думающая
+                    - img [ref=e247]: keyboard_arrow_down
+                - generic [ref=e250]:
+                  - button "Микрофон" [ref=e253] [cursor=pointer]:
+                    - img [ref=e255]: mic
+                  - generic:
+                    - button "Отправить сообщение" [disabled]:
+                      - img: send
+          - paragraph [ref=e625]:
+            - text: Gemini – это ИИ. Он может ошибаться, в том числе давать неверную информацию о людях.
+            - link "Gemini и ваша конфиденциальность Откроется в новом окне" [ref=e626] [cursor=pointer]:
+              - /url: https://support.google.com/gemini?p=privacy_notice
+              - text: Gemini и ваша конфиденциальность
+              - generic [ref=e627]: Откроется в новом окне

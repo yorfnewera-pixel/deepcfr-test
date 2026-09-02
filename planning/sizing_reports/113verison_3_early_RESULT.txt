@@ -1,0 +1,133 @@
+# Результаты выполнения плана 113verison_3_early
+
+## Статус на 2026-08-23
+
+### Сделано
+
+1. Зафиксирован CFR baseline.
+   - `full_buffer_training: true`.
+   - Для action advantage, action strategy, sizing advantage, strategy sizing и sizing Q
+     установлено по 3 полные эпохи.
+   - `sizing_policy_source: cfr`, `sizing_q_hybrid_enabled: false`.
+   - Q не влияет на играющую sizing policy.
+
+2. Добавлены и проверены ограничения hybrid-пути.
+   - Явно разделены legal, credited и uncredited anchors.
+   - Grounded target имеет приоритет над Q для credited anchor.
+   - Illegal anchor не получает policy mass.
+   - Online `q_hybrid` пока не подключён.
+
+3. Добавлены offline-инструменты.
+   - `tools/diagnose_sizing_q_ranking.py`: Q replay coverage, per-anchor error,
+     ranking на grounded holdout.
+   - `tools/diagnose_sizing_hybrid.py` / `tools/evaluate_sizing_hybrid_checkpoint.py`:
+     shadow CFR/Q/hybrid без traversal и без изменения checkpoint.
+
+4. Исправлен сбор Q-targets в full-node K-collapse.
+   - Раньше в Q-buffer попадал только один итоговый sizing sample.
+   - Теперь записывается target каждой уже реально вычисленной K-collapse ветки.
+   - Новых traversal не добавлено; CFR policy, 80/20 bucket exploration и hybrid
+     не менялись.
+
+5. Исправлен запуск multi-player training.
+   - `--self-play-multi` теперь использует `profile_level=off` по умолчанию,
+     как и остальные training paths.
+   - Исправлена неинициализированная `eff_idx_diag` в новом K-collapse Q path,
+     которая маскировалась ошибкой profiler stack.
+
+### Проверенные результаты
+
+#### v21: до исправления K-collapse Q collection
+
+Checkpoint: `models/test107v21_q_refectoring/multi_checkpoint_iter_5.pt`.
+
+- Q pairwise ranking: около `0.491` (почти случайный порядок).
+- Q replay был сильно перекошен в 0.10.
+- Этот checkpoint не является проверкой новой записи всех K-collapse веток,
+  потому что создан до этой правки.
+
+#### v22: после исправления K-collapse Q collection
+
+Checkpoint: `models/test107v22_q_refectoring/multi_checkpoint_iter_5.pt`.
+
+Источник: `iter5_q_ranking.json`, `iter5_hybrid_shadow.json`.
+
+- Q replay: `500000` samples, `291477` unique states.
+- Q pairwise ranking на grounded holdout: `0.6447`.
+- Q top-1 ranking: `0.7611`.
+- Grounded holdout Q MAE: `1.0439`.
+- Q-only TV к grounded policy: `0.4192`.
+- CFR TV к grounded policy: `0.5239`.
+- Shadow hybrid TV к grounded policy: `0.1406`.
+
+Вывод: исправление K-collapse collection существенно улучшило ranking
+(`~0.49 -> ~0.645`) и Q-only shadow distance. Hybrid-число не является
+доказательством выгоды Q: hybrid использует реальные grounded values у
+credited anchors.
+
+### Текущее ограничение
+
+Coverage Q всё ещё неравномерный.
+
+- 0.10: `183210` samples (`36.64%`).
+- 0.75: `79214` samples (`15.84%`).
+- 1.00: `79871` samples (`15.97%`).
+- 2.25--3.00: от `694` до `971` samples на anchor.
+
+Крупные anchors остаются legal в тысячах holdout-состояний, но редко получают
+grounded branch target. Следовательно, Q уже не выглядит «мёртвой», однако
+coverage недостаточен для безопасного online `q_hybrid` по всем legal anchors.
+
+Отдельно: 0.10 выбран примерно в 39% hero full raises. Это сильный min-size
+bias, но не доказанный старый collapse уровня ~88--93%: остальные размеры
+по-прежнему имеют заметную массу, а 3.00 выбирается примерно в 4.9% случаев.
+
+### Последнее изменение: баланс Q-loss в full-buffer режиме
+
+Реализовано после v22, новый checkpoint ещё не создан.
+
+`sizing_q_stratified_sampling: true` применялся только в non-full-buffer ветке.
+В full-buffer режиме Q проходила все строки в исходной, перекошенной пропорции.
+Теперь для full-buffer Q-loss:
+
+- каждая строка replay всё ещё участвует в каждой epoch ровно один раз;
+- самый частый anchor получает вес `1.0`, а редкие получают ограниченный
+  inverse-frequency boost;
+- отношение максимального и минимального anchor weight ограничено параметром
+  `sizing_q_full_buffer_anchor_balance_clip: 10.0`;
+- отсутствующие/некорректные anchor indices получают нейтральный вес 1.0.
+
+Новые config-параметры:
+
+```yaml
+sizing_q_full_buffer_anchor_balance_enabled: true
+sizing_q_full_buffer_anchor_balance_clip: 10.0
+```
+
+Проверка реализации: `tests/test_sizing_q_regret.py` — `20 passed`.
+
+Это не меняет:
+
+- CFR sizing policy;
+- 80/20 bucket exploration;
+- число traversal;
+- Q-target semantics;
+- grounded priority.
+
+После этого нужен новый checkpoint и повтор двух offline отчётов. До тех пор
+`sizing_policy_source` остаётся `cfr`, а `sizing_q_hybrid_enabled` — `false`.
+
+#### v23: K-collapse collection + anchor-balanced Q-loss
+
+Checkpoint: `models/test107v23_q_refectoring/multi_checkpoint_iter_5.pt`.
+
+- Q pairwise ranking: `0.6513` (v22: `0.6447`).
+- Q top-1 ranking: `0.7640` (v22: `0.7611`).
+- Grounded holdout Q MAE: `1.0566` (v22: `1.0439`).
+- Q-only TV к grounded policy: `0.4145` (v22: `0.4192`).
+- MAE для 2.25--3.00 улучшилась относительно v22, но MAE частых 0.10,
+  0.75 и 1.00 немного выросла.
+
+Вывод: bounded anchor weighting даёт небольшой сдвиг качества в сторону редких
+anchors, но пока не даёт однозначного улучшения общей MAE. Это отдельный
+optimizer A/B; online `q_hybrid` по-прежнему не включается.

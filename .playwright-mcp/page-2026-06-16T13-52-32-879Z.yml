@@ -1,0 +1,113 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - complementary [ref=e4]:
+      - link "Aerolink Aerolink" [ref=e6] [cursor=pointer]:
+        - /url: /
+        - img "Aerolink" [ref=e7]
+        - generic [ref=e8]: Aerolink
+      - navigation [ref=e9]:
+        - generic [ref=e10]:
+          - paragraph [ref=e11]: Workspace
+          - list [ref=e12]:
+            - listitem [ref=e13]:
+              - link "Overview" [ref=e14] [cursor=pointer]:
+                - /url: /dashboard
+                - img [ref=e15]
+                - text: Overview
+            - listitem [ref=e20]:
+              - link "Usage" [ref=e21] [cursor=pointer]:
+                - /url: /dashboard/usage
+                - img [ref=e22]
+                - text: Usage
+            - listitem [ref=e24]:
+              - link "Logs" [ref=e25] [cursor=pointer]:
+                - /url: /dashboard/logs
+                - img [ref=e26]
+                - text: Logs
+            - listitem [ref=e29]:
+              - link "Documentation" [ref=e30] [cursor=pointer]:
+                - /url: /docs
+                - img [ref=e31]
+                - text: Documentation
+        - generic [ref=e33]:
+          - paragraph [ref=e34]: Account
+          - list [ref=e35]:
+            - listitem [ref=e36]:
+              - link "API keys" [ref=e37] [cursor=pointer]:
+                - /url: /dashboard/api-keys
+                - img [ref=e39]
+                - text: API keys
+            - listitem [ref=e42]:
+              - link "Billing & plan" [ref=e43] [cursor=pointer]:
+                - /url: /dashboard/billing
+                - img [ref=e44]
+                - text: Billing & plan
+            - listitem [ref=e46]:
+              - link "Referrals" [ref=e47] [cursor=pointer]:
+                - /url: /dashboard/referrals
+                - img [ref=e48]
+                - text: Referrals
+      - generic [ref=e52]:
+        - generic [ref=e53]:
+          - link "Telegram" [ref=e54] [cursor=pointer]:
+            - /url: https://t.me/aerolinkk
+          - link "Discord" [ref=e55] [cursor=pointer]:
+            - /url: https://discord.gg/SJjD92DtgU
+        - generic [ref=e56]:
+          - img [ref=e58]
+          - generic [ref=e61]:
+            - generic [ref=e62]: Амбивалентность инсинуации
+            - generic [ref=e63]: yorfnewera@gmail.com
+        - button "Sign out" [ref=e64] [cursor=pointer]:
+          - img [ref=e65]
+          - text: Sign out
+    - generic [ref=e68]:
+      - banner [ref=e69]:
+        - generic [ref=e75]: Gateway operational
+        - generic [ref=e76]:
+          - generic [ref=e77]: Starter
+          - link "Bonus $80.00" [ref=e78] [cursor=pointer]:
+            - /url: /dashboard/usage
+            - img [ref=e79]
+            - generic [ref=e83]:
+              - generic [ref=e84]: Bonus
+              - generic [ref=e85]: $80.00
+          - link "Balance $0.00" [ref=e86] [cursor=pointer]:
+            - /url: /dashboard/billing
+            - img [ref=e87]
+            - generic [ref=e90]:
+              - generic [ref=e91]: Balance
+              - generic [ref=e92]: $0.00
+      - main [ref=e93]:
+        - generic [ref=e95]:
+          - generic [ref=e96]:
+            - generic [ref=e97]:
+              - heading "API keys" [level=1] [ref=e98]
+              - paragraph [ref=e99]: Secret keys that authenticate requests through the Aerolink gateway.
+            - button "New key" [ref=e101] [cursor=pointer]:
+              - img [ref=e102]
+              - text: New key
+          - generic [ref=e103]:
+            - generic [ref=e104]:
+              - generic [ref=e105]: Current plan
+              - generic [ref=e106]: allows
+              - generic [ref=e107]: unlimited
+              - generic [ref=e108]: active keys.
+              - generic [ref=e109]: 0 used
+            - generic [ref=e110]:
+              - generic [ref=e112]:
+                - heading "Your keys" [level=2] [ref=e113]
+                - paragraph [ref=e114]: Never share a key. Leaked keys are disabled automatically.
+              - table [ref=e117]:
+                - rowgroup [ref=e118]:
+                  - row "Name Secret key Created Last used Today" [ref=e119]:
+                    - columnheader "Name" [ref=e120]
+                    - columnheader "Secret key" [ref=e121]
+                    - columnheader "Created" [ref=e122]
+                    - columnheader "Last used" [ref=e123]
+                    - columnheader "Today" [ref=e124]
+                    - columnheader [ref=e125]
+                - rowgroup [ref=e126]:
+                  - row "Loading…" [ref=e127]:
+                    - cell "Loading…" [ref=e128]
+  - alert [ref=e129]

@@ -1,0 +1,84 @@
+- generic [ref=e1]:
+  - 'button "Аккаунт Google: Амбивалентность инсинуации (yorfnewera@gmail.com)" [ref=e8] [cursor=pointer]':
+    - img [ref=e10]
+  - main [ref=e12]:
+    - button "Временный чат" [ref=e20] [cursor=pointer]:
+      - img [ref=e22]
+    - generic [ref=e27]:
+      - navigation "Боковая панель" [ref=e28]:
+        - generic [ref=e31]:
+          - group [ref=e32]:
+            - link "Новый чат" [ref=e34] [cursor=pointer]:
+              - /url: /app
+              - generic [ref=e35]: Новый чат
+              - img [ref=e39]: edit_square
+          - generic:
+            - progressbar "Загрузка Gem-ботов и недавних чатов":
+              - generic:
+                - img
+              - generic:
+                - generic:
+                  - generic:
+                    - img
+                  - generic:
+                    - img
+                  - generic:
+                    - img
+          - generic:
+            - progressbar "История чата загружается":
+              - generic:
+                - img
+              - generic:
+                - generic:
+                  - generic:
+                    - img
+                  - generic:
+                    - img
+                  - generic:
+                    - img
+          - group [ref=e42]:
+            - button "История действий в приложениях Gemini" [ref=e44] [cursor=pointer]:
+              - img [ref=e48]: history
+            - button "Settings & help" [ref=e52] [cursor=pointer]:
+              - img [ref=e56]: settings_2
+      - generic [ref=e65]:
+        - generic [ref=e66]:
+          - heading "Чат с Gemini" [level=1] [ref=e67]
+          - generic [ref=e72]:
+            - generic [ref=e73]:
+              - generic [ref=e78]:
+                - generic: Здравствуйте, Амбивалентность!
+              - generic [ref=e84]:
+                - heading "С чего начнем?" [level=1]:
+                  - generic: С чего начнем?
+            - generic [ref=e90]:
+              - generic:
+                - generic:
+                  - generic:
+                    - button "🖼️ Создать изображение, кнопка, нажмите, чтобы воспользоваться инструментом":
+                      - generic: 🖼️ Создать изображение
+                  - generic:
+                    - button "🎸 Создать музыку, кнопка, нажмите, чтобы воспользоваться инструментом":
+                      - generic: 🎸 Создать музыку
+                  - generic:
+                    - button "Улучши мой день, кнопка, нажмите, чтобы воспользоваться инструментом":
+                      - generic: Улучши мой день
+                  - generic:
+                    - button "Научи меня, кнопка, нажмите, чтобы воспользоваться инструментом":
+                      - generic: Научи меня
+                  - generic:
+                    - button "Напишите что-нибудь, кнопка, нажмите, чтобы воспользоваться инструментом":
+                      - generic: Напишите что-нибудь
+        - generic [ref=e91]:
+          - group [ref=e92]:
+            - generic [ref=e95]:
+              - textbox "Введите запрос для Gemini" [active] [ref=e100]:
+                - text: Спросить Gemini
+                - paragraph [ref=e101]
+              - generic [ref=e104]:
+                - button "Микрофон" [ref=e107] [cursor=pointer]:
+                  - img [ref=e109]: mic
+                - generic:
+                  - button "Отправить сообщение" [disabled]:
+                    - img: send
+          - paragraph [ref=e114]

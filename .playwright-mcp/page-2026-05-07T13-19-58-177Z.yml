@@ -1,0 +1,272 @@
+- generic [ref=e2]:
+  - generic [ref=e229]:
+    - navigation "Sidebar" [ref=e231]:
+      - generic [ref=e232]:
+        - generic:
+          - link "Home":
+            - /url: /new
+            - img "Claude"
+        - button "Open sidebar" [ref=e234] [cursor=pointer]:
+          - generic [ref=e235]:
+            - img [ref=e237]
+            - img [ref=e240]
+      - generic [ref=e242]:
+        - generic [ref=e243]:
+          - link "New chat" [ref=e246] [cursor=pointer]:
+            - /url: /new
+            - generic:
+              - img [ref=e250]
+              - generic:
+                - generic: New chat
+          - link "Search" [ref=e254] [cursor=pointer]:
+            - /url: "#"
+            - generic:
+              - img [ref=e257]
+              - generic:
+                - generic: Search
+        - generic [ref=e259]:
+          - generic [ref=e260]:
+            - link "Chats" [ref=e262] [cursor=pointer]:
+              - /url: /recents
+              - generic:
+                - img [ref=e265]
+                - generic:
+                  - generic: Chats
+            - link "Projects" [ref=e269] [cursor=pointer]:
+              - /url: /projects
+              - generic:
+                - img [ref=e272]
+                - generic:
+                  - generic: Projects
+            - link "Artifacts" [ref=e278] [cursor=pointer]:
+              - /url: /artifacts/my
+              - generic:
+                - img [ref=e281]
+                - generic:
+                  - generic: Artifacts
+            - link "Code" [ref=e287] [cursor=pointer]:
+              - /url: /upgrade
+              - generic:
+                - img [ref=e290]
+                - generic:
+                  - generic:
+                    - generic: Code
+            - link "Customize" [ref=e295] [cursor=pointer]:
+              - /url: /customize
+              - generic:
+                - img [ref=e299]
+                - generic:
+                  - generic: Customize
+          - paragraph [ref=e305]: Your chats will show up here
+        - link "Get apps and extensions" [ref=e310] [cursor=pointer]:
+          - /url: /downloads
+          - img [ref=e313]
+        - button "Alex, Settings" [ref=e319] [cursor=pointer]:
+          - generic [ref=e323]: A
+          - generic:
+            - generic [ref=e324]:
+              - generic: Alex
+              - generic: Free plan
+            - img [ref=e326]
+    - generic [ref=e433]:
+      - banner [ref=e434]:
+        - generic [ref=e435]:
+          - generic [ref=e438]:
+            - button "SwipeToDismiss in Material 3 Compose, rename chat" [ref=e535] [cursor=pointer]:
+              - generic [ref=e441]: SwipeToDismiss in Material 3 Compose
+            - button "More options for SwipeToDismiss in Material 3 Compose" [ref=e536] [cursor=pointer]:
+              - img [ref=e445]
+          - generic [ref=e447]:
+            - text: Free plan
+            - link "Upgrade" [ref=e450] [cursor=pointer]:
+              - /url: /upgrade
+            - button "Dismiss upgrade banner" [ref=e451] [cursor=pointer]:
+              - img [ref=e453]
+      - generic [ref=e457]:
+        - status [ref=e458]: Claude is responding
+        - generic [ref=e459]:
+          - generic [ref=e462]:
+            - 'heading "You said: What is the current version and API for SwipeToDismiss in Material 3 for Jetpack Compose?" [level=2] [ref=e463]'
+            - generic [ref=e464]:
+              - paragraph [ref=e469]: What is the current version and API for SwipeToDismiss in Material 3 for Jetpack Compose? Show the latest import path and usage example.
+              - group "Message actions" [ref=e470]:
+                - generic [ref=e472]:
+                  - generic [ref=e473]: 16:19
+                  - button "Edit" [ref=e476] [cursor=pointer]:
+                    - img [ref=e478]
+                  - button "Copy" [ref=e481] [cursor=pointer]:
+                    - generic [ref=e482]:
+                      - img [ref=e484]
+                      - img [ref=e487]
+          - generic [ref=e543]:
+            - generic [ref=e545]:
+              - button "Synthesized Material 3 component details and compiled comprehensive usage guide" [ref=e664] [cursor=pointer]:
+                - generic [ref=e665]:
+                  - generic [ref=e666]: Synthesized Material 3 component details and compiled comprehensive usage guide
+                  - img [ref=e669]
+              - status [ref=e560]: Synthesized Material 3 component details and compiled comprehensive usage guide
+            - generic [ref=e671]:
+              - paragraph [ref=e674]:
+                - text: Here's a comprehensive breakdown of the current
+                - strong [ref=e675]: Material 3
+                - code [ref=e676]: SwipeToDismissBox
+                - text: API for Jetpack Compose.
+              - separator [ref=e679]
+              - 'heading "⚠️ Key Distinction: M2 vs M3" [level=3] [ref=e682]'
+              - paragraph [ref=e685]:
+                - text: The
+                - strong [ref=e686]: old
+                - text: Material 2 API (
+                - code [ref=e687]: androidx.compose.material
+                - text: ) uses
+                - code [ref=e688]: SwipeToDismiss
+                - text: and is now
+                - strong [ref=e689]: deprecated
+                - text: . Material 3 uses the renamed
+                - strong [ref=e690]:
+                  - code [ref=e691]: SwipeToDismissBox
+                - text: .
+              - separator [ref=e694]
+              - heading "📦 Dependency" [level=3] [ref=e697]
+              - paragraph [ref=e700]:
+                - text: The latest
+                - strong [ref=e701]: stable
+                - text: Material 3 release is
+                - strong [ref=e702]: 1.3.x
+                - text: "; alpha versions (1.4.x / 1.5.x) are in active development:"
+              - group "kotlin code" [ref=e705]:
+                - button "Copy to clipboard" [ref=e707] [cursor=pointer]:
+                  - generic [ref=e708]:
+                    - img [ref=e710]
+                    - img [ref=e714]
+                - generic [ref=e716]: kotlin
+                - code [ref=e719]:
+                  - generic [ref=e720]: // build.gradle.kts
+                  - generic [ref=e721]: implementation("androidx.compose.material3:material3:1.3.2")
+              - separator [ref=e724]
+              - heading "📥 Imports (Material 3)" [level=3] [ref=e727]
+              - group "kotlin code" [ref=e730]:
+                - button "Copy to clipboard" [ref=e732] [cursor=pointer]:
+                  - generic [ref=e733]:
+                    - img [ref=e735]
+                    - img [ref=e739]
+                - generic [ref=e741]: kotlin
+                - code [ref=e744]:
+                  - generic [ref=e745]: import androidx.compose.material3.SwipeToDismissBox
+                  - generic [ref=e746]: import androidx.compose.material3.SwipeToDismissBoxState
+                  - generic [ref=e747]: import androidx.compose.material3.SwipeToDismissBoxValue
+                  - generic [ref=e748]: import androidx.compose.material3.rememberSwipeToDismissBoxState
+                  - generic [ref=e749]: import androidx.compose.material3.ExperimentalMaterial3Api
+              - separator [ref=e752]
+              - heading "🔧 Current API Signature" [level=3] [ref=e755]
+              - paragraph [ref=e758]: "The current Material 3 signature looks like this:"
+              - group "kotlin code" [ref=e761]:
+                - button "Copy to clipboard" [ref=e763] [cursor=pointer]:
+                  - generic [ref=e764]:
+                    - img [ref=e766]
+                    - img [ref=e770]
+                - generic [ref=e772]: kotlin
+                - code [ref=e775]:
+                  - generic [ref=e776]: "@Composable"
+                  - generic [ref=e777]: fun SwipeToDismissBox(
+                  - generic [ref=e778]: "state: SwipeToDismissBoxState,"
+                  - generic [ref=e779]: "backgroundContent: @Composable RowScope.() -> Unit,"
+                  - generic [ref=e780]: "modifier: Modifier = Modifier,"
+                  - generic [ref=e781]: "enableDismissFromStartToEnd: Boolean = true,"
+                  - generic [ref=e782]: "enableDismissFromEndToStart: Boolean = true,"
+                  - generic [ref=e783]: "gesturesEnabled: Boolean = true,"
+                  - generic [ref=e784]: "onDismiss: (SwipeToDismissBoxValue) -> Unit = {},"
+                  - generic [ref=e785]: "content: @Composable RowScope.() -> Unit,"
+                  - generic [ref=e786]: )
+              - list [ref=e789]:
+                - listitem [ref=e790]:
+                  - text: "--"
+                  - link "Composables" [ref=e792] [cursor=pointer]:
+                    - /url: https://composables.com/jetpack-compose/androidx.compose.material3/material3/components/SwipeToDismissBox/api
+                    - generic [ref=e794]: Composables
+                    - img [ref=e796]
+              - heading "✅ Full Usage Example" [level=3] [ref=e800]
+              - group "kotlin code" [ref=e803]:
+                - button "Copy to clipboard" [ref=e805] [cursor=pointer]:
+                  - generic [ref=e806]:
+                    - img [ref=e808]
+                    - img [ref=e812]
+                - generic [ref=e814]: kotlin
+                - code [ref=e817]:
+                  - generic [ref=e818]: "@OptIn(ExperimentalMaterial3Api::class)"
+                  - generic [ref=e819]: "@Composable"
+                  - generic [ref=e820]: fun SwipeableTodoItem(
+                  - generic [ref=e821]: "item: String,"
+                  - generic [ref=e822]: "onRemove: () -> Unit,"
+                  - generic [ref=e823]: "onDone: () -> Unit"
+                  - generic [ref=e824]: ") {"
+                  - generic [ref=e825]: val state = rememberSwipeToDismissBoxState(
+                  - generic [ref=e826]: "confirmValueChange = { newValue ->"
+                  - generic [ref=e827]: "when (newValue) {"
+                  - generic [ref=e828]: "SwipeToDismissBoxValue.StartToEnd -> {"
+                  - generic [ref=e829]: onDone()
+                  - generic [ref=e830]: false // don't dismiss, just update
+                  - generic [ref=e831]: "}"
+                  - generic [ref=e832]: "SwipeToDismissBoxValue.EndToStart -> {"
+                  - generic [ref=e833]: onRemove()
+                  - generic [ref=e834]: true // dismiss the item
+                  - generic [ref=e835]: "}"
+                  - generic [ref=e836]: SwipeToDismissBoxValue.Settled -> false
+                  - generic [ref=e837]: "}"
+                  - generic [ref=e838]: "}"
+                  - generic [ref=e839]: )
+                  - generic [ref=e840]: SwipeToDismissBox(
+                  - generic [ref=e841]: state = state,
+                  - generic [ref=e842]: modifier = Modifier
+                  - generic [ref=e843]: .fillMaxWidth()
+                  - generic [ref=e844]: .padding(vertical = 4.dp),
+                  - generic [ref=e845]: enableDismissFromStartToEnd = true,
+                  - generic [ref=e846]: enableDismissFromEndToStart = true,
+                  - generic [ref=e847]: "backgroundContent = {"
+                  - generic [ref=e848]: // Shown behind the content while swiping
+                  - generic [ref=e849]: val color by animateColorAsState(
+                  - generic [ref=e850]: "when (state.targetValue) {"
+                  - generic [ref=e851]: SwipeToDismissBoxValue.StartToEnd -> Color.Green
+                  - generic [ref=e852]: SwipeToDismissBoxValue.EndToStart -> Color.Red
+                  - generic [ref=e853]: SwipeToDismissBoxValue.Settled -> Color.Transparent
+                  - generic [ref=e854]: "},"
+                  - generic [ref=e855]: label = "swipe_color"
+                  - generic [ref=e856]: )
+                  - generic [ref=e857]: "val icon = when (state.targetValue) {"
+                  - generic [ref=e858]: SwipeToDismissBoxValue.StartToEnd -> Icons.Default.Check
+                  - generic [ref=e859]: SwipeToDismissBoxValue.EndToStart -> Icons.Default.Delete
+                  - generic [ref=e860]: SwipeToDismissBoxValue.Settled -> null
+                  - generic [ref=e861]: "}"
+          - img [ref=e862]
+        - generic [ref=e499]:
+          - button "Scroll to bottom" [ref=e864] [cursor=pointer]:
+            - generic:
+              - generic:
+                - img
+            - img [ref=e866]
+          - group [ref=e501]:
+            - status [ref=e652]:
+              - generic [ref=e655]:
+                - generic [ref=e656]: Want to be notified when Claude responds?
+                - generic [ref=e657]:
+                  - button "Notify" [ref=e658] [cursor=pointer]
+                  - button [ref=e659] [cursor=pointer]:
+                    - img [ref=e660]
+            - generic [ref=e504]:
+              - textbox "Write your prompt to Claude" [ref=e507]:
+                - paragraph [ref=e508]: Write a message…
+              - generic [ref=e509]:
+                - button "Add files, connectors, and more" [ref=e512] [cursor=pointer]:
+                  - img [ref=e514]
+                - 'button "Model: Sonnet 4.6 Adaptive" [ref=e519] [cursor=pointer]':
+                  - generic [ref=e520]:
+                    - generic [ref=e522]: Sonnet 4.6
+                    - generic [ref=e523]: Adaptive
+                  - img [ref=e525]
+                - button "Stop response" [ref=e529] [cursor=pointer]:
+                  - img [ref=e530]
+          - note [ref=e532]:
+            - link "Claude is AI and can make mistakes. Please double-check responses." [ref=e533] [cursor=pointer]:
+              - /url: https://support.anthropic.com/en/articles/8525154-claude-is-providing-incorrect-or-misleading-responses-what-s-going-on
+  - region "Notifications (F8)":
+    - list

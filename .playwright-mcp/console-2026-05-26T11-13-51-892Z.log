@@ -1,0 +1,2 @@
+[   22583ms] [ERROR] Failed to load resource: net::ERR_HTTP2_PING_FAILED @ https://freemodel.dev/assets/index-Me5T2xvV.css:0
+[   53761ms] [ERROR] Failed to load resource: net::ERR_QUIC_PROTOCOL_ERROR @ https://freemodel.dev/assets/index-BLPwFpjW.js:0

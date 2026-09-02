@@ -1,0 +1,187 @@
+# БАГ 31 — Регрессия времени выполнения траверсала DCFR+ после исправления БАГа 30
+
+## Статус
+Последующий отчет об ошибке / анализ деградации производительности после исправления БАГа 30.
+
+Связанный предыдущий отчет:
+
+- `30_BUG_DCFR_TRAVERSAL_STRATEGY_NET_EN.md`
+
+## Основные файлы
+
+- `src/core/deep_cfr.py`
+  - `DeepCFRAgent.__init__()`
+  - `DeepCFRAgent.cfr_traverse_multi()`
+- `src/training/train.py`
+  - `train_self_play_multi()`
+  - `_log_multi_cfr_diagnostics()`
+- Вывод метрик JSON:
+  - `metricks/TimeIteration.json`
+  - `metricks/TimeTraversal.json`
+  - `metricks/Traversalnodes.json`
+  - `metricks/Traversalopponent_decision_nodes.json`
+  - `metricks/Traversaltraversing_decision_nodes.json`
+  - `metricks/Traversalterminal_nodes.json`
+
+## Краткое описание проблемы
+
+После исправления БАГа 30 траверсал стал алгоритмически ближе к Deep CFR/DCFR+:
+
+```text
+opponents: advantage_net -> regret matching+ -> sample one action
+вместо старого некорректного поведения:
+
+Plaintext
+opponents: strategy_net -> softmax -> sample one action
+Однако время обучения значительно увеличилось. Судя по текущим метрикам, TimeTraversal часто составляет несколько секунд на итерацию и иногда демонстрирует сильные всплески.
+
+Это не вызвано перебором всех действий для всех 6 игроков. Оппоненты по-прежнему выбирают одно случайное действие. Замедление в основном вызвано следующими факторами:
+
+Больше узлов траверсала, так как текущая политика оппонентов на базе regret-matching может создавать более длинные игровые линии;
+
+Один проход нейросети (inference) на каждый узел принятия решения;
+
+Накладные расходы пула потоков PyTorch на CPU при множестве крошечных вызовов инференса для одного состояния;
+
+Незавершенная часть исправления БАГа 30: узлы оппонентов по-прежнему записывались в strategy_buffer;
+
+Дублирующий вызов encode_state(), которого можно избежать в траверсале оппонентов.
+
+Наблюдаемые метрики
+Путь: C:\Users\Cassmall\Desktop\deepcfr-test\metricks:
+
+Время (Time)
+Plaintext
+TimeIteration:
+  avg  ≈ 7.62 sec
+  last ≈ 7.67 sec
+  max  ≈ 56.83 sec
+
+TimeTraversal:
+  avg  ≈ 7.55 sec
+  last ≈ 7.34 sec
+  max  ≈ 56.78 sec
+Почти всё время итерации — это время траверсала.
+
+Узлы траверсала (Traversal nodes)
+Plaintext
+TraversalInputTraversals:
+  constant = 400
+
+Traversalnodes:
+  min  ≈ 9,164
+  max  ≈ 70,387
+  avg  ≈ 21,682
+  tail10 avg ≈ 32,525
+Время выполнения напрямую коррелирует с количеством узлов. Это указывает на вариативность размера дерева, а не на утечку памяти на фазе обучения.
+
+Лимит глубины (Depth limit)
+Plaintext
+Traversalmax_depth_hits = 0 (всегда)
+Замедление не связано с достижением явного ограничения глубины.
+
+Ключевой вывод
+Исправление БАГа 30 сделало траверсал более корректным, но оно изменило поведение оппонентов с аппроксимации старой средней стратегии на актуальную стратегию regret-matching.
+
+Это может увеличить количество узлов, потому что:
+
+strategy_net могла быть более плавной, устаревшей или пассивной;
+
+advantage_net + regret matching+ может чаще выбирать действия call/raise;
+
+большее количество действий call/raise продлевает раздачи;
+
+длинные раздачи создают больше узлов в траверсале;
+
+большее количество узлов порождает больше вызовов инференса advantage_net.
+
+Следовательно, часть увеличения времени выполнения является ожидаемым следствием приведения алгоритма траверсала к корректному виду.
+
+Тем не менее, были обнаружены проблемы реализации, которые необходимо исправить.
+
+Проблемы реализации, найденные после БАГа 30
+Проблема 1 — ветка оппонента всё еще пишет в strategy_buffer
+В DeepCFRAgent.cfr_traverse_multi() ветка оппонента всё еще содержала:
+
+Plaintext
+opp_state_arr = np.asarray(encode_state(state, current_player), dtype=np.float32)
+self.strategy_buffer.add(opp_state_arr, opp_strategy, opp_mask, iteration)
+Это нежелательно, так как strategy_buffer должен представлять цели средней стратегии, собранные из текущих стратегий CFR в точках принятия решения активного игрока (traversing_player), а не в каждом сэмплированном узле оппонента.
+
+Даже если источником теперь является advantage_net + regret matching+, а не strategy_net, хранение сэмплов из веток оппонентов меняет распределение целей и создает лишнюю работу.
+
+Проблема 2 — дубликат encode_state() в ветке оппонента
+В ветке оппонента выполнялось:
+
+Plaintext
+encode_state(state, current_player)  # для входных данных сети
+encode_state(state, current_player)  # снова для добавления в strategy_buffer
+После удаления записи в strategy_buffer для оппонента второй вызов кодирования становится ненужным.
+
+Проблема 3 — PyTorch на CPU использует слишком много потоков для крошечных вызовов инференса
+Микро-бенчмарк до ограничения потоков показал:
+
+Plaintext
+threads=1 -> ~373.6 us/node
+threads=2 -> ~395.9 us/node
+threads=4 -> ~435.8 us/node
+threads=6 -> ~438.7 us/node
+В траверсале нагрузка состоит из множества маленьких прямых проходов (forward pass) с размером батча 1. Многопоточное выполнение на CPU добавляет накладные расходы и работает медленнее, чем однопоточное.
+
+Примененные / рекомендуемые исправления
+Исправление 1 — удалить запись в strategy-buffer для оппонентов
+Удалить этот блок из ветки оппонента:
+
+Plaintext
+opp_state_arr = np.asarray(encode_state(state, current_player), dtype=np.float32)
+self.strategy_buffer.add(opp_state_arr, opp_strategy, opp_mask, iteration)
+После этого изменения strategy_buffer заполняется только в ветке активного игрока:
+
+Plaintext
+current_player == traversing_player
+Это завершает практическую задачу Шага 1 из БАГа 30.
+
+Исправление 2 — повторное использование закодированного состояния оппонента
+Изменить ветку оппонента с прямого встроенного кодирования:
+
+Plaintext
+opp_state_tensor = torch.FloatTensor(encode_state(state, current_player)).unsqueeze(0).to(self.device)
+на:
+
+Plaintext
+opp_encoded_state = encode_state(state, current_player)
+opp_state_tensor = torch.FloatTensor(opp_encoded_state).unsqueeze(0).to(self.device)
+Это позволяет использовать закодированное состояние повторно, если нужно, и избегает лишних вызовов после удаления записи в буфер оппонента.
+
+Исправление 3 — ограничить потоки PyTorch на CPU для задач траверсала
+В DeepCFRAgent.__init__() для устройства CPU:
+
+Plaintext
+if str(device).startswith('cpu'):
+    torch.set_num_threads(int(cfg_get('torch_num_threads', 1)))
+    try:
+        torch.set_num_interop_threads(int(cfg_get('torch_num_interop_threads', 1)))
+    except RuntimeError:
+        pass
+Значение по умолчанию должно быть 1 для текущей архитектуры траверсала.
+
+Если в будущем инференс в траверсале станет пакетным (batched), это нужно будет протестировать заново.
+
+Микро-бенчмарк после исправлений
+После применения вышеуказанных исправлений быстрый локальный бенчмарк показал:
+
+Plaintext
+threads: 1
+interop: 1
+100 traversals elapsed: ~1.84 sec
+per traversal: ~18.4 ms
+nodes: 5,966
+us/node: ~308.5
+strategy_len: 745
+Важная интерпретация:
+
+strategy_len теперь соответствует только узлам принятия решения активного игрока.
+
+узлы оппонентов больше не загрязняют strategy_buffer.
+
+время выполнения на один узел улучшилось по сравнению с 6-поточным инференсом на CPU.

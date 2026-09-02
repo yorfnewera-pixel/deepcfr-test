@@ -1,0 +1,128 @@
+- generic [ref=e2]:
+  - generic [ref=e229]:
+    - navigation "Боковая панель" [ref=e1213]:
+      - generic [ref=e232]:
+        - generic:
+          - link "Дом":
+            - /url: /new
+            - img "Клод"
+        - button "Открыть боковую панель" [ref=e1214] [cursor=pointer]:
+          - generic [ref=e235]:
+            - img [ref=e237]
+            - img [ref=e240]
+      - generic [ref=e242]:
+        - generic [ref=e243]:
+          - link "Новый чат" [ref=e1215] [cursor=pointer]:
+            - /url: /new
+            - generic:
+              - img [ref=e250]
+              - generic [ref=e1216]: Новый чат
+          - link "Поиск" [ref=e1217] [cursor=pointer]:
+            - /url: "#"
+            - generic:
+              - img [ref=e257]
+              - generic [ref=e1218]: Поиск
+        - generic [ref=e259]:
+          - generic [ref=e260]:
+            - link "Чаты" [ref=e1219] [cursor=pointer]:
+              - /url: /recents
+              - generic:
+                - img [ref=e265]
+                - generic [ref=e1221]: Чаты
+            - link "Проекты" [ref=e1222] [cursor=pointer]:
+              - /url: /projects
+              - generic:
+                - img [ref=e272]
+                - generic [ref=e1224]: Проекты
+            - link "Артефакты" [ref=e1225] [cursor=pointer]:
+              - /url: /artifacts/my
+              - generic:
+                - img [ref=e281]
+                - generic [ref=e1226]: Артефакты
+            - link "Код" [ref=e1227] [cursor=pointer]:
+              - /url: /upgrade
+              - generic:
+                - img [ref=e290]
+                - generic [ref=e1229]: Код
+            - link "Настроить" [ref=e1230] [cursor=pointer]:
+              - /url: /customize
+              - generic:
+                - img [ref=e299]
+                - generic [ref=e1231]: Настроить
+          - generic [ref=e304]:
+            - generic [ref=e876]:
+              - button [expanded]:
+                - generic: Последние
+                - generic:
+                  - generic: Скрывать
+            - list [ref=e877]:
+              - listitem [ref=e878]:
+                - link [ref=e880] [cursor=pointer]:
+                  - /url: /chat/ed54c6a8-79b1-4516-8312-2f75dd66457a
+                  - generic [ref=e1232]: SwipeToDismiss в Material 3 Compose
+        - link "Загрузите приложения и расширения." [ref=e1233] [cursor=pointer]:
+          - /url: /downloads
+          - img [ref=e313]
+        - button "Алекс, Настройки" [ref=e1234] [cursor=pointer]:
+          - generic [ref=e1235]: А
+          - generic:
+            - generic [ref=e324]:
+              - generic [ref=e1236]: Алекс
+              - generic [ref=e1237]: Бесплатный план
+            - img [ref=e326]
+    - generic [ref=e328]:
+      - main [ref=e1399]:
+        - generic [ref=e1400]:
+          - generic [ref=e1401]: Бесплатный план
+          - link "Обновление" [ref=e1404] [cursor=pointer]:
+            - /url: /upgrade
+            - generic [ref=e1405]: Обновление
+        - generic [ref=e1409]:
+          - img [ref=e1413]
+          - generic [ref=e1416]: Добрый день, Алекс
+        - generic [ref=e1418]:
+          - group [ref=e1421]:
+            - generic [ref=e1424]:
+              - generic [ref=e1425]:
+                - textbox "Write your prompt to Claude" [active] [ref=e1427]:
+                  - paragraph [ref=e1428]
+                - generic:
+                  - generic:
+                    - generic: Чем я могу вам сегодня помочь?
+              - generic [ref=e1429]:
+                - button "Добавляйте файлы, коннекторы и многое другое." [ref=e1432] [cursor=pointer]:
+                  - img [ref=e1434]
+                - 'button "Модель: Sonnet 4.6 Adaptive" [ref=e1439] [cursor=pointer]':
+                  - generic [ref=e1440]:
+                    - generic [ref=e1443]: Сонет 4.6
+                    - generic [ref=e1445]: Адаптивный
+                  - img [ref=e1447]
+                - button "Использовать голосовой режим" [ref=e1452] [cursor=pointer]:
+                  - img [ref=e1455]
+            - generic:
+              - status
+          - tablist "Категории подсказок" [ref=e1464]:
+            - tab "Писать" [ref=e1465] [cursor=pointer]:
+              - generic [ref=e1466]:
+                - img [ref=e1468]
+                - generic [ref=e1471]: Писать
+            - tab "Учиться" [ref=e1472] [cursor=pointer]:
+              - generic [ref=e1473]:
+                - img [ref=e1475]
+                - generic [ref=e1478]: Учиться
+            - tab "Код" [ref=e1479] [cursor=pointer]:
+              - generic [ref=e1480]:
+                - img [ref=e1482]
+                - generic [ref=e1485]: Код
+            - tab "Жизненные дела" [ref=e1486] [cursor=pointer]:
+              - generic [ref=e1487]:
+                - img [ref=e1489]
+                - generic [ref=e1492]: Жизненные дела
+            - tab "Выбор Клода" [ref=e1493] [cursor=pointer]:
+              - generic [ref=e1494]:
+                - img [ref=e1496]
+                - generic [ref=e1499]: Выбор Клода
+      - button "Используйте режим инкогнито" [ref=e1503] [cursor=pointer]:
+        - img [ref=e1505]
+  - region "Уведомления (F8)":
+    - list

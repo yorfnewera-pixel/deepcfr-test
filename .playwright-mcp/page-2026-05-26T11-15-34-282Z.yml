@@ -1,0 +1,253 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - link "FreeModel" [ref=e5] [cursor=pointer]:
+      - /url: /
+      - img [ref=e7]
+      - generic [ref=e9]:
+        - text: Free
+        - emphasis [ref=e10]: Model
+    - generic [ref=e11]:
+      - generic [ref=e12]: Workspace
+      - button "Home" [ref=e13] [cursor=pointer]:
+        - img [ref=e14]
+        - text: Home
+      - button "API Keys" [ref=e18] [cursor=pointer]:
+        - img [ref=e19]
+        - text: API Keys
+      - button "Usage" [ref=e22] [cursor=pointer]:
+        - img [ref=e23]
+        - text: Usage
+      - button "Logs" [ref=e26] [cursor=pointer]:
+        - img [ref=e27]
+        - text: Logs
+      - button "Billing" [ref=e30] [cursor=pointer]:
+        - img [ref=e31]
+        - text: Billing
+    - generic [ref=e33]:
+      - generic [ref=e34]: Account
+      - button "Refer & Earn" [ref=e35] [cursor=pointer]:
+        - img [ref=e36]
+        - text: Refer & Earn
+      - button "Profile" [ref=e38] [cursor=pointer]:
+        - img [ref=e39]
+        - text: Profile
+      - button "Docs" [active] [ref=e42] [cursor=pointer]:
+        - img [ref=e43]
+        - text: Docs
+    - button "А Амбивалентность инсинуации Not verified yorfnewera@gmail.com" [ref=e49] [cursor=pointer]:
+      - generic [ref=e50]: А
+      - generic [ref=e51]:
+        - generic [ref=e52]:
+          - generic [ref=e53]: Амбивалентность инсинуации
+          - generic "Not verified" [ref=e54]:
+            - img [ref=e55]
+        - generic [ref=e57]: yorfnewera@gmail.com
+      - img [ref=e58]
+  - main [ref=e60]:
+    - generic [ref=e61]:
+      - generic [ref=e63]:
+        - generic [ref=e64]: § Documentation
+        - heading "Claude Code Setup Guide" [level=1] [ref=e65]:
+          - text: Claude Code
+          - emphasis [ref=e66]: Setup Guide
+      - generic [ref=e67]:
+        - generic [ref=e68]:
+          - generic [ref=e69]:
+            - button "Claude Code" [ref=e70] [cursor=pointer]
+            - button "Codex" [ref=e71] [cursor=pointer]
+          - navigation "Table of contents" [ref=e72]:
+            - generic [ref=e73]: On this page
+            - link "Overview" [ref=e74] [cursor=pointer]:
+              - /url: "#cc-intro"
+            - link "Install Node.js" [ref=e75] [cursor=pointer]:
+              - /url: "#cc-step-1"
+            - link "Get an API key" [ref=e76] [cursor=pointer]:
+              - /url: "#cc-step-2"
+            - link "Install the client" [ref=e77] [cursor=pointer]:
+              - /url: "#cc-step-3"
+            - link "Configure settings.json" [ref=e78] [cursor=pointer]:
+              - /url: "#cc-step-4"
+            - link "Launch" [ref=e79] [cursor=pointer]:
+              - /url: "#cc-step-5"
+            - link "FAQ" [ref=e80] [cursor=pointer]:
+              - /url: "#cc-faq"
+        - article [ref=e81]:
+          - generic [ref=e82]:
+            - paragraph [ref=e83]:
+              - text: A walk‑through for installing the
+              - strong [ref=e84]: Claude Code client
+              - text: — from a clean machine to your first
+              - code [ref=e85]: claude
+              - text: command in five short steps. Pick your OS below.
+            - tablist "Operating system" [ref=e86]:
+              - tab "macOS" [ref=e87] [cursor=pointer]:
+                - img [ref=e88]
+                - text: macOS
+              - tab "Windows" [selected] [ref=e90] [cursor=pointer]:
+                - img [ref=e91]
+                - text: Windows
+              - tab "Linux" [ref=e93] [cursor=pointer]:
+                - img [ref=e94]
+                - text: Linux
+            - generic [ref=e96]:
+              - generic [ref=e97]:
+                - strong [ref=e98]: Platform
+                - text: · Windows 10 or later
+              - generic [ref=e99]:
+                - strong [ref=e100]: Time
+                - text: · ~5 min
+              - generic [ref=e101]:
+                - strong [ref=e102]: Updated
+                - text: · Apr 2026
+          - generic [ref=e103]:
+            - generic [ref=e104]: Step 01
+            - heading "Install Git Bash (recommended)" [level=3] [ref=e105]:
+              - text: Install
+              - emphasis [ref=e106]: Git Bash
+              - text: (recommended)
+            - paragraph [ref=e107]:
+              - text: We recommend running the CC client from
+              - strong [ref=e108]: Git Bash
+              - text: — it ships a Unix‑style shell that handles paths and quoting more reliably than CMD or PowerShell.
+            - list [ref=e109]:
+              - listitem [ref=e110]:
+                - link "Download Git for Windows" [ref=e111] [cursor=pointer]:
+                  - /url: https://git-scm.com/download/win
+                - text: and run the installer with the default options.
+            - generic [ref=e112]: Already have Git Bash? You can skip this step.
+          - generic [ref=e113]:
+            - generic [ref=e114]: Step 02
+            - heading "Install Node.js (if you haven't already)" [level=3] [ref=e115]:
+              - text: Install
+              - emphasis [ref=e116]: Node.js
+              - text: (if you haven't already)
+            - paragraph [ref=e117]:
+              - text: The CC client requires
+              - strong [ref=e118]: Node.js 18 or newer
+              - text: ". Open PowerShell or Git Bash and run:"
+            - generic [ref=e119]:
+              - button "Copy" [ref=e120] [cursor=pointer]
+              - generic [ref=e121]: node --version
+            - paragraph [ref=e122]:
+              - text: If the printed version is
+              - code [ref=e123]: ≥ 18.0.0
+              - text: ", you're good. Otherwise:"
+            - list [ref=e124]:
+              - listitem [ref=e125]:
+                - link "Download the Windows installer" [ref=e126] [cursor=pointer]:
+                  - /url: https://nodejs.org/
+                - text: (LTS, .msi) and run it with the default options.
+            - generic [ref=e127]:
+              - text: After installing, close and reopen your terminal so the new
+              - code [ref=e128]: node
+              - text: and
+              - code [ref=e129]: npm
+              - text: commands are picked up.
+          - generic [ref=e130]:
+            - generic [ref=e131]: Step 03
+            - heading "Create an API key" [level=3] [ref=e132]:
+              - text: Create an
+              - emphasis [ref=e133]: API key
+            - paragraph [ref=e134]:
+              - text: Open the
+              - link "API Keys" [ref=e135] [cursor=pointer]:
+                - /url: "#"
+              - text: page from the sidebar, click
+              - strong [ref=e136]: Create key
+              - text: ", give it a memorable name, and copy the secret. You'll only see it once — keep it somewhere safe."
+            - generic [ref=e137]:
+              - strong [ref=e138]: Heads up.
+              - text: Treat your key like a password. Anyone with it can spend your credits.
+          - generic [ref=e139]:
+            - generic [ref=e140]: Step 04
+            - heading "Install the CC client" [level=3] [ref=e141]:
+              - text: Install the
+              - emphasis [ref=e142]: CC client
+            - paragraph [ref=e143]: "In PowerShell, Command Prompt, or Git Bash, run:"
+            - generic [ref=e144]:
+              - button "Copy" [ref=e145] [cursor=pointer]
+              - generic [ref=e146]: npm install -g @anthropic-ai/claude-code
+            - paragraph [ref=e147]:
+              - text: The package registers a
+              - code [ref=e148]: PATH
+              - text: . Close and reopen your terminal afterwards.
+          - generic [ref=e149]:
+            - generic [ref=e150]: Step 05
+            - heading "Create a settings.json file" [level=3] [ref=e151]:
+              - text: Create a
+              - emphasis [ref=e152]: settings.json
+              - text: file
+            - paragraph [ref=e153]:
+              - text: On Windows the config lives at
+              - code [ref=e154]: C:\Users\<you>\.claude\settings.json
+              - text: . If the
+              - code [ref=e155]: .claude
+              - text: folder doesn't exist yet, run
+              - code [ref=e156]: claude
+              - text: "once to let it auto‑create the directory, then create the file with this content:"
+            - generic [ref=e157]:
+              - button "Copy" [ref=e158] [cursor=pointer]
+              - generic [ref=e159]: "{ \"env\": { \"ANTHROPIC_API_KEY\": \"YOUR_API_KEY\", \"ANTHROPIC_BASE_URL\": \"https://cc.freemodel.dev\", \"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC\": \"1\" }, \"permissions\": { \"allow\": [], \"deny\": [] }, \"apiKeyHelper\": \"echo 'YOUR_API_KEY'\" }"
+            - paragraph [ref=e160]:
+              - text: Replace both occurrences of
+              - code [ref=e161]: YOUR_API_KEY
+              - text: with the secret from step 3.
+            - generic [ref=e162]:
+              - strong [ref=e163]: Tip.
+              - text: If File Explorer hides files starting with a dot, type the path directly into the address bar to open
+              - code [ref=e164]: .claude
+              - text: .
+          - generic [ref=e165]:
+            - generic [ref=e166]: Step 06
+            - heading "Launch the client" [level=3] [ref=e167]:
+              - text: Launch the
+              - emphasis [ref=e168]: client
+            - paragraph [ref=e169]: "Restart your terminal, then run:"
+            - generic [ref=e170]:
+              - button "Copy" [ref=e171] [cursor=pointer]
+              - generic [ref=e172]: claude
+            - paragraph [ref=e173]: You should see the welcome banner and a prompt.
+          - generic [ref=e174]:
+            - generic [ref=e175]: FAQ
+            - heading "Common questions" [level=3] [ref=e176]:
+              - text: Common
+              - emphasis [ref=e177]: questions
+            - generic [ref=e178]:
+              - generic [ref=e179]:
+                - generic [ref=e180]: Q.
+                - text: How do I update to the latest version?
+              - generic [ref=e181]:
+                - text: "Re‑run the install command — npm will replace the existing binary in place:"
+                - code [ref=e182]: npm install -g @anthropic-ai/claude-code
+            - generic [ref=e183]:
+              - generic [ref=e184]:
+                - generic [ref=e185]: Q.
+                - text: How do I uninstall?
+              - generic [ref=e186]:
+                - code [ref=e187]: npm uninstall -g @anthropic-ai/claude-code
+                - text: — and optionally delete
+                - code [ref=e188]: ~/.claude/
+                - text: (or
+                - code [ref=e189]: "%USERPROFILE%\\.claude\\"
+                - text: on Windows) to remove your local settings.
+            - generic [ref=e190]:
+              - generic [ref=e191]:
+                - generic [ref=e192]: Q.
+                - text: Install fails with a network error. What now?
+              - generic [ref=e193]:
+                - text: "Try a faster mirror — for users in mainland China the Taobao registry usually works:"
+                - code [ref=e194]: npm install -g @anthropic-ai/claude-code --registry https://registry.npmmirror.com
+            - generic [ref=e195]:
+              - generic [ref=e196]:
+                - generic [ref=e197]: Q.
+                - text: Where do I get help?
+              - generic [ref=e198]:
+                - text: Run
+                - code [ref=e199]: claude --help
+                - text: to list every available command and flag, or email
+                - link "support@freemodel.dev" [ref=e200] [cursor=pointer]:
+                  - /url: mailto:support@freemodel.dev
+                - text: .
+  - button "TG Group" [ref=e203] [cursor=pointer]:
+    - img [ref=e204]
+    - generic [ref=e206]: TG Group

@@ -1,0 +1,178 @@
+================================================================================
+БАГ-РЕПОРТ #35: Q-Network Variance Reduction (VR-DeepDCFR+)
+================================================================================
+
+ТИП: Новая фича
+ДАТА: 2026-05-14
+СТАТУС: Реализовано, протестировано
+
+================================================================================
+ОПИСАНИЕ
+================================================================================
+
+Реализован Q-Network Variance Reduction (VR-DeepDCFR+) для снижения
+дисперсии на opponent nodes в CFR traversal.
+
+Проблема: на opponent node сэмплируется одно действие â ~ σ_opp, затем
+рекурсивно считается v_sampled = cfr_traverse(new_state). Информация от
+остальных действий оппонента теряется → высокая variance.
+
+Решение: control variate через Q-baseline:
+  baseline     = Σ σ_opp(a) · Q(s, a)    — ожидаемое значение по модели
+  correction   = v_sampled - Q(s, â)      — поправка для сэмплированного
+  adjusted     = baseline + correction
+
+Несмещённость: E[adjusted] = Σ σ(a)·v(a) = v(I) при ЛЮБОМ Q.
+Хорошее Q → correction ≈ 0 → variance резко падает.
+
+================================================================================
+ИЗМЕНЁННЫЕ ФАЙЛЫ
+================================================================================
+
+1. src/core/model.py
+   - Новый класс QValueNetwork: 2 слоя (base) + q_head
+   - hidden_size=128, нулевая инициализация q_head
+   - Docstring: Q предсказывает traversing_player reward на opponent nodes,
+     НЕ стандартный Q-learning
+
+2. src/core/deep_cfr.py
+   - Новый класс QValueBuffer: circular buffer (capacity=50000)
+     Поля: states, actions, rewards, next_states, next_masks, terminals
+   - Импорт QValueNetwork добавлен
+   - DeepCFRAgent.__init__: q_net, q_optimizer, q_buffer, use_q_baseline
+   - cfr_traverse_multi opponent branch:
+     * Q-net forward pass (inference_mode)
+     * baseline + correction если use_q_baseline=True
+     * q_buffer.add с next_encoded от new_state.current_player (БАГФИКС)
+   - Новый метод train_q_network: 1-step TD обучение
+   - _build_checkpoint: q_net, q_optimizer
+   - _load_checkpoint: загрузка с холодным стартом если q_net нет
+
+3. src/utils/config.py
+   - Новые дефолты: q_hidden_size=128, q_lr=1e-3, q_buffer_size=50000,
+     use_q_baseline=True
+
+4. src/training/train.py
+   - Вызов train_q_network() после PG обучения
+   - TensorBoard логирование: Loss/QNetwork, Memory/QBuffer
+   - Q-buffer в консольном выводе
+   - Q-config в checkpoint extra
+
+================================================================================
+БАГФИКС: next_encoded perspective
+================================================================================
+
+В исходном плане был баг:
+  next_encoded = encode_state(new_state, current_player)  # СТАРЫЙ
+
+После apply_action current_player сменился. Q-net при inference использует
+encode_state(state, state.current_player) — perspective ТЕКУЩЕГО decision maker.
+TD-target V(s') тоже должен использовать perspective нового decision maker.
+
+Исправлено:
+  next_encoded = encode_state(new_state, new_state.current_player)  # НОВЫЙ
+
+================================================================================
+СОГЛАСОВАННЫЕ ПРАВКИ (из review с GPT)
+================================================================================
+
+1. Perspective framing → ПРИНЯТЬ → добавлен чёткий docstring в QValueNetwork
+2. next_encoded баг → ПРИНЯТЬ → new_state.current_player
+3. 1-step TD → ОТЛОЖИТЬ → начать с 1-step, мониторить Q-loss
+4. Buffer 200K → 50000 → ПРИНЯТЬ ЧАСТИЧНО (~35 итераций данных, не 140)
+5. encode_state overhead → ОТКЛОНИТЬ → <10%, уже учтён
+6. Без Q-buffer → ОТКЛОНИТЬ → ~1400 opponent nodes/iter недостаточно
+
+================================================================================
+КОНФИГУРАЦИЯ
+================================================================================
+
+Параметр           | Дефолт  | Описание
+-------------------|---------|------------------------------------------
+use_q_baseline     | True    | Включить/выключить VR (fallback без кода)
+q_hidden_size      | 128     | Скрытый слой Q-сети (2 слоя)
+q_lr               | 1e-3    | Learning rate Q-сети
+q_buffer_size      | 50000   | Circular buffer (~35 итераций данных)
+
+Для отключения: config.yaml → use_q_baseline: False
+Весь Q-код неактивен, поведение идентично до реализации.
+
+================================================================================
+ЧЕКПОИНТ СОВМЕСТИМОСТЬ
+================================================================================
+
+- Старые чекпоинты БЕЗ q_net → холодный старт (нулевые веса Q-сети)
+  INFO: q_net отсутствует в чекпоинте, холодный старт
+- Новые чекпоинты С q_net → полная загрузка
+- q_optimizer тоже с холодным стартом если отсутствует
+- Backward compatible: не ломает существующие рабочие процессы
+
+================================================================================
+МЕТРИКИ
+================================================================================
+
+Runtime overhead на итерацию: +1-2 сек
+  - Q-net forward на opponent node: ~0.1ms (маленькая сеть)
+  - Q-buffer add: ~0 (numpy array write)
+  - Q-net training: ~0.5-1с (batch 256 × 2 epochs)
+  - encode_state для next_state: ~10-50μs
+
+Потенциальное ускорение сходимости за счёт снижения variance.
+
+================================================================================
+МОНИТОРИНГ
+================================================================================
+
+Q-loss логируется в TensorBoard: Loss/QNetwork
+Q-buffer размер: Memory/QBuffer
+
+Если Q-loss не сходится за 50-100 итераций → рассмотреть:
+- n-step returns вместо 1-step TD
+- Уменьшение q_buffer_size (свежие данные)
+- Увеличение q_lr или epochs
+
+================================================================================
+ТЕСТИРОВАНИЕ
+================================================================================
+
+✓ QValueNetwork forward pass: shape [batch, 4]
+✓ QValueBuffer add/sample: circular, len
+✓ DeepCFRAgent.__init__: q_net, q_buffer, use_q_baseline
+✓ Config defaults: все 4 параметра загружаются
+✓ Checkpoint save/load с q_net
+✓ Checkpoint холодный старт без q_net
+✓ use_q_baseline=False: traversal работает, q_buffer=0
+✓ use_q_baseline=True: q_buffer заполняется, train_q_network учится
+✓ Полная итерация: traversal + advantage + PG + Q + checkpoint
+
+================================================================================
+МИНИОР: SPR → Pot Commitment Ratio
+================================================================================
+
+БАГ: SPR = min(Stack/Pot, 15.0) — жёсткий clip на 15.0 теряет информацию
+при высоком SPR (15, 50, 200 — одинаковы для сети), плюс разрыв градиента
+на границе clip.
+
+ФИКС: Pot Commitment Ratio = Pot / (Pot + Stack) = 1 / (1 + SPR)
+  - Диапазон (0, 1] — уже нормализовано, нет clipping
+  - SPR=0 → 1.0 (коммитед), SPR→∞ → 0.0 (глубокий стек)
+  - Плавная функция, градиент всюду определён
+  - Больше разрешения в критическом диапазоне SPR 0–4
+
+Файл: src/core/model.py, encode_state()
+  СТАРЫЙ: spr_feat = [min(player_stake_enc / player_pot_enc, 15.0) ...]
+  НОВЫЙ:  pot_commitment = player_pot_enc / (player_pot_enc + player_stake_enc) ...
+
+Файл: inference/core.py, encode_state()
+  СТАРЫЙ: spr_feat = [min(player_stake_enc / player_pot_enc, 15.0) ...]
+  НОВЫЙ:  pot_commitment = player_pot_enc / (player_pot_enc + player_stake_enc) ...
+  + описание фичи: "spr_feat" → "pot_commitment"
+
+================================================================================
+ЧТО НЕ ТРОГАЕМ
+================================================================================
+
+- Traversing player branch — без изменений
+- advantage_net, strategy_net, target_net — без изменений
+- PG sizing — без изменений
+- PokerNetwork — без изменений

@@ -1,0 +1,195 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - link "FreeModel" [ref=e5] [cursor=pointer]:
+      - /url: /
+      - img [ref=e7]
+      - generic [ref=e9]:
+        - text: Free
+        - emphasis [ref=e10]: Model
+    - generic [ref=e11]:
+      - generic [ref=e12]: Workspace
+      - button "Home" [ref=e13] [cursor=pointer]:
+        - img [ref=e14]
+        - text: Home
+      - button "API Keys" [active] [ref=e18] [cursor=pointer]:
+        - img [ref=e19]
+        - text: API Keys
+      - button "Usage" [ref=e22] [cursor=pointer]:
+        - img [ref=e23]
+        - text: Usage
+      - button "Logs" [ref=e26] [cursor=pointer]:
+        - img [ref=e27]
+        - text: Logs
+      - button "Billing" [ref=e30] [cursor=pointer]:
+        - img [ref=e31]
+        - text: Billing
+    - generic [ref=e33]:
+      - generic [ref=e34]: Account
+      - button "Refer & Earn" [ref=e35] [cursor=pointer]:
+        - img [ref=e36]
+        - text: Refer & Earn
+      - button "Profile" [ref=e38] [cursor=pointer]:
+        - img [ref=e39]
+        - text: Profile
+      - button "Docs" [ref=e42] [cursor=pointer]:
+        - img [ref=e43]
+        - text: Docs
+    - button "А Амбивалентность инсинуации Not verified yorfnewera@gmail.com" [ref=e49] [cursor=pointer]:
+      - generic [ref=e50]: А
+      - generic [ref=e51]:
+        - generic [ref=e52]:
+          - generic [ref=e53]: Амбивалентность инсинуации
+          - generic "Not verified" [ref=e54]:
+            - img [ref=e55]
+        - generic [ref=e57]: yorfnewera@gmail.com
+      - img [ref=e58]
+  - main [ref=e60]:
+    - generic [ref=e282]:
+      - generic [ref=e283]:
+        - generic [ref=e284]:
+          - generic [ref=e285]: § API
+          - heading "API keys" [level=1] [ref=e286]:
+            - text: API
+            - emphasis [ref=e287]: keys
+          - paragraph [ref=e288]: Use a secret key to authenticate API requests. Never expose your key in client‑side code.
+        - button "Create key" [ref=e290] [cursor=pointer]:
+          - img [ref=e291]
+          - text: Create key
+      - table [ref=e294]:
+        - rowgroup [ref=e295]:
+          - row "Name Secret Created Last used Today" [ref=e296]:
+            - columnheader "Name" [ref=e297]
+            - columnheader "Secret" [ref=e298]
+            - columnheader "Created" [ref=e299]
+            - columnheader "Last used" [ref=e300]
+            - columnheader "Today" [ref=e301]
+            - columnheader [ref=e302]
+        - rowgroup [ref=e303]:
+          - row "234sdfsdf fe_oa_••••••••••••a6e4 May 11, 2026 May 13, 2026 — Revoke" [ref=e304]:
+            - cell "234sdfsdf" [ref=e305]:
+              - generic [ref=e306]: 234sdfsdf
+            - cell "fe_oa_••••••••••••a6e4" [ref=e307]:
+              - generic [ref=e308]: fe_oa_••••••••••••a6e4
+            - cell "May 11, 2026" [ref=e309]
+            - cell "May 13, 2026" [ref=e310]
+            - cell "—" [ref=e311]
+            - cell "Revoke" [ref=e312]:
+              - button "Revoke" [ref=e313] [cursor=pointer]
+          - row "4536sdfgdsfg fe_oa_••••••••••••42f0 May 11, 2026 Invalid Date — Revoke" [ref=e314]:
+            - cell "4536sdfgdsfg" [ref=e315]:
+              - generic [ref=e316]: 4536sdfgdsfg
+            - cell "fe_oa_••••••••••••42f0" [ref=e317]:
+              - generic [ref=e318]: fe_oa_••••••••••••42f0
+            - cell "May 11, 2026" [ref=e319]
+            - cell "Invalid Date" [ref=e320]
+            - cell "—" [ref=e321]
+            - cell "Revoke" [ref=e322]:
+              - button "Revoke" [ref=e323] [cursor=pointer]
+          - row "3242342 fe_oa_••••••••••••3568 May 11, 2026 Invalid Date — Revoke" [ref=e324]:
+            - cell "3242342" [ref=e325]:
+              - generic [ref=e326]: "3242342"
+            - cell "fe_oa_••••••••••••3568" [ref=e327]:
+              - generic [ref=e328]: fe_oa_••••••••••••3568
+            - cell "May 11, 2026" [ref=e329]
+            - cell "Invalid Date" [ref=e330]
+            - cell "—" [ref=e331]
+            - cell "Revoke" [ref=e332]:
+              - button "Revoke" [ref=e333] [cursor=pointer]
+      - generic [ref=e334]:
+        - generic [ref=e335]:
+          - generic [ref=e336]: API routes
+          - generic [ref=e337]: Use the endpoint below as your base URL.
+        - generic [ref=e338]:
+          - generic [ref=e339]:
+            - generic [ref=e340]: Anthropic format
+            - generic [ref=e341]: Anthropic
+          - generic [ref=e342]: Native Claude API format for Claude Code, Cline, and Anthropic SDK applications.
+          - table [ref=e344]:
+            - rowgroup [ref=e345]:
+              - row "节点 接入地址" [ref=e346]:
+                - columnheader "节点" [ref=e347]
+                - columnheader "接入地址" [ref=e348]
+                - columnheader [ref=e349]
+            - rowgroup [ref=e350]:
+              - row "claude-t0 https://cc.freemodel.dev Copy claude-t0" [ref=e351]:
+                - cell "claude-t0" [ref=e352]:
+                  - generic [ref=e354]: claude-t0
+                - cell "https://cc.freemodel.dev" [ref=e355]:
+                  - generic [ref=e356]: https://cc.freemodel.dev
+                - cell "Copy claude-t0" [ref=e357]:
+                  - button "Copy claude-t0" [ref=e358] [cursor=pointer]:
+                    - img [ref=e359]
+              - row "claude-t1 T1+ •••••••••••••••••••••••••••• 充值解锁 T1+" [ref=e362]:
+                - cell "claude-t1 T1+" [ref=e363]:
+                  - generic [ref=e364]:
+                    - generic [ref=e365]: claude-t1
+                    - generic [ref=e366]: T1+
+                - cell "••••••••••••••••••••••••••••" [ref=e367]:
+                  - generic [ref=e368]:
+                    - img [ref=e369]
+                    - generic [ref=e372]: ••••••••••••••••••••••••••••
+                - cell "充值解锁 T1+" [ref=e373]:
+                  - button "充值解锁 T1+" [ref=e374] [cursor=pointer]
+        - generic [ref=e376]:
+          - generic [ref=e377]:
+            - code [ref=e378]: /v1/messages
+            - generic [ref=e379]: Anthropic native Messages API. Supports streaming, tool use, vision, and extended thinking. Used by Claude Code, Cline, and all Anthropic SDK applications.
+          - generic [ref=e380]:
+            - img [ref=e381]
+            - button "Claude Code 配置文档" [ref=e384] [cursor=pointer]
+        - generic [ref=e385]:
+          - generic [ref=e386]:
+            - generic [ref=e387]: OpenAI format
+            - generic [ref=e388]: OpenAI
+          - generic [ref=e389]: Compatible with ChatGPT SDK, Cursor, ChatBox, and all OpenAI-ecosystem tools.
+          - table [ref=e391]:
+            - rowgroup [ref=e392]:
+              - row "节点 接入地址" [ref=e393]:
+                - columnheader "节点" [ref=e394]
+                - columnheader "接入地址" [ref=e395]
+                - columnheader [ref=e396]
+            - rowgroup [ref=e397]:
+              - row "默认线路 https://api.freemodel.dev Copy 默认线路" [ref=e398]:
+                - cell "默认线路" [ref=e399]:
+                  - generic [ref=e401]: 默认线路
+                - cell "https://api.freemodel.dev" [ref=e402]:
+                  - generic [ref=e403]: https://api.freemodel.dev
+                - cell "Copy 默认线路" [ref=e404]:
+                  - button "Copy 默认线路" [ref=e405] [cursor=pointer]:
+                    - img [ref=e406]
+              - row "openai-t1-sg T1+ •••••••••••••••••••••••••••• 充值解锁 T1+" [ref=e409]:
+                - cell "openai-t1-sg T1+" [ref=e410]:
+                  - generic [ref=e411]:
+                    - generic [ref=e412]: openai-t1-sg
+                    - generic [ref=e413]: T1+
+                - cell "••••••••••••••••••••••••••••" [ref=e414]:
+                  - generic [ref=e415]:
+                    - img [ref=e416]
+                    - generic [ref=e419]: ••••••••••••••••••••••••••••
+                - cell "充值解锁 T1+" [ref=e420]:
+                  - button "充值解锁 T1+" [ref=e421] [cursor=pointer]
+              - row "openai-t2-sg T2+ ••••••••••••••••••••••• 充值解锁 T2+" [ref=e422]:
+                - cell "openai-t2-sg T2+" [ref=e423]:
+                  - generic [ref=e424]:
+                    - generic [ref=e425]: openai-t2-sg
+                    - generic [ref=e426]: T2+
+                - cell "•••••••••••••••••••••••" [ref=e427]:
+                  - generic [ref=e428]:
+                    - img [ref=e429]
+                    - generic [ref=e432]: •••••••••••••••••••••••
+                - cell "充值解锁 T2+" [ref=e433]:
+                  - button "充值解锁 T2+" [ref=e434] [cursor=pointer]
+        - generic [ref=e436]:
+          - generic [ref=e437]:
+            - code [ref=e438]: /v1/chat/completions
+            - generic [ref=e439]: Classic chat completion API. Stateless — each request carries the full message history. Compatible with every OpenAI SDK and tool.
+          - generic [ref=e440]:
+            - code [ref=e441]: /v1/responses
+            - generic [ref=e442]: New Responses API. Supports stateful multi-turn sessions via previous_response_id, built-in tools (file search, code interpreter), and richer streaming events.
+          - generic [ref=e443]:
+            - img [ref=e444]
+            - button "Codex 配置文档" [ref=e447] [cursor=pointer]
+        - text: Keep secrets safe. Treat your API key like a password — anyone with it can call the API and spend your credits. Rotate immediately if exposed.
+  - button "TG Group" [ref=e203] [cursor=pointer]:
+    - img [ref=e204]
+    - generic [ref=e206]: TG Group

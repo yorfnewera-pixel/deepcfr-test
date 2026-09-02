@@ -1,0 +1,252 @@
+═══════════════════════════════════════════════════════════════════════
+  ФИКС: --initial-checkpoint для mixed training
+  + БАГ: сброс iteration_count при продолжении
+  + ФИКС: единая схема именования по run_name
+  + ФИКС: пул оппонентов подхватывает текущий ран
+═══════════════════════════════════════════════════════════════════════
+
+ПРОБЛЕМА 1: Нет загрузки весов
+==============================
+train_with_mixed_checkpoints() всегда инициализирует learning_agent
+с нуля. Нет способа загрузить веса из предыдущего чекпоинта.
+
+Оригинальный автор предусмотрел загрузку только для continue_training
+(--checkpoint + без --self-play), но НЕ для --mixed режима.
+
+Сравнение режимов:
+  train_deep_cfr           → с нуля          (ок, первая фаза)
+  continue_training        → загружает веса   (--checkpoint)
+  train_against_checkpoint → с нуля           (есть закомментированные строки)
+  train_with_mixed_checkpoints → с нуля        ← НЕТ загрузки!
+
+ПРОБЛЕМА 2: Сброс iteration_count при продолжении
+===================================================
+Даже после добавления --initial-checkpoint, обнаружен баг:
+загружаются только веса, но iteration_count начинается с 1.
+
+В cfr_traverse используется Linear CFR:
+  scale_factor = np.sqrt(iteration) if iteration > 1 else 1.0
+
+При продолжении с итерации 2000:
+  Правильно:  scale_factor = np.sqrt(2001) ≈ 44.7
+  Реально:    scale_factor = np.sqrt(1) = 1.0
+
+Новые регреты недовзвешиваются в ~45 раз. CFR самокорректирующийся,
+поэтому стратегия (argmax) не ломается, но сходимость замедляется —
+первые ~500-1000 итераций работают как vanilla CFR вместо Linear CFR.
+
+Функция train (против random) УЖЕ делает правильно:
+  start_iteration = checkpoint['iteration'] + 1
+  for iteration in range(start_iteration, start_iteration + additional_iterations):
+
+А train_with_mixed_checkpoints — НЕТ.
+
+ПРОБЛЕМА 3: Захардкоженное имя "mixed" в чекпоинтах
+=====================================================
+Тяжёлые чекпоинты всегда назывались mixed_checkpoint_iter_*.pt
+независимо от --save-dir. Лёгкие — {prefix}mixed_iter_*.pt.
+
+При спиральном обучении (mixed → mixed1 → mixed2 → ...) все файлы
+называются одинаково — невозможно отличить к какому ранну относится
+модель. Также "mixedmixed_iter_" при --model-prefix mixed.
+
+ПРОБЛЕМА 4: Пул не видит текущий ран
+======================================
+select_random_checkpoints() ищет файлы по glob:
+  glob.glob(os.path.join(checkpoint_dir, f"{training_model_prefix}*.pt"))
+
+С командой:
+  --checkpoint-dir models\mixed0 --model-prefix mixed0 --save-dir models\mixed1
+
+Лёгкие файлы сохраняются как mixed1_iter_*.pt в models/mixed0/.
+Но glob ищет mixed0*.pt — НЕ найдёт mixed1_iter_*.
+
+Пул не растёт в реальном времени — refresh каждый раз выбирает из
+одних и тех же mixed0-файлов, игнорируя свежие mixed1-снепшоты.
+
+РЕШЕНИЕ: Единая схема именования по run_name
+==============================================
+run_name = os.path.basename(save_dir.rstrip('/\\'))
+
+Все имена файлов определяются именем save-папки:
+  Лёгкий:   {checkpoint_dir}/{run_name}_iter_{iteration}.pt
+  Тяжёлый:  {save_dir}/{run_name}_checkpoint_iter_{iteration}.pt
+
+Нумерация mixed0, mixed1, mixed2... гарантирует:
+  - Каждый ранн уникально идентифицируется
+  - Glob'ы НЕ пересекаются (mixed0* ≠ mixed1_*)
+  - Дедупликация не нужна
+
+ФИКС 1: --initial-checkpoint + iteration_count
+===============================================
+
+1. Добавить параметр в функцию:
+
+   СТАЛО:
+     def train_with_mixed_checkpoints(checkpoint_dir, training_model_prefix="t_",
+                                additional_iterations=1000, traversals_per_iteration=200,
+                                save_dir="models", log_dir="logs/deepcfr_mixed",
+                                refresh_interval=1000, num_opponents=5, verbose=False,
+                                initial_checkpoint=None):
+
+2. Загрузка весов + iteration_count из чекпоинта:
+
+   СТАЛО:
+     if initial_checkpoint:
+         print(f"Loading initial weights from {initial_checkpoint}")
+         ckpt = torch.load(initial_checkpoint, map_location=device)
+         learning_agent.advantage_net.load_state_dict(ckpt['advantage_net'])
+         learning_agent.strategy_net.load_state_dict(ckpt['strategy_net'])
+         start_iteration = ckpt.get('iteration', 0) + 1
+         learning_agent.iteration_count = ckpt.get('iteration', 0)
+         print(f"Continuing from iteration {start_iteration}")
+     else:
+         start_iteration = 1
+
+3. Цикл обучения использует start_iteration:
+
+   БЫЛО:
+     for iteration in range(1, additional_iterations + 1):
+         learning_agent.iteration_count = iteration
+
+   СТАЛО:
+     for iteration in range(start_iteration, start_iteration + additional_iterations):
+         learning_agent.iteration_count = iteration
+
+4. Условие refresh адаптировано под start_iteration:
+
+   БЫЛО:
+     if iteration % refresh_interval == 1:
+
+   СТАЛО:
+     if (iteration - start_iteration) % refresh_interval == 0:
+
+5. Аргумент argparse:
+   parser.add_argument('--initial-checkpoint', type=str, default=None,
+                       help='Path to checkpoint to initialize learning agent weights in mixed training')
+
+6. Передача в вызов:
+   initial_checkpoint=args.initial_checkpoint
+
+ФИКС 2: Единая схема именования
+=================================
+
+1. run_name вычисляется один раз наверху функции:
+   run_name = os.path.basename(save_dir.rstrip('/\\'))
+
+2. Лёгкий чекпоинт (в checkpoint_dir):
+   БЫЛО:  t_model_path = f"{checkpoint_dir}/{training_model_prefix}mixed_iter_{iteration}.pt"
+   СТАЛО: t_model_path = f"{checkpoint_dir}/{run_name}_iter_{iteration}.pt"
+
+3. Тяжёлый чекпоинт (в save_dir):
+   БЫЛО:  checkpoint_path = f"{save_dir}/mixed_checkpoint_iter_{iteration}.pt"
+   СТАЛО: checkpoint_path = f"{save_dir}/{run_name}_checkpoint_iter_{iteration}.pt"
+
+Результат по ранным:
+  --save-dir models\mixed0  → mixed0_iter_*.pt / mixed0_checkpoint_iter_*.pt
+  --save-dir models\mixed1  → mixed1_iter_*.pt / mixed1_checkpoint_iter_*.pt
+  --save-dir models\mixed2  → mixed2_iter_*.pt / mixed2_checkpoint_iter_*.pt
+
+ФИКС 3: Пул подхватывает текущий ран
+======================================
+
+select_random_checkpoints() — вложенная функция внутри
+train_with_mixed_checkpoints(). Другие режимы не затрагиваются.
+
+БЫЛО:
+  def select_random_checkpoints():
+      checkpoint_files = glob.glob(os.path.join(checkpoint_dir, f"{training_model_prefix}*.pt"))
+
+СТАЛО:
+  def select_random_checkpoints():
+      checkpoint_files = glob.glob(os.path.join(checkpoint_dir, f"{training_model_prefix}*.pt"))
+      checkpoint_files += glob.glob(os.path.join(checkpoint_dir, f"{run_name}_*.pt"))
+
+Одна строка. run_name и checkpoint_dir доступны через замыкание.
+
+При нумерации mixed0/mixed1/... пересечение glob'ов невозможно:
+  Glob 1 (--model-prefix): ищет mixedN* (предыдущий ранн)
+  Glob 2 (run_name):       ищет mixed(N+1)_* (текущий ранн)
+  mixedN* ≠ mixed(N+1)_* → дубликатов нет
+
+Дедупликация не нужна.
+
+ИСПОЛЬЗОВАНИЕ
+=============
+
+Ранн 0 (с нуля, против selfplay):
+  py -m src.training.train --mixed \
+      --checkpoint-dir models\selfplay \
+      --model-prefix selfplay \
+      --refresh-interval 100 --num-opponents 5 \
+      --iterations 20000 --traversals 400 \
+      --log-dir logs\mixed0 --save-dir models\mixed0
+
+  Пул: selfplay-модели + растущий mixed0-пул
+  Файлы: models/selfplay/mixed0_iter_*.pt (лёгкие)
+         models/mixed0/mixed0_checkpoint_iter_*.pt (тяжёлые)
+
+Ранн 1 (против mixed0):
+  py -m src.training.train --mixed \
+      --initial-checkpoint models\mixed0\mixed0_checkpoint_iter_20000.pt \
+      --checkpoint-dir models\mixed0 \
+      --model-prefix mixed0 \
+      --refresh-interval 100 --num-opponents 5 \
+      --iterations 20000 --traversals 400 \
+      --log-dir logs\mixed1 --save-dir models\mixed1
+
+  Веса: с итерации 20001
+  Пул: mixed0-модели + растущий mixed1-пул
+  Файлы: models/mixed0/mixed1_iter_*.pt (лёгкие)
+         models/mixed1/mixed1_checkpoint_iter_*.pt (тяжёлые)
+
+Ранн 2 (против mixed1):
+  py -m src.training.train --mixed \
+      --initial-checkpoint models\mixed1\mixed1_checkpoint_iter_20000.pt \
+      --checkpoint-dir models\mixed1 \
+      --model-prefix mixed1 \
+      --refresh-interval 100 --num-opponents 5 \
+      --iterations 20000 --traversals 400 \
+      --log-dir logs\mixed2 --save-dir models\mixed2
+
+Спираль улучшения: каждый ранн играет против своих прошлых версий.
+Алгоритм запуска одинаков для любого N — просто меняются цифры.
+
+СОВМЕСТИМОСТЬ
+=============
+Обратная совместимость: initial_checkpoint=None по умолчанию.
+Без --initial-checkpoint — поведение как раньше (с нуля, start_iteration=1).
+
+Старые чекпоинты (mixed_checkpoint_iter_*.pt) содержат ключ 'iteration'.
+Но имя файла изменилось — при продолжении старого рана нужно указывать
+полный путь к старому файлу вручную.
+
+Новые раны (mixed0/mixed1/...) имеют согласованную схему именования.
+Дедупликация не нужна — нумерация гарантирует уникальность glob'ов.
+
+# My example includes excluding random from the mix after 14000 iterations.
+
+
+# Run 0
+.\.venv\Scripts\Activate.ps1; py -m src.training.train --mixed --checkpoint-dir models\selfplay --model-prefix selfplay --refresh-interval 100 --num-opponents 5 --iterations 2000 --traversals 400 --log-dir logs\mixed0 --save-dir models\mixed0
+
+# Run 1
+.\.venv\Scripts\Activate.ps1; py -m src.training.train --mixed --initial-checkpoint models\mixed0\mixed0_checkpoint_iter_2000.pt --checkpoint-dir models\mixed0 --model-prefix mixed0 --refresh-interval 100 --num-opponents 5 --iterations 2000 --traversals 400 --log-dir logs\mixed1 --save-dir models\mixed1
+
+# Run 2
+.\.venv\Scripts\Activate.ps1; py -m src.training.train --mixed --initial-checkpoint models\mixed1\mixed1_checkpoint_iter_4000.pt --checkpoint-dir models\mixed1 --model-prefix mixed1 --refresh-interval 100 --num-opponents 5 --iterations 2000 --traversals 400 --log-dir logs\mixed2 --save-dir models\mixed2
+
+Run 3
+.\.venv\Scripts\Activate.ps1; py -m src.training.train --mixed --initial-checkpoint models\mixed2\mixed2_checkpoint_iter_6000.pt --checkpoint-dir models\mixed2 --model-prefix mixed2 --refresh-interval 100 --num-opponents 5 --iterations 2000 --traversals 600 --log-dir logs\mixed3 --save-dir models\mixed3
+
+Run 4
+.\.venv\Scripts\Activate.ps1; py -m src.training.train --mixed --initial-checkpoint models\mixed3\mixed3_checkpoint_iter_8000.pt --checkpoint-dir models\mixed3 --model-prefix mixed3 --refresh-interval 100 --num-opponents 5 --iterations 2000 --traversals 600 --log-dir logs\mixed4 --save-dir models\mixed4
+
+Run 5
+.\.venv\Scripts\Activate.ps1; py -m src.training.train --mixed --initial-checkpoint models\mixed4\mixed4_checkpoint_iter_10000.pt --checkpoint-dir models\mixed4 --model-prefix mixed4 --refresh-interval 100 --num-opponents 5 --iterations 2000 --traversals 800 --log-dir logs\mixed5 --save-dir models\mixed5
+
+Run 6
+.\.venv\Scripts\Activate.ps1; py -m src.training.train --mixed --initial-checkpoint models\mixed5\mixed5_checkpoint_iter_12000.pt --checkpoint-dir models\mixed5 --model-prefix mixed5 --refresh-interval 100 --num-opponents 5 --iterations 2000 --traversals 1000 --log-dir logs\mixed6 --save-dir models\mixed6
+
+Run 7 NO_RANDOMNESS in train 
+.\.venv\Scripts\Activate.ps1; py -m src.training.train --mixed --initial-checkpoint models\mixed6\mixed6_checkpoint_iter_14000.pt --checkpoint-dir models\mixed6 --model-prefix mixed6 --refresh-interval 100 --num-opponents 5 --iterations 2000 --traversals 1200 --log-dir logs\mixed7 --save-dir models\mixed7

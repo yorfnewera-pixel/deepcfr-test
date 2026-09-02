@@ -1,0 +1,28 @@
+{
+  "mcpServers": {
+    "superpowers": {
+      "command": "cmd",
+      "args": [
+        "/c",
+        "npx",
+        "-y",
+        "github:obra/superpowers"
+      ]
+    },
+    "serena": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "git+https://github.com/oraios/serena",
+        "serena",
+        "start-mcp-server"
+      ]
+    },
+    "claude_mem": {
+      "command": "bun",
+      "args": [
+        "C:\\Users\\Cassmall\\dev\\claude-mem\\plugin\\scripts\\mcp-server.cjs"
+      ]
+    }
+  }
+}

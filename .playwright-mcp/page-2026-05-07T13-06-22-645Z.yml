@@ -1,0 +1,59 @@
+- generic [ref=e1]:
+  - link "Войти" [ref=e6] [cursor=pointer]:
+    - /url: https://accounts.google.com/ServiceLogin?passive=1209600&continue=https://gemini.google.com/&followup=https://gemini.google.com/&ec=GAZAkgU
+  - main [ref=e8]:
+    - generic:
+      - button "Главное меню" [ref=e10] [cursor=pointer]:
+        - img [ref=e13]: menu
+      - button "Новый чат" [disabled] [ref=e17]:
+        - generic [ref=e19]: Gemini
+    - generic [ref=e31]:
+      - generic [ref=e32]:
+        - heading "Чат с Gemini" [level=1] [ref=e33]
+        - generic [ref=e39]:
+          - heading "Gemini, ваш персональный ИИ-помощник" [level=1] [ref=e46]:
+            - generic [ref=e47]: Gemini, ваш персональный ИИ-помощник
+          - generic [ref=e52]:
+            - button "Напиши текст, кнопка, нажмите, чтобы воспользоваться инструментом" [ref=e54] [cursor=pointer]:
+              - generic [ref=e55]: Напиши текст
+            - button "Планируйте, кнопка, нажмите, чтобы воспользоваться инструментом" [ref=e57] [cursor=pointer]:
+              - generic [ref=e58]: Планируйте
+            - button "Исследуйте, кнопка, нажмите, чтобы воспользоваться инструментом" [ref=e60] [cursor=pointer]:
+              - generic [ref=e61]: Исследуйте
+            - button "Учитесь, кнопка, нажмите, чтобы воспользоваться инструментом" [ref=e63] [cursor=pointer]:
+              - generic [ref=e64]: Учитесь
+      - generic [ref=e65]:
+        - group [ref=e66]:
+          - generic [ref=e69]:
+            - textbox "Введите запрос для Gemini" [active] [ref=e74]:
+              - text: Спросить Gemini
+              - paragraph [ref=e75]
+            - generic [ref=e76]:
+              - button "Открыть меню загрузки файлов" [ref=e81] [cursor=pointer]:
+                - img [ref=e82]: add_2
+              - button "Инструменты" [ref=e88] [cursor=pointer]:
+                - img [ref=e90]: page_info
+            - generic [ref=e93]:
+              - group [ref=e96]:
+                - button "Открыть меню выбора режима" [ref=e97]:
+                  - generic [ref=e99]:
+                    - generic [ref=e100]: Быстрая
+                    - img [ref=e101]: keyboard_arrow_down
+              - generic [ref=e104]:
+                - button "Микрофон" [ref=e107] [cursor=pointer]:
+                  - img [ref=e109]: mic
+                - generic:
+                  - button "Отправить сообщение" [disabled]:
+                    - img: send
+        - paragraph [ref=e114]:
+          - text: Действуют
+          - link "Условия использования Google Откроется в новом окне" [ref=e115] [cursor=pointer]:
+            - /url: https://policies.google.com/terms
+            - text: Условия использования Google
+            - generic [ref=e116]: Откроется в новом окне
+          - text: и
+          - link "Политика конфиденциальности Google Откроется в новом окне" [ref=e117] [cursor=pointer]:
+            - /url: https://policies.google.com/privacy
+            - text: Политика конфиденциальности Google
+            - generic [ref=e118]: Откроется в новом окне
+          - text: . Gemini – это ИИ. Он может ошибаться.

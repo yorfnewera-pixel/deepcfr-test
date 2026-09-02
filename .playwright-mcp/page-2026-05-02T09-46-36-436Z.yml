@@ -1,0 +1,56 @@
+- generic [ref=e2]:
+  - navigation [ref=e3]:
+    - generic [ref=e5]:
+      - generic [ref=e6]:
+        - link "Почта" [ref=e8] [cursor=pointer]:
+          - /url: https://mail.google.com/mail/&ogbl
+        - link "Поиск картинок" [ref=e10] [cursor=pointer]:
+          - /url: https://www.google.com/imghp?hl=ru&ogbl
+          - text: Картинки
+      - button "Приложения Google" [ref=e13] [cursor=pointer]:
+        - img [ref=e14]
+      - link "Войти" [ref=e18] [cursor=pointer]:
+        - /url: https://accounts.google.com/ServiceLogin?hl=ru&passive=true&continue=https://www.google.com/&ec=futura_exp_og_so_72776762_e
+  - img "Google" [ref=e21]
+  - search [ref=e29]:
+    - generic [ref=e31]:
+      - generic [ref=e33]:
+        - button "Загрузить файлы или изображения" [ref=e36] [cursor=pointer]:
+          - img [ref=e38]
+        - combobox "Найти" [active] [ref=e41]
+        - generic [ref=e42]:
+          - generic [ref=e43]:
+            - button "Экранная клавиатура" [ref=e44] [cursor=pointer]:
+              - img [ref=e46]
+            - button "Голосовой поиск" [ref=e48] [cursor=pointer]:
+              - img [ref=e49]
+            - button "Поиск по картинке" [ref=e51] [cursor=pointer]:
+              - img [ref=e52]
+          - link "Режим ИИ" [ref=e54] [cursor=pointer]:
+            - generic [ref=e56]:
+              - img [ref=e58]
+              - generic [ref=e65]: Режим ИИ
+      - generic [ref=e67]:
+        - button "Поиск в Google" [ref=e68] [cursor=pointer]
+        - button "Мне повезёт!" [ref=e69] [cursor=pointer]
+  - contentinfo [ref=e72]:
+    - generic [ref=e73]: Россия
+    - generic [ref=e74]:
+      - generic [ref=e75]:
+        - link "Всё о Google" [ref=e76] [cursor=pointer]:
+          - /url: https://about.google/?utm_source=google-RU&utm_medium=referral&utm_campaign=hp-footer&fg=1
+        - link "Реклама" [ref=e77] [cursor=pointer]:
+          - /url: https://www.google.com/intl/ru_ru/ads/?subid=ww-ww-et-g-awa-a-g_hpafoot1_1!o2&utm_source=google.com&utm_medium=referral&utm_campaign=google_hpafooter&fg=1
+        - link "Для бизнеса" [ref=e78] [cursor=pointer]:
+          - /url: https://www.google.com/services/?subid=ww-ww-et-g-awa-a-g_hpbfoot1_1!o2&utm_source=google.com&utm_medium=referral&utm_campaign=google_hpbfooter&fg=1
+        - link "Как работает Google Поиск" [ref=e79] [cursor=pointer]:
+          - /url: https://google.com/search/howsearchworks/?fg=1
+      - link "Наше третье десятилетие борьбы с изменением климата" [ref=e81] [cursor=pointer]:
+        - /url: https://sustainability.google/intl/ru/carbon-free/?utm_source=googlehpfooter&utm_medium=housepromos&utm_campaign=bottom-footer&utm_content=
+      - generic [ref=e82]:
+        - link "Конфиденциальность" [ref=e83] [cursor=pointer]:
+          - /url: https://policies.google.com/privacy?hl=ru&fg=1
+        - link "Условия" [ref=e84] [cursor=pointer]:
+          - /url: https://policies.google.com/terms?hl=ru&fg=1
+        - button "Настройки" [ref=e88] [cursor=pointer]:
+          - generic [ref=e89]: Настройки

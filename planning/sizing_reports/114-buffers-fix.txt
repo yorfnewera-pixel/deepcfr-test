@@ -1,0 +1,878 @@
+Обновлённый итоговый план для агента.
+
+# Полные эпохи для CFR-буферов
+
+> **Для агента:** использовать `subagent-driven-development` или `executing-plans`. Сначала написать failing tests, затем минимально изменить training loops. Не менять формулы CFR-targets или sizing K-collapse; изменить lifecycle sizing advantage на fresh-only и заменить fixed-step sampling на полные эпохи.
+
+**Цель:** перевести action, sizing strategy, sizing advantage и sizing-Q обучение с фиксированного числа случайных batch на полные проходы по текущему содержимому буфера с сохранением существующего дисконтирования и bootstrap-формул.
+
+**Архитектура:**
+
+- `advantage_buffer` очищается между итерациями, потому что action advantage использует `target_net` для переноса накопленного regret.
+- `strategy_buffer`, sizing strategy buffer и sizing-Q replay остаются persistent и продолжают вытеснять старые samples.
+- `sizing_advantage_buffer` очищается между итерациями, как и action advantage: он содержит только новые CFR-regret текущей итерации, а накопленное прошлое переносит `sizing_target_net`.
+- Каждая обучающая функция получает настоящие эпохи: за одну эпоху каждый доступный sample используется ровно один раз, максимум один раз в каждом epoch.
+- Старые samples не получают специального reservoir-приоритета. Existing iteration weights сохраняются для strategy buffers; advantage buffers используют bootstrap через target networks.
+
+**Начальные значения эпох:**
+
+```yaml
+advantage_epochs: 20
+strategy_epochs: 3
+
+sizing_advantage_epochs: 3
+sizing_strategy_epochs: 3
+
+sizing_q_epochs: 3
+```
+
+`20` оставляем только для action advantage, потому что там это уже текущий рабочий режим. Для остальных сетей начинаем с `3`, чтобы не увеличивать training budget в сотни раз относительно нынешних 20 случайных шагов. После первого smoke/A-B запуска количество эпох можно поднять до `5`, если loss и качество улучшаются.
+
+Action Q не включать в план как активный компонент: в текущем конфиге:
+
+```yaml
+use_q_baseline: false
+```
+
+Но код для Q и sizing-Q перевести на общий full-epoch механизм, чтобы при включении Q поведение было предсказуемым.
+
+---
+
+## Task 1: Зафиксировать lifecycle буферов
+
+**Файлы:**
+
+- Modify: `src/core/deep_cfr.py`
+- Modify: `src/training/train.py`
+- Test: `tests/test_buffer_reservoir_flags.py`
+
+Сохранить политики:
+
+```text
+advantage_buffer:
+    очищать перед итерацией
+
+strategy_buffer:
+    не очищать
+
+sizing_advantage_buffer:
+    очищать перед итерацией
+
+sizing_strategy_buffer:
+    не очищать
+
+q_buffer:
+    существует только при use_q_baseline=true; тогда не очищать
+
+sizing_q_buffer:
+    не очищать
+```
+
+Причина для `advantage_buffer`:
+
+```text
+fresh target = discounted target_net prediction + current regret
+stale target = target_net prediction
+```
+
+Если сделать action advantage persistent, большая часть buffer через несколько итераций станет stale и обучение начнёт в основном дистиллировать старую target-сеть вместо добавления свежего regret.
+
+Sizing advantage должен быть симметричен action advantage:
+
+```python
+target = sizing_target_net(state) * discount + current_regret
+```
+
+Установить `sizing_advantage_buffer_reservoir: false`: существующий `prepare_iteration()` очистит этот буфер. Не менять lifecycle strategy, sizing-Q и включаемого action-Q буферов.
+
+Тесты:
+
+```text
+action advantage очищается;
+strategy buffer сохраняется;
+sizing advantage очищается;
+sizing strategy сохраняется;
+sizing-Q сохраняется;
+action Q при use_q_baseline=false не создаётся;
+```
+
+---
+
+## Task 2: Добавить epoch-конфигурацию
+
+**Файлы:**
+
+- Modify: `config.yaml`
+- Modify: `src/utils/config.py`
+- Modify: `src/core/deep_cfr.py`
+- Test: `tests/test_training_regressions.py`
+
+Добавить:
+
+```yaml
+strategy_epochs: 3
+sizing_advantage_epochs: 3
+sizing_strategy_epochs: 3
+sizing_q_epochs: 3
+
+# Fresh-only lifecycle для sizing advantage.
+sizing_advantage_buffer_reservoir: false
+```
+
+`sizing_advantage_stratified_sampling` не использовать в новом full-epoch CFR режиме. В legacy fixed-step режиме оставить существующую семантику этого флага для совместимого A/B и отката.
+
+Сохранить legacy-параметры как fallback:
+
+```yaml
+sizing_anchor_train_steps_per_iteration: 2000
+strategy_sizing_train_steps: 20
+sizing_q_train_steps_per_iteration: 10
+```
+
+Но новый full-epoch режим должен быть основным:
+
+```yaml
+full_buffer_training: true
+```
+
+При `full_buffer_training: false` старое fixed-step поведение должно оставаться доступным для A/B и отката.
+
+В checkpoint config сохранять:
+
+```python
+{
+    "full_buffer_training": ...,
+    "strategy_epochs": ...,
+    "sizing_advantage_epochs": ...,
+    "sizing_strategy_epochs": ...,
+    "sizing_q_epochs": ...,
+}
+```
+
+---
+
+## Task 3: Общий helper для полных проходов
+
+**Файлы:**
+
+- Modify: `src/core/deep_cfr.py`
+- Test: `tests/test_training_regressions.py`
+
+Добавить приватный helper, например:
+
+```python
+def _full_epoch_batches(self, size, batch_size, epochs):
+    """Возвращает индексы всех строк без повторений в каждой эпохе."""
+    effective_batch = min(int(batch_size), int(size))
+    for epoch in range(int(epochs)):
+        permutation = np.random.permutation(size)
+        for start in range(0, size, effective_batch):
+            yield epoch, permutation[start:start + effective_batch]
+```
+
+Требования:
+
+- каждая строка попадает в одну batch каждой epoch;
+- последняя batch может быть меньше полного batch;
+- повторов внутри одной epoch нет;
+- порядок между эпохами новый;
+- helper не меняет содержимое buffer;
+- helper не делает копию всех sample-массивов.
+
+Тест:
+
+```python
+size = 5
+batch_size = 2
+epochs = 3
+```
+
+Ожидаемый результат:
+
+```text
+ceil(5 / 2) × 3 = 9 batches
+каждый индекс встречается ровно 3 раза
+в каждой epoch индексы покрывают {0, 1, 2, 3, 4}
+```
+
+---
+
+## Task 4: Action advantage оставить полным и сохранить bootstrap
+
+**Файлы:**
+
+- Modify: `src/core/deep_cfr.py:2678-2826`
+- Test: `tests/test_training_regressions.py`
+
+`train_advantage_network_multi()` уже делает почти правильный full-epoch проход:
+
+```python
+samples = buf.sample(n)
+```
+
+и затем:
+
+```python
+for epoch in range(epochs):
+    permutation = np.random.permutation(n)
+    for start in range(0, n, batch_size):
+        ...
+```
+
+Не менять:
+
+```python
+fresh_target = prev_clamped * discount + regret_tensors
+old_target = prev_clamped
+bootstrap_target = fresh * fresh_target + stale * old_target
+```
+
+Проверить и зафиксировать тестами:
+
+```text
+fresh sample добавляет current regret;
+stale sample не добавляет старый regret повторно;
+discount_alpha применяется к previous prediction;
+target_net не изменяется во время epoch;
+target_net синхронизируется после обучения;
+actual_steps == epochs × ceil(n / batch_size).
+```
+
+Добавить профиль:
+
+```text
+samples
+fresh_samples
+stale_samples
+epochs
+expected_steps
+actual_steps
+unique_samples_per_epoch
+fresh_coverage
+stale_coverage
+```
+
+Для текущего action advantage:
+
+```text
+buffer = up to 1M fresh rows
+batch = 1024
+epochs = 20
+```
+
+---
+
+## Task 5: Action strategy перевести с random batch на full epochs
+
+**Файлы:**
+
+- Modify: `src/core/deep_cfr.py:3109-3158`
+- Test: `tests/test_training_regressions.py`
+
+Текущий код делает:
+
+```python
+for _ in range(epochs):
+    samples = self.strategy_buffer.sample(effective_batch_size)
+```
+
+Это заменить на:
+
+```python
+samples = self.strategy_buffer.sample(n)
+```
+
+Затем перемешивать все samples по epoch и обучать batch-ами.
+
+Сохранить без изменений:
+
+```python
+weights = (iterations / current_iteration) ** discount_gamma
+```
+
+И текущий loss:
+
+```python
+predicted_policies = F.softmax(masked_logits, dim=1)
+per_sample_loss = (
+    (predicted_policies - policy_tensors) ** 2 * mask_tensors
+).sum(dim=1)
+action_loss = (per_sample_loss * weights).mean()
+```
+
+При `strategy_buffer=1M`, `batch=1024`, `strategy_epochs=3`:
+
+```text
+ceil(1M / 1024) × 3
+≈ 2 931 gradient steps
+```
+
+Это вместо текущих `20` random steps.
+
+Тесты:
+
+```text
+каждая строка buffer используется один раз за epoch;
+iteration weights сохраняются;
+policy mask сохраняется;
+steps считаются корректно;
+buffer не очищается;
+```
+
+Не добавлять fresh/history split в этой задаче. Persistent reservoir остаётся единственным strategy buffer, как потребовал пользователь.
+
+---
+
+## Task 6: Sizing advantage перевести на fresh-only full epochs
+
+**Файлы:**
+
+- Modify: `src/core/deep_cfr.py:2950-3052`
+- Test: `tests/test_sizing_q_regret.py`
+- Test: `tests/test_hybrid_outcome_sampling.py`
+
+Перед сбором новой итерации `prepare_iteration()` должен очищать `sizing_advantage_buffer`. Поэтому в режиме CFR в нём остаются только строки с `iteration == current_iteration`.
+
+Сейчас sizing advantage использует:
+
+```python
+for _ in range(train_steps):
+    buf.sample_fresh_stratified(...)
+```
+
+Заменить fixed-step / `sample_fresh_stratified()` на materialization всех строк свежего буфера и `_full_epoch_batches()`. В каждой epoch использовать каждую строку ровно один раз; stratified sampling и квоту fresh/stale удалить из CFR-ветки.
+
+Сохранить формулу:
+
+```python
+previous = sizing_target_net(state)
+discounted_previous = previous * discount
+target = (discounted_previous + regret) * credit_mask
+```
+
+Сохранить:
+
+```text
+credit mask
+availability mask
+Huber/MSE выбор
+gradient clipping
+sync sizing_target_net после обучения
+```
+
+Диагностика:
+
+```text
+fresh_rows
+stale_rows=0
+fresh_rows_seen
+fresh_coverage
+epochs
+expected_steps
+actual_steps
+fresh_loss
+```
+
+Проверять инвариант: `fresh_share == 1.0`, `stale_rows == 0`; `actual_steps == epochs × ceil(n / batch_size)`. После обучения синхронизировать `sizing_target_net` один раз.
+
+---
+
+## Task 7: Sizing strategy перевести на full epochs
+
+**Файлы:**
+
+- Modify: `src/core/deep_cfr.py:3160-3206`
+- Test: `tests/test_sizing_q_regret.py`
+
+Сейчас:
+
+```python
+for _ in range(train_steps):
+    samples = self.sizing_strategy_buffer.sample(effective_batch)
+```
+
+Заменить на full epoch:
+
+```text
+sample весь buffer;
+перемешать;
+разбить на batch;
+повторить sizing_strategy_epochs раз.
+```
+
+Сохранить:
+
+```python
+target_weights = target_weights / target_weights.sum(...)
+iter_weights = (iteration / current_iteration) ** discount_gamma
+KL loss
+```
+
+Не менять:
+
+- Q-derived target;
+- anchor count;
+- availability handling;
+- sizing bucket structure;
+- `strategy_sizing_net` output format.
+
+Начальное значение:
+
+```yaml
+sizing_strategy_epochs: 3
+```
+
+При `1M` rows и batch `128`:
+
+```text
+ceil(1M / 128) × 3
+≈ 23 439 steps
+```
+
+Это существенно больше текущих `20`, поэтому сначала запускать на маленьком buffer и `1` iteration.
+
+---
+
+## Task 8: Sizing-Q перевести на full epochs
+
+**Файлы:**
+
+- Найти фактическую функцию обучения sizing-Q в `src/core/deep_cfr.py`
+- Modify: соответствующий Q training method
+- Test: `tests/test_sizing_q_regret.py`
+
+Сохранить:
+
+```text
+Q target formula
+reward normalization
+terminal masking
+target network usage
+gradient clipping
+target synchronization
+```
+
+Изменить только sampling schedule:
+
+```text
+current:
+    fixed random steps
+
+new:
+    full buffer per epoch
+```
+
+Для каждой epoch:
+
+```text
+получить permutation всех доступных sizing-Q rows;
+разбить на batches;
+один optimizer step на batch.
+```
+
+Начальное значение:
+
+```yaml
+sizing_q_epochs: 3
+```
+
+Если sizing-Q buffer имеет `500k` rows и batch `2048`:
+
+```text
+ceil(500k / 2048) × 3
+≈ 735 steps
+```
+
+Это существенно, но не экстремально.
+
+Обязательные тесты:
+
+```text
+terminal transition не использует next-state bootstrap;
+non-terminal transition использует target network;
+после обучения target network синхронизирована;
+каждая строка появляется один раз за epoch;
+```
+
+---
+
+## Task 9: Action Q оставить выключенным, но сохранить совместимость
+
+**Файлы:**
+
+- Modify: `src/core/deep_cfr.py`
+- Modify: `src/training/train.py`
+- Test: `tests/test_training_regressions.py`
+
+В текущем конфиге:
+
+```yaml
+use_q_baseline: false
+```
+
+Поэтому action Q не должен добавлять время или training steps в текущий запуск.
+
+Если `use_q_baseline=true`, применять тот же full-epoch helper, но не включать это в текущую smoke-проверку.
+
+Проверить:
+
+```text
+use_q_baseline=false:
+    q training не вызывается
+    q_buffer, q_net и q_target_net отсутствуют
+    q target net не синхронизируется лишний раз
+```
+
+---
+
+## Task 10: Сохранить discounting без изменения семантики
+
+**Файлы:**
+
+- Modify: только при необходимости `src/core/deep_cfr.py`
+- Test: `tests/test_training_regressions.py`
+- Test: `tests/test_sizing_q_regret.py`
+
+Не переносить discounting в reservoir.
+
+Reservoir остаётся равномерным по строкам:
+
+```text
+новая строка имеет равную reservoir-вероятность
+```
+
+Discounting применяется при обучении:
+
+```text
+strategy:
+    (sample_iteration / current_iteration) ** discount_gamma
+
+sizing strategy:
+    тот же iteration weight
+
+action advantage:
+    discount_alpha применяется к previous target_net output
+
+sizing advantage:
+    discount_alpha применяется к previous sizing_target_net output
+
+Q:
+    TD bootstrap, не DCFR iteration discount
+```
+
+Добавить tests:
+
+```text
+gamma=0:
+    все strategy samples имеют одинаковый loss weight
+
+gamma=1:
+    weight = iteration / current_iteration
+
+gamma=2:
+    weight = (iteration / current_iteration)^2
+
+alpha:
+    влияет только на previous bootstrap contribution,
+    не на current regret contribution
+```
+
+---
+
+## Task 11: Добавить единый training diagnostics
+
+**Файлы:**
+
+- Modify: `src/core/deep_cfr.py`
+- Modify: `src/training/train.py`
+- Test: `tests/test_training_regressions.py`
+
+Каждая training function должна публиковать:
+
+```text
+buffer_size
+batch_size
+epochs
+expected_steps
+actual_steps
+samples_per_epoch
+unique_samples_seen
+train_seconds
+loss
+```
+
+Для advantage дополнительно:
+
+```text
+fresh_rows
+stale_rows
+fresh_coverage
+stale_coverage
+target_abs_p50
+target_abs_p99
+```
+
+Для sizing advantage при fresh-only lifecycle публиковать `fresh_rows`, `fresh_coverage`, `fresh_share=1.0` и `stale_rows=0`; stale loss/coverage не вычислять.
+
+Для strategy дополнительно:
+
+```text
+iteration_weight_mean
+iteration_weight_min
+iteration_weight_max
+```
+
+Для Q дополнительно:
+
+```text
+terminal_rows
+nonterminal_rows
+target_sync
+```
+
+Пример ожидаемого лога:
+
+```text
+[StrategyProfile]
+samples=1000000 batch=1024 epochs=3
+steps=2931/2931
+coverage=1.000
+weight_mean=0.72
+total=...
+```
+
+Не использовать слово `epochs` для старого fixed-step режима. В legacy-режиме печатать:
+
+```text
+mode=fixed_steps
+steps=20
+```
+
+---
+
+## Task 12: Проверить память и временные копии
+
+**Файлы:**
+
+- Modify: `src/core/deep_cfr.py`
+- Test: `tests/test_training_regressions.py`
+- Использовать: существующий `Memory/RSS_MB`
+
+Full epochs не должны создавать полную копию buffer на каждую epoch.
+
+Допустимая схема:
+
+```text
+одна materialized копия текущего buffer;
+permutation indices на каждую epoch;
+batch slicing;
+```
+
+Не делать:
+
+```python
+samples = buf.sample(n)
+samples = samples[perm]
+samples = samples[perm2]
+```
+
+для каждого epoch.
+
+Следить за:
+
+```text
+RSS before training
+RSS after materialization
+RSS peak
+RSS after training
+```
+
+На первом smoke test использовать маленькие buffers:
+
+```text
+advantage: 5 000
+strategy: 5 000
+sizing advantage: 5 000
+sizing strategy: 5 000
+sizing Q: 5 000
+```
+
+Только после проверки логики запускать production buffer `1M`.
+
+---
+
+## Task 13: Тестовые сценарии
+
+**Файлы:**
+
+- Modify/Create: `tests/test_training_regressions.py`
+- Modify: `tests/test_sizing_q_regret.py`
+- Modify: `tests/test_buffer_reservoir_flags.py`
+
+Обязательные тесты:
+
+1. `strategy_buffer` persistent после `prepare_iteration`.
+2. Action advantage очищается перед новой итерацией.
+3. Full epoch использует все strategy rows.
+4. Full epoch использует все sizing strategy rows.
+5. `prepare_iteration()` очищает sizing advantage, а full epoch использует все его fresh rows без повторов.
+6. Full epoch sizing-Q использует все Q rows.
+7. Последняя неполная batch учитывается в `expected_steps`.
+8. Внутри epoch нет повторных индексов.
+9. Между epoch порядок меняется.
+10. `discount_gamma` применяется к strategy loss.
+11. `discount_alpha` применяется только к advantage bootstrap.
+12. target networks не изменяются до завершения training.
+13. target networks синхронизируются после training.
+14. disabled action Q не запускается.
+15. существующие checkpoint загружаются.
+
+Команды:
+
+```powershell
+pytest tests/test_training_regressions.py -q
+pytest tests/test_sizing_q_regret.py -q
+pytest tests/test_buffer_reservoir_flags.py -q
+pytest tests/test_checkpoint_lifecycle.py -q
+```
+
+После исправлений:
+
+```powershell
+pytest -q
+py -m compileall src tests
+```
+
+---
+
+## Task 14: Smoke training
+
+Первый запуск:
+
+```powershell
+py -m src.training.train `
+  --self-play-multi `
+  --seed 1 `
+  --iterations 1 `
+  --traversals 20 `
+  --save-dir models/full_epoch_smoke `
+  --log-dir logs/full_epoch_smoke `
+  --profile-level full
+```
+
+Проверить:
+
+```text
+strategy actual_steps == ceil(strategy_size / batch) × 3
+sizing strategy actual_steps == ceil(size / batch) × 3
+sizing advantage fresh_rows == buffer_size, stale_rows == 0
+sizing advantage actual_steps == ceil(sizing_advantage_size / batch) × 3
+sizing Q actual_steps соответствует full-epoch policy
+action advantage сохраняет 20 epochs
+target nets synchronized
+action Q skipped because use_q_baseline=false
+```
+
+Затем средний запуск:
+
+```powershell
+py -m src.training.train `
+  --self-play-multi `
+  --seed 1 `
+  --iterations 1 `
+  --traversals 200 `
+  --save-dir models/full_epoch_200 `
+  --log-dir logs/full_epoch_200 `
+  --profile-level coarse
+```
+
+Сравнить с baseline:
+
+```text
+iteration time
+traversal time
+advantage train time
+strategy train time
+sizing train time
+losses
+raise frequency
+nodes/root
+RSS peak
+```
+
+Не запускать сразу 10 000 traversals: full epochs могут увеличить training stage, и сначала нужно проверить память.
+
+---
+
+## Task 15: A/B по числу эпох
+
+После успешного smoke test сравнить:
+
+```text
+strategy_epochs:
+    1, 3, 5
+
+sizing_advantage_epochs:
+    1, 3, 5
+
+sizing_strategy_epochs:
+    1, 3, 5
+
+sizing_q_epochs:
+    1, 3, 5
+```
+
+Не менять все числа одновременно. Минимальная матрица:
+
+```text
+A:
+strategy=1, sizing_adv=1, sizing_strategy=1, sizing_q=1
+
+B:
+strategy=3, sizing_adv=3, sizing_strategy=3, sizing_q=3
+
+C:
+strategy=5, sizing_adv=3, sizing_strategy=3, sizing_q=3
+```
+
+Для каждого checkpoint измерить:
+
+```text
+loss
+nodes/root на следующей итерации
+opponent raise frequency
+average profit vs random
+sizing TV metrics
+RSS peak
+training time
+```
+
+Выбирать число эпох не по loss одному, а по:
+
+```text
+качество policy
+стабильность raise frequency
+снижение sizing TV
+рост времени
+потребление памяти
+```
+
+---
+
+## Порядок реализации
+
+1. Написать тесты full-epoch index coverage.
+2. Добавить конфигурацию epoch counts.
+3. Вынести общий full-epoch batch helper.
+4. Перевести action strategy.
+5. Перевести sizing strategy.
+6. Перевести sizing advantage на fresh-only full epochs и bootstrap через sizing_target_net.
+7. Перевести sizing-Q.
+8. Добавить diagnostics.
+9. Проверить action advantage без изменения семантики.
+10. Запустить узкие тесты.
+11. Запустить smoke training.
+12. Выполнить A/B `1/3/5` epochs.
+13. Только после этого запускать длинное обучение.
+
+**Итоговое решение по эпохам:** стартовать с `20` для action advantage и с `3` для strategy, sizing advantage, sizing strategy и sizing-Q. `1` epoch использовать как дешёвый baseline, `5` как усиленный A/B. Не ставить `20` на все сети сразу: для persistent million-row Q/sizing buffers это даст большой скачок вычислений и может переобучить сети на replay history.

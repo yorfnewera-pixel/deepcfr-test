@@ -1,0 +1,63 @@
+import numpy as np
+import pokers as pkrs
+import torch
+
+from src.core.action_space import NUM_ACTIONS, legal_action_mask
+from src.core.deep_cfr import DeepCFRAgent
+from src.evaluation.blueprint_policy import FrozenBlueprintPolicy
+from src.evaluation.paired_harness import evaluate_paired
+
+
+def test_frozen_policy_exposes_six_legal_probabilities(tmp_path):
+    checkpoint = tmp_path / "six_fixed.pt"
+    DeepCFRAgent(player_id=0, num_players=6).save_model(str(checkpoint))
+    policy = FrozenBlueprintPolicy.from_checkpoint(checkpoint)
+    state = pkrs.State.from_seed(n_players=6, button=0, sb=1.0, bb=2.0, stake=200.0, seed=107)
+    probabilities = policy.probabilities(state)
+    assert probabilities.shape == (NUM_ACTIONS,)
+    assert np.isclose(probabilities.sum(), 1.0)
+    assert np.all(probabilities[policy.agent.get_legal_action_mask(state) == 0.0] == 0.0)
+
+
+def test_frozen_policy_loads_strategy_only_checkpoint_without_advantage_network(tmp_path):
+    checkpoint = tmp_path / "strategy_only.pt"
+    agent = DeepCFRAgent(player_id=0, num_players=6)
+    torch.save(agent.build_light_checkpoint(), checkpoint)
+
+    policy = FrozenBlueprintPolicy.from_checkpoint(checkpoint)
+    state = pkrs.State.from_seed(n_players=6, button=0, sb=1.0, bb=2.0, stake=200.0, seed=107)
+    probabilities = policy.probabilities(state)
+
+    assert probabilities.shape == (NUM_ACTIONS,)
+    assert np.isclose(probabilities.sum(), 1.0)
+    assert np.all(np.isfinite(probabilities))
+    assert np.all(probabilities >= 0.0)
+    assert np.all(probabilities[legal_action_mask(state) == 0.0] == 0.0)
+
+
+def test_frozen_policy_batch_probabilities_match_single_state_inference(tmp_path):
+    checkpoint = tmp_path / "six_fixed.pt"
+    DeepCFRAgent(player_id=0, num_players=6).save_model(str(checkpoint))
+    policy = FrozenBlueprintPolicy.from_checkpoint(checkpoint)
+    states = [
+        pkrs.State.from_seed(n_players=6, button=0, sb=1.0, bb=2.0, stake=200.0, seed=107),
+        pkrs.State.from_seed(n_players=6, button=1, sb=1.0, bb=2.0, stake=200.0, seed=211),
+    ]
+
+    probabilities = policy.probabilities_batch(states)
+
+    assert probabilities.shape == (2, NUM_ACTIONS)
+    assert np.all(np.isfinite(probabilities))
+    assert np.allclose(probabilities.sum(axis=1), np.ones(2))
+    assert np.allclose(probabilities, np.stack([policy.probabilities(state) for state in states]))
+    for row, state in zip(probabilities, states):
+        assert np.all(row[legal_action_mask(state) == 0.0] == 0.0)
+
+
+def test_identical_frozen_policy_has_zero_paired_difference(tmp_path):
+    checkpoint = tmp_path / "six_fixed.pt"
+    DeepCFRAgent(player_id=0, num_players=2).save_model(str(checkpoint))
+    baseline = FrozenBlueprintPolicy.from_checkpoint(checkpoint, num_players=2)
+    candidate = FrozenBlueprintPolicy.from_checkpoint(checkpoint, num_players=2)
+    result = evaluate_paired(baseline, candidate, num_deals=2, seed=107, num_players=2)
+    assert np.array_equal(result.differences, np.zeros(result.samples))

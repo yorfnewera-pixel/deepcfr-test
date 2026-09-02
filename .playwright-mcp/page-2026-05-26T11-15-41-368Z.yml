@@ -1,0 +1,163 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - link "FreeModel" [ref=e5] [cursor=pointer]:
+      - /url: /
+      - img [ref=e7]
+      - generic [ref=e9]:
+        - text: Free
+        - emphasis [ref=e10]: Model
+    - generic [ref=e11]:
+      - generic [ref=e12]: Workspace
+      - button "Home" [ref=e13] [cursor=pointer]:
+        - img [ref=e14]
+        - text: Home
+      - button "API Keys" [ref=e18] [cursor=pointer]:
+        - img [ref=e19]
+        - text: API Keys
+      - button "Usage" [ref=e22] [cursor=pointer]:
+        - img [ref=e23]
+        - text: Usage
+      - button "Logs" [ref=e26] [cursor=pointer]:
+        - img [ref=e27]
+        - text: Logs
+      - button "Billing" [ref=e30] [cursor=pointer]:
+        - img [ref=e31]
+        - text: Billing
+    - generic [ref=e33]:
+      - generic [ref=e34]: Account
+      - button "Refer & Earn" [ref=e35] [cursor=pointer]:
+        - img [ref=e36]
+        - text: Refer & Earn
+      - button "Profile" [ref=e38] [cursor=pointer]:
+        - img [ref=e39]
+        - text: Profile
+      - button "Docs" [ref=e42] [cursor=pointer]:
+        - img [ref=e43]
+        - text: Docs
+    - button "А Амбивалентность инсинуации Not verified yorfnewera@gmail.com" [ref=e49] [cursor=pointer]:
+      - generic [ref=e50]: А
+      - generic [ref=e51]:
+        - generic [ref=e52]:
+          - generic [ref=e53]: Амбивалентность инсинуации
+          - generic "Not verified" [ref=e54]:
+            - img [ref=e55]
+        - generic [ref=e57]: yorfnewera@gmail.com
+      - img [ref=e58]
+  - main [ref=e60]:
+    - generic [ref=e61]:
+      - generic [ref=e63]:
+        - generic [ref=e64]: § Documentation
+        - heading "Codex Setup Guide" [level=1] [ref=e207]:
+          - text: Codex
+          - emphasis [ref=e66]: Setup Guide
+      - generic [ref=e67]:
+        - generic [ref=e68]:
+          - generic [ref=e69]:
+            - button "Claude Code" [ref=e70] [cursor=pointer]
+            - button "Codex" [active] [ref=e71] [cursor=pointer]
+          - navigation "Table of contents" [ref=e72]:
+            - generic [ref=e73]: On this page
+            - link "Overview" [ref=e208] [cursor=pointer]:
+              - /url: "#docs-intro"
+            - link "Install Codex CLI" [ref=e209] [cursor=pointer]:
+              - /url: "#docs-step-1"
+            - link "Create .codex directory" [ref=e210] [cursor=pointer]:
+              - /url: "#docs-step-2"
+            - link "Get an API key" [ref=e211] [cursor=pointer]:
+              - /url: "#docs-step-3"
+            - link "Create auth.json" [ref=e212] [cursor=pointer]:
+              - /url: "#docs-step-4"
+            - link "Create config.toml" [ref=e213] [cursor=pointer]:
+              - /url: "#docs-step-5"
+            - link "Restart & verify" [ref=e214] [cursor=pointer]:
+              - /url: "#docs-step-6"
+            - link "Start using" [ref=e215] [cursor=pointer]:
+              - /url: "#docs-step-7"
+        - article [ref=e81]:
+          - generic [ref=e82]:
+            - tablist [ref=e216]:
+              - tab "macOS / Linux" [ref=e217] [cursor=pointer]:
+                - img [ref=e218]
+                - text: macOS / Linux
+              - tab "Windows" [selected] [ref=e220] [cursor=pointer]:
+                - img [ref=e221]
+                - text: Windows
+            - generic [ref=e223]:
+              - strong [ref=e224]: Official package
+              - text: — 100% official @openai/codex — identical to the upstream CLI, full compatibility guaranteed.
+            - generic [ref=e97]:
+              - strong [ref=e98]: System requirements
+              - text: · Windows 10 (build 17763 / version 1809) or later
+          - generic [ref=e225]:
+            - generic [ref=e226]: "01"
+            - heading "Install Codex CLI" [level=3] [ref=e227]:
+              - text: Install
+              - emphasis [ref=e228]: Codex CLI
+            - paragraph [ref=e229]: "Run either of the following commands to install the official Codex CLI globally:"
+            - generic [ref=e230]:
+              - button "Copy" [ref=e231] [cursor=pointer]
+              - generic [ref=e232]: "npm install -g @openai/codex # 或者 / or brew install codex"
+            - generic [ref=e233]: Both commands install the same package. Use whichever matches your setup.
+          - generic [ref=e234]:
+            - generic [ref=e235]: "02"
+            - heading "Create the .codex directory" [level=3] [ref=e236]:
+              - text: Create the
+              - emphasis [ref=e237]: .codex directory
+            - paragraph [ref=e238]: "Delete the existing directory if present, then recreate it. In File Explorer or PowerShell:"
+            - generic [ref=e239]:
+              - button "Copy" [ref=e240] [cursor=pointer]
+              - generic [ref=e241]: "# PowerShell Remove-Item -Recurse -Force ~\\.codex -ErrorAction SilentlyContinue New-Item -ItemType Directory ~\\.codex"
+            - generic [ref=e242]: Replace <your-username> with your actual Windows username.
+          - generic [ref=e243]:
+            - generic [ref=e244]: "03"
+            - heading "Get an API key" [level=3] [ref=e245]:
+              - text: Get an
+              - emphasis [ref=e246]: API key
+            - paragraph [ref=e247]:
+              - text: Go to the
+              - link "API Keys" [ref=e248] [cursor=pointer]:
+                - /url: "#"
+              - text: page in the dashboard, create a new key, and copy it.
+          - generic [ref=e174]:
+            - generic [ref=e175]: "04"
+            - heading "Create auth.json" [level=3] [ref=e249]:
+              - text: Create
+              - emphasis [ref=e177]: auth.json
+            - paragraph [ref=e250]: "In C:\\Users\\<your-username>\\.codex, delete any existing auth.json then create a new one:"
+            - generic [ref=e251]:
+              - button "Copy" [ref=e252] [cursor=pointer]
+              - generic [ref=e253]: "{ \"OPENAI_API_KEY\": \"YOUR_API_KEY\" }"
+            - generic [ref=e254]: Replace YOUR_API_KEY with the key you copied.
+          - generic [ref=e255]:
+            - generic [ref=e256]: "05"
+            - heading "Create config.toml" [level=3] [ref=e257]:
+              - text: Create
+              - emphasis [ref=e258]: config.toml
+            - paragraph [ref=e259]: "In C:\\Users\\<your-username>\\.codex, delete any existing config.toml then create a new one:"
+            - generic [ref=e260]:
+              - button "Copy" [ref=e261] [cursor=pointer]
+              - generic [ref=e262]: model_provider = "freemodel" model = "gpt-5.5" model_reasoning_effort = "xhigh" disable_response_storage = true preferred_auth_method = "apikey" [model_providers.freemodel] name = "freemodel" base_url = "https://api.freemodel.dev" wire_api = "responses"
+            - generic [ref=e263]: Paste the content below exactly as shown — do not modify any values.
+          - generic [ref=e264]:
+            - generic [ref=e265]: "06"
+            - heading "Restart & verify" [level=3] [ref=e266]:
+              - text: Restart &
+              - emphasis [ref=e267]: verify
+            - paragraph [ref=e268]: "Restart your terminal, then run the following to confirm the installation:"
+            - generic [ref=e269]:
+              - button "Copy" [ref=e270] [cursor=pointer]
+              - generic [ref=e271]: codex -V
+            - generic [ref=e272]: If a version number is printed, Codex is installed correctly.
+          - generic [ref=e273]:
+            - generic [ref=e274]: "07"
+            - heading "Start using Codex" [level=3] [ref=e275]:
+              - text: Start
+              - emphasis [ref=e276]: using Codex
+            - paragraph [ref=e277]: "Navigate to any project folder and launch Codex:"
+            - generic [ref=e278]:
+              - button "Copy" [ref=e279] [cursor=pointer]
+              - generic [ref=e280]: "# 切换到项目目录 / Navigate to project cd your-project-folder # 启动 Codex / Launch Codex codex"
+            - generic [ref=e281]: The official VSCode extension is fully supported.
+  - button "TG Group" [ref=e203] [cursor=pointer]:
+    - img [ref=e204]
+    - generic [ref=e206]: TG Group

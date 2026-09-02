@@ -1,0 +1,470 @@
+═══════════════════════════════════════════════════════════════════
+  TOTAL FIX: Rust clamp + round(x,2) для устранения HighBet
+  в pokers (No-Limit Texas Holdem 6-max Deep CFR)
+═══════════════════════════════════════════════════════════════════
+
+ПРОБЛЕМА
+========
+IEEE 754 f64: call_amount + additional = stake + 1e-14
+Rust: if bet > stake { return HighBet } — строгое сравнение без epsilon
+Результат: HighBet на точных all-in границах, ломает CFR тренировку
+
+Два конкретных сценария HighBet:
+1. Float-перебор: stake=200.0, call=20.0, additional=180.0
+   bet = 20.0 + 180.0 = 200.00000000000003 > 200.0 → HighBet
+2. Python не обрезал additional: сеть выдаёт amount > remaining_after_call
+
+Бонус-баг: зависание игры когда все активные игроки all-in (stake=0)
+all_same_bet требует is_last_player, но all-in игроки бесконечно Check
+
+═══════════════════════════════════════════════════════════════════
+ШАГ 1: Установить Rust toolchain
+═══════════════════════════════════════════════════════════════════
+
+1. Скачать и запустить rustup-init.exe с https://rustup.rs
+   Выбрать default installation (MSVC toolchain)
+2. Убедиться что Visual Studio Build Tools установлены
+   с компонентом "Desktop development with C++" (нужен линкер для PyO3)
+
+Проверка:
+  rustc --version        → должен показать версию
+  где cl.exe             → должен найтись (из Build Tools)
+
+═══════════════════════════════════════════════════════════════════
+ШАГ 2: Клонировать pokers (форк dberweger2017 с current_player_can_raise)
+═══════════════════════════════════════════════════════════════════
+
+git clone https://github.com/dberweger2017/pokers.git
+cd pokers
+git fetch origin b1a48bd2067176cb73f95286d2e8878e3a2eb3d1
+git checkout FETCH_HEAD
+
+ВАЖНО: Коммит b1a48bd = "Disallow raise when call uses entire stack"
+Содержит функцию current_player_can_raise() — НУЖНА, не пропускать!
+Оригинальный репо Reinforcement-Poker/pokers НЕ содержит этот коммит.
+
+═══════════════════════════════════════════════════════════════════
+ШАГ 3: Патч src/game_logic.rs — ДВА изменения
+═══════════════════════════════════════════════════════════════════
+
+ПАТЧ A: Clamp вместо HighBet (верхняя граница)
+────────────────────────────────────────────────
+
+Строки ~189-197, блок ActionEnum::Raise:
+
+БЫЛО:
+    ActionEnum::Raise => {
+        let bet = (self.min_bet - self.players_state[player].bet_chips) + action.amount;
+        if bet > self.players_state[player].stake {
+            return State {
+                status: StateStatus::HighBet,
+                final_state: true,
+                ..new_state
+            };
+        }
+        new_state.players_state[player].bet_chips += bet;
+        new_state.players_state[player].stake -= bet;
+        new_state.pot += bet;
+        new_state.min_bet = new_state.players_state[player].bet_chips
+    }
+
+СТАЛО:
+    ActionEnum::Raise => {
+        let mut bet = (self.min_bet - self.players_state[player].bet_chips) + action.amount;
+        if bet > self.players_state[player].stake {
+            bet = self.players_state[player].stake;
+        }
+        new_state.players_state[player].bet_chips += bet;
+        new_state.players_state[player].stake -= bet;
+        new_state.pot += bet;
+        new_state.min_bet = new_state.players_state[player].bet_chips
+    }
+
+Разница:
+  let bet  →  let mut bet    (mutable для clamp)
+  return State { HighBet ... }  →  bet = stake   (auto all-in)
+  
+Почему clamp, а не epsilon:
+  - bet > stake + epsilon: пропускает шум в состояние (stake становится -1e-14)
+  - Шум накапливается: min_bet = 200.00000002, следующий round ещё хуже
+  - Clamp: bet = stake — чистое значение, auto all-in по правилам покера
+
+ПАТЧ B: all_broke — завершение раунда когда все all-in (фикс зависания)
+────────────────────────────────────────────────────────────────────
+
+Строка ~227:
+
+БЫЛО:
+    let round_ended = multiple_active && is_last_player && all_same_bet;
+
+СТАЛО:
+    let all_broke = active_players.iter().all(|ps| ps.stake <= CHIP_EPSILON);
+    let round_ended = multiple_active && (all_broke || (is_last_player && all_same_bet));
+
+Почему нужно:
+  - Старая логика требовала is_last_player (все сходили)
+  - Когда все активные all-in (stake=0), legal_actions=[Check]
+  - Игроки бесконечно Check, но is_last_player никогда не true
+  - all_broke: если у всех 0 фишек → раунд завершён сразу
+  - Не нарушает нормальные ситуации: all_broke=false когда есть фишки
+
+═══════════════════════════════════════════════════════════════════
+ШАГ 4: Добавить version в pyproject.toml
+═══════════════════════════════════════════════════════════════════
+
+В pokers/pyproject.toml добавить version в [project]:
+
+БЫЛО:
+  [project]
+  name = "pokers"
+  description = "..."
+
+СТАЛО:
+  [project]
+  name = "pokers"
+  version = "0.1.2"
+  description = "..."
+
+Без этого maturin develop --release упадёт с ошибкой:
+  "Cannot build without valid version information"
+
+═══════════════════════════════════════════════════════════════════
+ШАГ 5: Собрать pokers через maturin
+═══════════════════════════════════════════════════════════════════
+
+Создать venv (обязательно! maturin требует virtualenv):
+  cd <проект>
+  python -m venv .venv
+
+Активировать и установить maturin:
+  .\.venv\Scripts\Activate.ps1
+  pip install maturin
+
+Собрать pokers:
+  cd pokers
+  maturin develop --release
+
+Результат: пропатченная .pyd заменит старую в .venv/Lib/site-packages/
+Время сборки: ~15 секунд (release), ~60 секунд (debug)
+
+ВАЖНО: запускать проект ТОЛЬКО через venv-ный Python!
+  НЕ: py -m src.training.train      (системный Python, старый pokers!)
+  ДА: .\.venv\Scripts\python.exe -m src.training.train
+  ИЛИ: .\.venv\Scripts\Activate.ps1; py -m src.training.train
+
+═══════════════════════════════════════════════════════════════════
+ШАГ 6: Упростить Python — 3 файла
+═══════════════════════════════════════════════════════════════════
+
+После Rust-патча Python-код радикально упрощается:
+  - НЕТ float safeguard (epsilon, total_commit, available_stake + epsilon)
+  - НЕТ -0.01 шага
+  - НЕТ fallback на Call при Raise (кроме когда Raise не в legal_actions)
+  - НЕТ VERBOSE-блока на 30 строк
+  - НЕТ STRICT_CHECKING (Rust clamp заменяет)
+  - ЕСТЬ только round(additional, 2) перед return Raise
+
+─────────────────────────────────────────────────────────────────────
+6A. src/core/deep_cfr.py — DeepCFRAgent.action_type_to_pokers_action
+─────────────────────────────────────────────────────────────────────
+
+ВЕСЬ метод заменить на:
+
+    def action_type_to_pokers_action(self, action_type, state, bet_size_multiplier=None):
+        try:
+            if action_type == 0:
+                if pkrs.ActionEnum.Fold in state.legal_actions:
+                    return pkrs.Action(pkrs.ActionEnum.Fold)
+                if pkrs.ActionEnum.Check in state.legal_actions:
+                    return pkrs.Action(pkrs.ActionEnum.Check)
+                if pkrs.ActionEnum.Call in state.legal_actions:
+                    return pkrs.Action(pkrs.ActionEnum.Call)
+                return pkrs.Action(pkrs.ActionEnum.Fold)
+
+            elif action_type == 1:
+                if pkrs.ActionEnum.Check in state.legal_actions:
+                    return pkrs.Action(pkrs.ActionEnum.Check)
+                if pkrs.ActionEnum.Call in state.legal_actions:
+                    return pkrs.Action(pkrs.ActionEnum.Call)
+                if pkrs.ActionEnum.Fold in state.legal_actions:
+                    return pkrs.Action(pkrs.ActionEnum.Fold)
+                return pkrs.Action(pkrs.ActionEnum.Check)
+
+            elif action_type == 2:
+                if pkrs.ActionEnum.Raise not in state.legal_actions:
+                    if pkrs.ActionEnum.Call in state.legal_actions:
+                        return pkrs.Action(pkrs.ActionEnum.Call)
+                    if pkrs.ActionEnum.Check in state.legal_actions:
+                        return pkrs.Action(pkrs.ActionEnum.Check)
+                    return pkrs.Action(pkrs.ActionEnum.Fold)
+
+                player_state = state.players_state[state.current_player]
+                call_amount = max(0.0, state.min_bet - player_state.bet_chips)
+                remaining_after_call = player_state.stake - call_amount
+                min_raise_increment = max(1.0, float(state.bb)) if hasattr(state, 'bb') and state.bb and float(state.bb) > 0 else 1.0
+
+                if remaining_after_call < min_raise_increment:
+                    if pkrs.ActionEnum.Call in state.legal_actions:
+                        return pkrs.Action(pkrs.ActionEnum.Call)
+                    return pkrs.Action(pkrs.ActionEnum.Fold)
+
+                pot_size = max(1.0, state.pot)
+                multiplier = max(self.min_bet_size, min(self.max_bet_size, float(bet_size_multiplier or 1.0)))
+                additional = pot_size * multiplier
+                additional = max(min_raise_increment, min(additional, remaining_after_call))
+                additional = round(additional, 2)
+
+                return pkrs.Action(pkrs.ActionEnum.Raise, additional)
+
+            else:
+                if pkrs.ActionEnum.Call in state.legal_actions:
+                    return pkrs.Action(pkrs.ActionEnum.Call)
+                if pkrs.ActionEnum.Check in state.legal_actions:
+                    return pkrs.Action(pkrs.ActionEnum.Check)
+                return pkrs.Action(pkrs.ActionEnum.Fold)
+
+        except Exception as e:
+            if VERBOSE:
+                print(f"DeepCFRAgent ERROR action_type_to_pokers_action: {e}")
+            if pkrs.ActionEnum.Call in state.legal_actions:
+                return pkrs.Action(pkrs.ActionEnum.Call)
+            if pkrs.ActionEnum.Check in state.legal_actions:
+                return pkrs.Action(pkrs.ActionEnum.Check)
+            return pkrs.Action(pkrs.ActionEnum.Fold)
+
+КЛЮЧЕВАЯ СТРОКА: additional = round(additional, 2)
+  - Чистит float-шум от сети (9.400878 → 9.40)
+  - Чистит шум от pot*multiplier (13*0.3=3.9000... → 3.90)
+  - Предотвращает накопление шума в Rust (min_bet, bet_chips, pot)
+  - Никогда не обрезает ниже min_raise: round сдвиг max ±0.005,
+    а расстояние до min_raise >> 0.005 в середине диапазона
+
+─────────────────────────────────────────────────────────────────────
+6B. src/agents/random_agent.py — весь файл
+─────────────────────────────────────────────────────────────────────
+
+import random
+import pokers as pkrs
+
+
+class RandomAgent:
+    def __init__(self, player_id):
+        self.player_id = player_id
+        self.name = f"RandomAgent_{player_id}"
+
+    def choose_action(self, state):
+        if not state.legal_actions:
+            return pkrs.Action(pkrs.ActionEnum.Fold)
+
+        action_enum = random.choice(state.legal_actions)
+
+        if action_enum != pkrs.ActionEnum.Raise:
+            return pkrs.Action(action_enum)
+
+        player_state = state.players_state[state.current_player]
+        call_amount = max(0, state.min_bet - player_state.bet_chips)
+        remaining = player_state.stake - call_amount
+        min_raise = max(1.0, float(state.bb)) if hasattr(state, 'bb') and state.bb and float(state.bb) > 0 else 1.0
+
+        if remaining < min_raise:
+            if pkrs.ActionEnum.Call in state.legal_actions:
+                return pkrs.Action(pkrs.ActionEnum.Call)
+            return pkrs.Action(pkrs.ActionEnum.Fold)
+
+        options = [min_raise]
+        half_pot = max(state.pot * 0.5, min_raise)
+        if half_pot <= remaining:
+            options.append(half_pot)
+        full_pot = max(state.pot, min_raise)
+        if full_pot <= remaining:
+            options.append(full_pot)
+        if remaining >= min_raise and remaining not in options:
+            options.append(remaining)
+
+        options = [a for a in options if min_raise <= a <= remaining]
+        if not options:
+            if pkrs.ActionEnum.Call in state.legal_actions:
+                return pkrs.Action(pkrs.ActionEnum.Call)
+            return pkrs.Action(pkrs.ActionEnum.Fold)
+
+        additional = round(random.choice(options), 2)
+        return pkrs.Action(pkrs.ActionEnum.Raise, additional)
+
+─────────────────────────────────────────────────────────────────────
+6C. src/training/train_mixed_with_opponent_modeling.py — ModelAgent.choose_action
+─────────────────────────────────────────────────────────────────────
+
+Заменить весь метод choose_action на:
+
+    def choose_action(self, state):
+        original_action = self.agent.choose_action(state)
+
+        if original_action.action != pkrs.ActionEnum.Raise:
+            return original_action
+
+        additional_amount = round(max(0, original_action.amount), 2)
+        return pkrs.Action(pkrs.ActionEnum.Raise, additional_amount)
+
+═══════════════════════════════════════════════════════════════════
+ШАГ 7: Фикс вспомогательных багов
+═══════════════════════════════════════════════════════════════════
+
+7A. Unicode в src/utils/logging.py
+──────────────────────────────────
+Заменить Unicode-масти на ASCII:
+  suits = {0: "♣", 1: "♦", 2: "♥", 3: "♠"}  →  suits = {0: "c", 1: "d", 2: "h", 3: "s"}
+
+Добавить encoding в open():
+  with open(log_filename, "w") as f:  →  with open(log_filename, "w", encoding="utf-8") as f:
+
+Причина: Windows charmap codec не умеет ♠♥♦♣ → "Failed to write error log"
+
+7B. max_depth в cfr_traverse (src/core/deep_cfr.py)
+────────────────────────────────────────────────────
+Заменить:
+  max_depth = 1000  →  max_depth = 200
+
+Причина: Python stack limit ~1000 кадров, cfr_traverse делает несколько
+вызовов на кадр. При 1000 — RecursionError. При 200 — безопасно.
+Причина зависания (если всё ещё случится): старый pokers без all_broke.
+С новым pokers зависание не должно происходить.
+
+═══════════════════════════════════════════════════════════════════
+ШАГ 8: Установить зависимости venv
+═══════════════════════════════════════════════════════════════════
+
+.\.venv\Scripts\Activate.ps1
+pip install torch numpy tensorboard maturin
+
+═══════════════════════════════════════════════════════════════════
+ВЕРИФИКАЦИЯ
+═══════════════════════════════════════════════════════════════════
+
+Запустить тест перед тренировкой:
+
+import pokers as pkrs
+from src.core.deep_cfr import DeepCFRAgent
+from src.agents.random_agent import RandomAgent
+
+agents = [DeepCFRAgent(i, device='cpu') if i == 0 else RandomAgent(i) for i in range(6)]
+ok = hb = err = hang = 0
+
+for game in range(500):
+    state = pkrs.State.from_seed(n_players=6, button=game%6, sb=1.0, bb=2.0, stake=200.0, seed=game+5000)
+    steps = 0
+    while not state.final_state:
+        action = agents[state.current_player].choose_action(state)
+        new_state = state.apply_action(action)
+        if new_state.status == pkrs.StateStatus.HighBet:
+            hb += 1; break
+        elif new_state.status != pkrs.StateStatus.Ok:
+            err += 1; break
+        state = new_state; steps += 1
+        if steps > 300:
+            hang += 1; break
+    else:
+        ok += 1
+
+print(f'OK: {ok}, HighBet: {hb}, Error: {err}, Hang: {hang}')
+
+ОЖИДАЕМЫЙ РЕЗУЛЬТАТ:
+  OK: 500, HighBet: 0, Error: 0, Hang: 0
+
+Если HighBet > 0 → не тот pokers (проверь: import pokers; print(pokers.__file__))
+Если Hang > 0 → патч all_broke не применён или не собран
+
+═══════════════════════════════════════════════════════════════════
+АРХИТЕКТУРНАЯ СХЕМА: КТО ЗА ЧТО ОТВЕЧАЕТ
+═══════════════════════════════════════════════════════════════════
+
+┌─────────────────────────────────────────────────────────────┐
+│                      PYTHON                                 │
+│                                                             │
+│  round(additional, 2)  ← чистит float-шум от сети/pot      │
+│  max(additional, min_raise)  ← клип снизу (легальный рейз)  │
+│  min(additional, remaining)  ← клип сверху (не-оллин)      │
+│                                                             │
+│  НЕ делает: epsilon, -0.01, fallback на Call                │
+└──────────────────────┬──────────────────────────────────────┘
+                       │ Action(Raise, additional)
+                       ▼
+┌─────────────────────────────────────────────────────────────┐
+│                       RUST                                   │
+│                                                             │
+│  current_player_can_raise()  ← Raise в legal_actions?       │
+│    (из коммита b1a48bd: remaining_after_call > CHIP_EPSILON) │
+│                                                             │
+│  bet = call_amount + additional                             │
+│  if bet > stake: bet = stake  ← CLAMP (auto all-in)        │
+│  if all_broke: round_ended   ← фикc зависания              │
+│                                                             │
+│  НЕ делает: epsilon-сравнение, HighBet                      │
+└─────────────────────────────────────────────────────────────┘
+
+Границы:
+
+  НИЖНЯЯ (additional < min_raise):
+    Python: max(additional, min_raise)
+    Rust: current_player_can_raise() → Raise не в legal_actions
+
+  ВЕРХНЯЯ (bet > stake):
+    Python: min(additional, remaining_after_call)
+    Rust: clamp bet = stake (auto all-in)
+
+  СЕРЕДИНА (min_raise ≤ additional ≤ remaining):
+    Python: round(additional, 2) — только косметика, валидность не нарушается
+    Rust: ничего, bet ≤ stake всегда
+
+═══════════════════════════════════════════════════════════════════
+ПОЧЕМУ round(x,2) А НЕ math.floor(x*100)/100
+═══════════════════════════════════════════════════════════════════
+
+math.floor(0.29 * 100) / 100 = 0.28  ← БАГ!
+
+0.29 в f64 = 0.28999999999999998002
+0.29 * 100 = 28.999999999999996...
+floor(28.999...) = 28
+28 / 100 = 0.28  ← ПОТЕРЯ $0.01
+
+573 из 10000 двухдесятичных значений ломаются на floor.
+round() использует "round half to even" (banker's rounding) — корректен.
+
+═══════════════════════════════════════════════════════════════════
+ПОЧЕМУ CLAMP А НЕ EPSILON (bet > stake + CHIP_EPSILON)
+═══════════════════════════════════════════════════════════════════
+
+bet = 200.00000000000003, stake = 200.0
+
+epsilon-подход: bet < stake + 1e-9 → OK, пропускаем
+  Но: stake -= bet → stake = -3e-14  ← ОТРИЦАТЕЛЬНЫЙ СТЕК!
+  min_bet = bet_chips = 200.00000000000003 ← ГРЯЗНЫЙ min_bet
+  Следующий round: ещё грязнее → НАКОПЛЕНИЕ ШУМА
+
+clamp-подход: bet > stake → bet = stake = 200.0
+  stake -= 200.0 → stake = 0.0  ← ЧИСТЫЙ НОЛЬ
+  min_bet = bet_chips = 200.0  ← ЧИСТЫЙ
+  min_raise для следующего round тоже чистый → НЕТ НАКОПЛЕНИЯ
+
+═══════════════════════════════════════════════════════════════════
+ПОЧЕМУ НЕ FALLBACK НА CALL КОГДА additional < min_raise ПОСЛЕ round
+═══════════════════════════════════════════════════════════════════
+
+Если CFR выбрал action_type=2 (Raise), но Python возвращает Call:
+  - Regret для Raise считается вдоль траектории Call
+  - counterfactual_value[Raise] = value(Call) ← НЕВЕРНО!
+  - CFR "думает" что Raise дал тот же результат что Call
+  - Это искажает стратегию: Raise недооценивается
+
+Правильно: если Raise выбран — вернуть Raise.
+  Rust current_player_can_raise() уже гарантирует что Raise легален
+  Python clip (max с min_raise) гарантирует minimum raise size
+  round(x,2) никогда не обрежет ниже min_raise (сдвиг max ±0.005)
+
+═══════════════════════════════════════════════════════════════════
+ИЗВЕСТНЫЕ ОСТАВШИЕСЯ ПРОБЛЕМЫ (не фиксятся данным патчем)
+═══════════════════════════════════════════════════════════════════
+
+1. Short all-in Raise и side pots
+   - Rust не реализует side pots корректно
+   - Все all-in играют на один банк
+   - Это ограничение pokers, не нашего патча

@@ -1,0 +1,288 @@
+\begin{thebibliography}{56}
+\providecommand{\natexlab}[1]{#1}
+\providecommand{\url}[1]{\texttt{#1}}
+\expandafter\ifx\csname urlstyle\endcsname\relax
+  \providecommand{\doi}[1]{doi: #1}\else
+  \providecommand{\doi}{doi: \begingroup \urlstyle{rm}\Url}\fi
+
+\bibitem[Anthony et~al.(2017)Anthony, Tian, and Barber]{exit}
+T.~Anthony, Z.~Tian, and D.~Barber.
+\newblock Thinking fast and slow with deep learning and tree search.
+\newblock In \emph{Neural Information Processing Systems (NeurIPS)}, 2017.
+
+\bibitem[Anthony et~al.(2019)Anthony, Nishihara, Moritz, Salimans, and Schulman]{pgs}
+T.~Anthony, R.~Nishihara, P.~Moritz, T.~Salimans, and J.~Schulman.
+\newblock Policy gradient search: Online planning and expert iteration without search trees.
+\newblock \emph{Computing Research Repository (CoRR)}, 2019.
+
+\bibitem[Anthony(2021)]{exit-thesis}
+T.~W. Anthony.
+\newblock \emph{Expert iteration}.
+\newblock PhD thesis, UCL (University College London), 2021.
+
+\bibitem[Antonoglou et~al.(2022)Antonoglou, Schrittwieser, Ozair, Hubert, and Silver]{antonoglou2022planning}
+I.~Antonoglou, J.~Schrittwieser, S.~Ozair, T.~K. Hubert, and D.~Silver.
+\newblock Planning in stochastic environments with a learned model.
+\newblock In \emph{International Conference on Learning Representations (ICLR)}, 2022.
+
+\bibitem[Bakhtin et~al.(2023)Bakhtin, Wu, Lerer, Gray, Jacob, Farina, Miller, and Brown]{diplodocus}
+A.~Bakhtin, D.~J. Wu, A.~Lerer, J.~Gray, A.~P. Jacob, G.~Farina, A.~H. Miller, and N.~Brown.
+\newblock Mastering the game of {N}o-{P}ress {D}iplomacy via human-regularized reinforcement learning and planning.
+\newblock In \emph{International Conference on Learning Representations (ICLR)}, 2023.
+
+\bibitem[Bard et~al.(2020)Bard, Foerster, Chandar, Burch, Lanctot, Song, Parisotto, Dumoulin, Moitra, Hughes, Dunning, Mourad, Larochelle, Bellemare, and Bowling]{BARD2020103216}
+N.~Bard, J.~N. Foerster, S.~Chandar, N.~Burch, M.~Lanctot, H.~F. Song, E.~Parisotto, V.~Dumoulin, S.~Moitra, E.~Hughes, I.~Dunning, S.~Mourad, H.~Larochelle, M.~G. Bellemare, and M.~Bowling.
+\newblock The hanabi challenge: A new frontier for ai research.
+\newblock \emph{Artificial Intelligence}, 2020.
+
+\bibitem[Beck and Teboulle(2003)]{BECK2003167}
+A.~Beck and M.~Teboulle.
+\newblock Mirror descent and nonlinear projected subgradient methods for convex optimization.
+\newblock \emph{Operations Research Letters}, 2003.
+
+\bibitem[Brown(1951)]{brown:fp1951}
+G.~W. Brown.
+\newblock Iterative solution of games by fictitious play.
+\newblock In \emph{Activity Analysis of Production and Allocation}. 1951.
+
+\bibitem[Brown and Sandholm(2017)]{safenested}
+N.~Brown and T.~Sandholm.
+\newblock Safe and nested subgame solving for imperfect-information games.
+\newblock In \emph{Neural Information Processing Systems (NeurIPS)}, 2017.
+
+\bibitem[Brown and Sandholm(2018)]{Brown2018SuperhumanAF}
+N.~Brown and T.~Sandholm.
+\newblock Superhuman {AI} for heads-up no-limit poker: {L}ibratus beats top professionals.
+\newblock \emph{Science}, 2018.
+
+\bibitem[Brown and Sandholm(2019)]{pluribus}
+N.~Brown and T.~Sandholm.
+\newblock Superhuman {AI} for multiplayer poker.
+\newblock \emph{Science}, 2019.
+
+\bibitem[Brown et~al.(2020)Brown, Bakhtin, Lerer, and Gong]{brown2020rebel}
+N.~Brown, A.~Bakhtin, A.~Lerer, and Q.~Gong.
+\newblock Combining deep reinforcement learning and search for imperfect-information games.
+\newblock \emph{Neural Information Processing Systems (NeurIPS)}, 2020.
+
+\bibitem[Browne et~al.(2012)Browne, Powley, Whitehouse, Lucas, Cowling, Rohlfshagen, Tavener, Perez, Samothrakis, and Colton]{mcts}
+C.~B. Browne, E.~Powley, D.~Whitehouse, S.~M. Lucas, P.~I. Cowling, P.~Rohlfshagen, S.~Tavener, D.~Perez, S.~Samothrakis, and S.~Colton.
+\newblock A survey of monte carlo tree search methods.
+\newblock \emph{IEEE Transactions on Computational Intelligence and AI in Games}, 2012.
+
+\bibitem[Burch et~al.(2014)Burch, Johanson, and Bowling]{cfrd}
+N.~Burch, M.~Johanson, and M.~Bowling.
+\newblock Solving imperfect information games using decomposition.
+\newblock In \emph{AAAI Conference on Artificial Intelligence (AAAI)}, 2014.
+
+\bibitem[Campbell et~al.(2002)Campbell, Hoane, and hsiung Hsu]{CAMPBELL200257}
+M.~Campbell, A.~Hoane, and F.~hsiung Hsu.
+\newblock {D}eep {B}lue.
+\newblock \emph{Artificial Intelligence}, 2002.
+
+\bibitem[Cheung and Piliouras(2019)]{cheung2019vortices}
+Y.~K. Cheung and G.~Piliouras.
+\newblock Vortices instead of equilibria in minmax optimization: Chaos and butterfly effects of online learning in zero-sum games.
+\newblock In \emph{Conference on Learning Theory (COLT)}, 2019.
+
+\bibitem[Coulom(2006)]{Coulom06}
+R.~Coulom.
+\newblock Efficient selectivity and backup operators in monte-carlo tree search.
+\newblock In \emph{Computers and Games}, 2006.
+
+\bibitem[Dibangoye et~al.(2013)Dibangoye, Amato, Buffet, and Charpillet]{Dibangoye}
+J.~S. Dibangoye, C.~Amato, O.~Buffet, and F.~Charpillet.
+\newblock Optimally solving {D}ec-{POMDP}s as continuous-state {MDP}s.
+\newblock In \emph{International Joint Conference on Artificial Intelligence (IJCAI)}, 2013.
+
+\bibitem[Doucet and Johansen(2009)]{particle-filtering}
+A.~Doucet and A.~Johansen.
+\newblock A tutorial on particle filtering and smoothing: Fifteen years later.
+\newblock \emph{Handbook of Nonlinear Filtering}, 2009.
+
+\bibitem[Fickinger et~al.(2021)Fickinger, Hu, Amos, Russell, and Brown]{fickinger2021scalable}
+A.~Fickinger, H.~Hu, B.~Amos, S.~Russell, and N.~Brown.
+\newblock Scalable online planning via reinforcement learning fine-tuning.
+\newblock In \emph{Neural Information Processing Systems (NeurIPS)}, 2021.
+
+\bibitem[Hamrick et~al.(2021)Hamrick, Friesen, Behbahani, Guez, Viola, Witherspoon, Anthony, Buesing, Veli{\v{c}}kovi{\'c}, and Weber]{hamrick2021on}
+J.~B. Hamrick, A.~L. Friesen, F.~Behbahani, A.~Guez, F.~Viola, S.~Witherspoon, T.~Anthony, L.~H. Buesing, P.~Veli{\v{c}}kovi{\'c}, and T.~Weber.
+\newblock On the role of planning in model-based deep reinforcement learning.
+\newblock In \emph{International Conference on Learning Representations (ICLR)}, 2021.
+
+\bibitem[Hansen et~al.(2004)Hansen, Bernstein, and Zilberstein]{posg}
+E.~A. Hansen, D.~S. Bernstein, and S.~Zilberstein.
+\newblock Dynamic programming for partially observable stochastic games.
+\newblock In \emph{AAAI Conference on Artificial Intelligence (AAAI)}, 2004.
+
+\bibitem[Heinrich and Silver(2016)]{nfsp}
+J.~Heinrich and D.~Silver.
+\newblock Deep reinforcement learning from self-play in imperfect-information games.
+\newblock \emph{Computing Research Repository (CoRR)}, 2016.
+
+\bibitem[Hu et~al.(2021)Hu, Lerer, Brown, and Foerster]{lbs}
+H.~Hu, A.~Lerer, N.~Brown, and J.~N. Foerster.
+\newblock Learned belief search: Efficiently improving policies in partially observable settings.
+\newblock \emph{Computing Research Repository (CoRR)}, 2021.
+
+\bibitem[Jacob et~al.(2022)Jacob, Wu, Farina, Lerer, Hu, Bakhtin, Andreas, and Brown]{pikl}
+A.~P. Jacob, D.~J. Wu, G.~Farina, A.~Lerer, H.~Hu, A.~Bakhtin, J.~Andreas, and N.~Brown.
+\newblock Modeling strong and human-like gameplay with {KL}-regularized search.
+\newblock In \emph{International Conference on Machine Learning (ICML)}, 2022.
+
+\bibitem[Jakobsen et~al.(2016)Jakobsen, S\o{}rensen, and Conitzer]{timeable}
+S.~K. Jakobsen, T.~B. S\o{}rensen, and V.~Conitzer.
+\newblock Timeability of extensive-form games.
+\newblock In \emph{Innovations in Theoretical Computer Science (ITCS)}, 2016.
+
+\bibitem[Kapturowski et~al.(2019)Kapturowski, Ostrovski, Dabney, Quan, and Munos]{r2d2}
+S.~Kapturowski, G.~Ostrovski, W.~Dabney, J.~Quan, and R.~Munos.
+\newblock Recurrent experience replay in distributed reinforcement learning.
+\newblock In \emph{International Conference on Learning Representations (ICLR)}, 2019.
+
+\bibitem[Kocsis and Szepesv\'{a}ri(2006)]{kocsis}
+L.~Kocsis and C.~Szepesv\'{a}ri.
+\newblock Bandit based monte-carlo planning.
+\newblock In \emph{European Conference on Machine Learning (ECML)}, 2006.
+
+\bibitem[Kovar{\'{\i}}k et~al.(2022)Kovar{\'{\i}}k, Schmid, Burch, Bowling, and Lis{\'{y}}]{fosg}
+V.~Kovar{\'{\i}}k, M.~Schmid, N.~Burch, M.~Bowling, and V.~Lis{\'{y}}.
+\newblock Rethinking formal models of partially observable multiagent decision making.
+\newblock \emph{Artificial Intelligence}, 2022.
+
+\bibitem[Lanctot et~al.(2019)Lanctot, Lockhart, Lespiau, Zambaldi, Upadhyay, P\'{e}rolat, Srinivasan, Timbers, Tuyls, Omidshafiei, Hennes, Morrill, Muller, Ewalds, Faulkner, Kram\'{a}r, Vylder, Saeta, Bradbury, Ding, Borgeaud, Lai, Schrittwieser, Anthony, Hughes, Danihelka, and Ryan-Davis]{openspiel}
+M.~Lanctot, E.~Lockhart, J.-B. Lespiau, V.~Zambaldi, S.~Upadhyay, J.~P\'{e}rolat, S.~Srinivasan, F.~Timbers, K.~Tuyls, S.~Omidshafiei, D.~Hennes, D.~Morrill, P.~Muller, T.~Ewalds, R.~Faulkner, J.~Kram\'{a}r, B.~D. Vylder, B.~Saeta, J.~Bradbury, D.~Ding, S.~Borgeaud, M.~Lai, J.~Schrittwieser, T.~Anthony, E.~Hughes, I.~Danihelka, and J.~Ryan-Davis.
+\newblock {OpenSpiel}: A framework for reinforcement learning in games.
+\newblock \emph{Computing Research Repository (CoRR)}, 2019.
+
+\bibitem[Lerer et~al.(2020)Lerer, Hu, Foerster, and Brown]{lerer2020improving}
+A.~Lerer, H.~Hu, J.~Foerster, and N.~Brown.
+\newblock Improving policies via search in cooperative partially observable games.
+\newblock In \emph{AAAI Conference on Artificial Intelligence (AAAI)}, 2020.
+
+\bibitem[Liang et~al.(2018)Liang, Liaw, Nishihara, Moritz, Fox, Goldberg, Gonzalez, Jordan, and Stoica]{rllib}
+E.~Liang, R.~Liaw, R.~Nishihara, P.~Moritz, R.~Fox, K.~Goldberg, J.~Gonzalez, M.~Jordan, and I.~Stoica.
+\newblock {RL}lib: Abstractions for distributed reinforcement learning.
+\newblock In \emph{International Conference on Machine Learning (ICML)}, 2018.
+
+\bibitem[Littman(1996)]{Littman96algorithmsfor}
+M.~L. Littman.
+\newblock \emph{Algorithms for Sequential Decision Making}.
+\newblock PhD thesis, Brown University, 1996.
+
+\bibitem[Liu et~al.(2023)Liu, Fu, Fu, and Wei]{liu23}
+W.~Liu, H.~Fu, Q.~Fu, and Y.~Wei.
+\newblock Opponent-limited online search for imperfect information games.
+\newblock In \emph{International Conference on Machine Learning (ICML)}, 2023.
+
+\bibitem[McKelvey and Palfrey(1998)]{aqre}
+R.~D. McKelvey and T.~R. Palfrey.
+\newblock Quantal response equilibria for extensive form games.
+\newblock \emph{Experimental Economics}, 1998.
+
+\bibitem[{Meta Fundamental AI Research Diplomacy Team (FAIR)} et~al.(2022){Meta Fundamental AI Research Diplomacy Team (FAIR)}, Bakhtin, Brown, Dinan, Farina, Flaherty, Fried, Goff, Gray, Hu, Jacob, Komeili, Konath, Kwon, Lerer, Lewis, Miller, Mitts, Renduchintala, Roller, Rowe, Shi, Spisak, Wei, Wu, Zhang, and Zijlstra]{cicero}
+{Meta Fundamental AI Research Diplomacy Team (FAIR)}, A.~Bakhtin, N.~Brown, E.~Dinan, G.~Farina, C.~Flaherty, D.~Fried, A.~Goff, J.~Gray, H.~Hu, A.~P. Jacob, M.~Komeili, K.~Konath, M.~Kwon, A.~Lerer, M.~Lewis, A.~H. Miller, S.~Mitts, A.~Renduchintala, S.~Roller, D.~Rowe, W.~Shi, J.~Spisak, A.~Wei, D.~Wu, H.~Zhang, and M.~Zijlstra.
+\newblock Human-level play in the game of {D}iplomacy by combining language models with strategic reasoning.
+\newblock \emph{Science}, 2022.
+
+\bibitem[Mnih et~al.(2015)Mnih, Kavukcuoglu, Silver, Rusu, Veness, Bellemare, Graves, Riedmiller, Fidjeland, Ostrovski, Petersen, Beattie, Sadik, Antonoglou, King, Kumaran, Wierstra, Legg, and Hassabis]{mnih2015humanlevel}
+V.~Mnih, K.~Kavukcuoglu, D.~Silver, A.~A. Rusu, J.~Veness, M.~G. Bellemare, A.~Graves, M.~Riedmiller, A.~K. Fidjeland, G.~Ostrovski, S.~Petersen, C.~Beattie, A.~Sadik, I.~Antonoglou, H.~King, D.~Kumaran, D.~Wierstra, S.~Legg, and D.~Hassabis.
+\newblock Human-level control through deep reinforcement learning.
+\newblock \emph{Nature}, 2015.
+
+\bibitem[Moravcik et~al.(2016)Moravcik, Schmid, Ha, Hladik, and Gaukrodger]{maxmargin}
+M.~Moravcik, M.~Schmid, K.~Ha, M.~Hladik, and S.~J. Gaukrodger.
+\newblock Refining subgames in large imperfect information games.
+\newblock In \emph{AAAI Conference on Artificial Intelligence (AAAI)}, 2016.
+
+\bibitem[Moravčík et~al.(2017)Moravčík, Schmid, Burch, Lisý, Morrill, Bard, Davis, Waugh, Johanson, and Bowling]{deepstack}
+M.~Moravčík, M.~Schmid, N.~Burch, V.~Lisý, D.~Morrill, N.~Bard, T.~Davis, K.~Waugh, M.~Johanson, and M.~Bowling.
+\newblock Deep{S}tack: Expert-level artificial intelligence in heads-up no-limit poker.
+\newblock \emph{Science}, 2017.
+
+\bibitem[Nayyar et~al.(2013)Nayyar, Mahajan, and Teneketzis]{nayyar}
+A.~Nayyar, A.~Mahajan, and D.~Teneketzis.
+\newblock Decentralized stochastic control with partial history sharing: A common information approach.
+\newblock \emph{IEEE Transactions on Automatic Control}, 2013.
+
+\bibitem[Nemirovsky and Yudin(1983)]{nemirovski1983problem}
+A.~Nemirovsky and D.~Yudin.
+\newblock \emph{Problem Complexity and Method Efficiency in Optimization}.
+\newblock 1983.
+
+\bibitem[Oliehoek(2013)]{Oliehoek2013SufficientPS}
+F.~A. Oliehoek.
+\newblock Sufficient plan-time statistics for decentralized pomdps.
+\newblock In \emph{International Joint Conference on Artificial Intelligence (IJCAI)}, 2013.
+
+\bibitem[Paquette et~al.(2019)Paquette, Lu, Bocco, Smith, O-G, Kummerfeld, Pineau, Singh, and Courville]{paquette2019no}
+P.~Paquette, Y.~Lu, S.~S. Bocco, M.~Smith, S.~O-G, J.~K. Kummerfeld, J.~Pineau, S.~Singh, and A.~C. Courville.
+\newblock No-press diplomacy: Modeling multi-agent gameplay.
+\newblock \emph{Neural Information Processing Systems (NeurIPS)}, 2019.
+
+\bibitem[Perolat et~al.(2021)Perolat, Munos, Lespiau, Omidshafiei, Rowland, Ortega, Burch, Anthony, Balduzzi, De~Vylder, Piliouras, Lanctot, and Tuyls]{fforel}
+J.~Perolat, R.~Munos, J.-B. Lespiau, S.~Omidshafiei, M.~Rowland, P.~Ortega, N.~Burch, T.~Anthony, D.~Balduzzi, B.~De~Vylder, G.~Piliouras, M.~Lanctot, and K.~Tuyls.
+\newblock From {P}oincar{é} recurrence to convergence in imperfect information games: Finding equilibrium via regularization.
+\newblock In \emph{International Conference on Machine Learning (ICML)}, 2021.
+
+\bibitem[Schrittwieser et~al.(2019)Schrittwieser, Antonoglou, Hubert, Simonyan, Sifre, Schmitt, Guez, Lockhart, Hassabis, Graepel, Lillicrap, and Silver]{schrittwieser2019mastering}
+J.~Schrittwieser, I.~Antonoglou, T.~Hubert, K.~Simonyan, L.~Sifre, S.~Schmitt, A.~Guez, E.~Lockhart, D.~Hassabis, T.~Graepel, T.~Lillicrap, and D.~Silver.
+\newblock Mastering atari, {G}o, chess and shogi by planning with a learned model.
+\newblock \emph{Nature}, 2019.
+
+\bibitem[Schulman et~al.(2017)Schulman, Wolski, Dhariwal, Radford, and Klimov]{ppo}
+J.~Schulman, F.~Wolski, P.~Dhariwal, A.~Radford, and O.~Klimov.
+\newblock Proximal policy optimization algorithms.
+\newblock \emph{Computing Research Repository (CoRR)}, 2017.
+
+\bibitem[Silver et~al.(2016)Silver, Huang, Maddison, Guez, Sifre, van~den Driessche, Schrittwieser, Antonoglou, Panneershelvam, Lanctot, Dieleman, Grewe, Nham, Kalchbrenner, Sutskever, Lillicrap, Leach, Kavukcuoglu, Graepel, and Hassabis]{SilverHuangEtAl16nature}
+D.~Silver, A.~Huang, C.~J. Maddison, A.~Guez, L.~Sifre, G.~van~den Driessche, J.~Schrittwieser, I.~Antonoglou, V.~Panneershelvam, M.~Lanctot, S.~Dieleman, D.~Grewe, J.~Nham, N.~Kalchbrenner, I.~Sutskever, T.~Lillicrap, M.~Leach, K.~Kavukcuoglu, T.~Graepel, and D.~Hassabis.
+\newblock Mastering the game of {Go} with deep neural networks and tree search.
+\newblock \emph{Nature}, 2016.
+
+\bibitem[Silver et~al.(2018)Silver, Hubert, Schrittwieser, Antonoglou, Lai, Guez, Lanctot, Sifre, Kumaran, Graepel, Lillicrap, Simonyan, and Hassabis]{az}
+D.~Silver, T.~Hubert, J.~Schrittwieser, I.~Antonoglou, M.~Lai, A.~Guez, M.~Lanctot, L.~Sifre, D.~Kumaran, T.~Graepel, T.~Lillicrap, K.~Simonyan, and D.~Hassabis.
+\newblock A general reinforcement learning algorithm that masters chess, shogi, and go through self-play.
+\newblock \emph{Science}, 2018.
+
+\bibitem[Sokota et~al.(2022)Sokota, Hu, Wu, Kolter, Foerster, and Brown]{bft}
+S.~Sokota, H.~Hu, D.~J. Wu, J.~Z. Kolter, J.~N. Foerster, and N.~Brown.
+\newblock A fine-tuning approach to belief state modeling.
+\newblock In \emph{International Conference on Learning Representations (ICLR)}, 2022.
+
+\bibitem[Sokota et~al.(2023{\natexlab{a}})Sokota, D'Orazio, Kolter, Loizou, Lanctot, Mitliagkas, Brown, and Kroer]{mmd}
+S.~Sokota, R.~D'Orazio, J.~Z. Kolter, N.~Loizou, M.~Lanctot, I.~Mitliagkas, N.~Brown, and C.~Kroer.
+\newblock A unified approach to reinforcement learning, quantal response equilibria, and two-player zero-sum games.
+\newblock In \emph{International Conference on Learning Representations (ICLR)}, 2023{\natexlab{a}}.
+
+\bibitem[Sokota et~al.(2023{\natexlab{b}})Sokota, D'Orazio, Ling, Wu, Kolter, and Brown]{sokota2023abstracting}
+S.~Sokota, R.~D'Orazio, C.~K. Ling, D.~J. Wu, J.~Z. Kolter, and N.~Brown.
+\newblock Abstracting imperfect information away from two-player zero-sum games.
+\newblock In \emph{International Conference on Machine Learning (ICML)}, 2023{\natexlab{b}}.
+
+\bibitem[Tesauro and Galperin(1996)]{mcs}
+G.~Tesauro and G.~Galperin.
+\newblock On-line policy improvement using monte-carlo search.
+\newblock In \emph{Neural Information Processing Systems (NIPS)}, 1996.
+
+\bibitem[Tian et~al.(2020)Tian, Gong, and Jiang]{jps}
+Y.~Tian, Q.~Gong, and T.~Jiang.
+\newblock Joint policy search for multi-agent collaboration with imperfect information.
+\newblock In \emph{Neural Information Processing Systems (NeurIPS)}, 2020.
+
+\bibitem[Timbers et~al.(2022)Timbers, Bard, Lockhart, Lanctot, Schmid, Burch, Schrittwieser, Hubert, and Bowling]{approx_br}
+F.~Timbers, N.~Bard, E.~Lockhart, M.~Lanctot, M.~Schmid, N.~Burch, J.~Schrittwieser, T.~Hubert, and M.~Bowling.
+\newblock Approximate exploitability: Learning a best response.
+\newblock In \emph{International Joint Conference on Artificial Intelligence (IJCAI)}, 2022.
+
+\bibitem[Zhang and Sandholm(2021)]{Zhang2021SubgameSW}
+B.~Zhang and T.~Sandholm.
+\newblock Subgame solving without common knowledge.
+\newblock In \emph{Neural Information Processing Systems (NeurIPS)}, 2021.
+
+\bibitem[Zinkevich et~al.(2007)Zinkevich, Johanson, Bowling, and Piccione]{cfr}
+M.~Zinkevich, M.~Johanson, M.~Bowling, and C.~Piccione.
+\newblock Regret minimization in games with incomplete information.
+\newblock In \emph{Neural Information Processing Systems (NIPS)}, 2007.
+
+\end{thebibliography}

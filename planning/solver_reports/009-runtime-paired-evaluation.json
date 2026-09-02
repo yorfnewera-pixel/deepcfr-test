@@ -1,0 +1,25 @@
+{
+  "runs": [
+    {
+      "seed": 107,
+      "samples": 48,
+      "mean_difference": 0.0,
+      "std_difference": 0.0,
+      "bb_per_100": 0.0,
+      "search_decisions": 0,
+      "reach_weighted_decisions": 0,
+      "blueprint_fallback_decisions": 0
+    },
+    {
+      "seed": 109,
+      "samples": 48,
+      "mean_difference": 0.0,
+      "std_difference": 0.0,
+      "bb_per_100": 0.0,
+      "search_decisions": 0,
+      "reach_weighted_decisions": 0,
+      "blueprint_fallback_decisions": 0
+    }
+  ],
+  "total_samples": 96
+}

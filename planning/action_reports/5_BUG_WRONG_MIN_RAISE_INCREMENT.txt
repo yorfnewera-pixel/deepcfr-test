@@ -1,0 +1,115 @@
+═══════════════════════════════════════════════════════════════════
+  BUG REPORT: min_raise_increment = bb вместо last_raise_increment
+  (некорректный минрейз при ререйзах)
+═══════════════════════════════════════════════════════════════════
+
+АФФЕКТ
+======
+Python использует bb как минрейз всегда, а не последний инкремент рейза.
+При ререйзах минрейз должен быть = последний инкремент, а не bb.
+
+Последствия:
+1. Микро-ререйзы: при рейзе +8 сверх BB, ререйз может быть +2 (bb)
+   вместо +8 (последний инкремент). По правилам NLHE — нелегально.
+2. Некорректная CFR стратегия: агент может выбрать слишком маленький ререйз,
+   который в реальной игре был бы нелегален.
+3. Постфлоп: первый бет = bb корректно, но рейз поверх бета 5
+   позволяет минрейз = 2 (bb) вместо 5 (размер бета).
+
+ПРИМЕР
+======
+Префлоп:
+  BB = 2.0
+  UTG рейзит до 10.0  (инкремент = 10 - 2 = 8)
+  Ререйз: min_raise_increment = bb = 2.0 → можно ререйзнуть до 12.0
+  По правилам: min_raise_increment = 8.0 → минрейз до 18.0
+
+Постфлоп:
+  Игрок бетит 5.0  (инкремент = 5 - 0 = 5)
+  Рейз: min_raise_increment = bb = 2.0 → можно рейзнуть до 7.0
+  По правилам: min_raise_increment = 5.0 → минрейз до 10.0
+
+КОРЕНЬ
+======
+pokers State не хранит last_raise_increment — размер последнего
+повышения ставки. Python вынужден использовать bb как fallback.
+
+ФИКС
+====
+
+1. Добавить поле last_raise_increment в Rust struct State:
+
+   pokers/src/state.rs:
+     #[pyo3(get, set)]
+     pub last_raise_increment: f64,
+
+2. Начальное значение в from_deck:
+
+   pokers/src/game_logic.rs, блок State { ... }:
+     last_raise_increment: bb,
+
+3. Обновлять при каждом Raise:
+
+   pokers/src/game_logic.rs, блок ActionEnum::Raise:
+     new_state.last_raise_increment = new_state.min_bet - self.min_bet;
+
+4. Сбрасывать при переходе на новый stage:
+
+   pokers/src/game_logic.rs, fn to_next_stage:
+     self.last_raise_increment = self.bb;
+
+5. Обновить pokers.pyi:
+     last_raise_increment: float
+
+6. Python — использовать last_raise_increment:
+
+   deep_cfr.py:
+     min_raise_increment = max(1.0, float(state.last_raise_increment))
+         if hasattr(state, 'last_raise_increment') and ...
+         else max(1.0, float(state.bb)) if ... else 1.0
+
+   random_agent.py: аналогично
+
+ПРИМЕЧАНИЕ О ВАЛИДАЦИИ VS ДЕЙСТВИЕ
+====================================
+
+last_raise_increment используется в Python в ДВУХ ролях:
+
+1. ВАЛИДАЦИЯ (clip снизу):
+   additional = max(min_raise_increment, min(additional, remaining))
+   → не позволяет агенту поставить слишком мало
+
+2. ОПЦИЯ выбора (RandomAgent):
+   options = [min_raise]  → минрейз как один из вариантов ставки
+
+Оба использования корректны. min_raise_increment = last_raise_increment
+гарантирует что оба роли используют правильное значение.
+
+СЦЕНАРИИ ПОСЛЕ ФИКСА
+=====================
+
+| Ситуация                          | last_raise_increment | min_raise |
+|-----------------------------------|---------------------|-----------|
+| Префлоп, первый рейз              | bb = 2.0            | 2.0       |
+| Префлоп, ререйз поверх рейза +8   | 8.0                 | 8.0       |
+| Постфлоп, первый бет              | bb = 2.0 (сброшен)  | 2.0       |
+| Постфлоп, рейз поверх бета 5      | 5.0                 | 5.0       |
+| Постфлоп, ререйз поверх рейза +12 | 12.0                | 12.0      |
+| Новый раунд (to_next_stage)       | bb = 2.0 (сброшен)  | 2.0       |
+
+ТЕСТ
+====
+
+import pokers as pkrs
+
+state = pkrs.State.from_seed(n_players=6, button=0, sb=1.0, bb=2.0, stake=200.0, seed=0)
+
+# Initial: last_raise_increment = bb = 2.0
+assert state.last_raise_increment == 2.0
+
+# After raise(8): increment = new_min_bet - old_min_bet = 10 - 2 = 8.0
+state2 = state.apply_action(pkrs.Action(pkrs.ActionEnum.Raise, 8.0))
+assert state2.last_raise_increment == 8.0
+
+# Postflop: reset to bb = 2.0
+# (play through to next stage)

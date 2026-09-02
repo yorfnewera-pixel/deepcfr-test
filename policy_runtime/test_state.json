@@ -1,0 +1,20 @@
+{
+    "bb": 2.0,
+    "pot": 30.0,
+    "min_bet": 8.0,
+    "button": 2,
+    "current_player": 3,
+    "stage": 1,
+    "legal_actions": [1, 3],
+    "public_cards": [{"suit": 1, "rank": 10}, {"suit": 0, "rank": 9}, {"suit": 2, "rank": 5}],
+    "from_action": [2, 8.0],
+    "last_raise_increment": 6.0,
+    "players": [
+        {"hand": [{"suit": 2, "rank": 12}, {"suit": 3, "rank": 11}], "active": true, "bet_chips": 0, "pot_chips": 5, "stake": 195},
+        {"active": true, "bet_chips": 0, "pot_chips": 5, "stake": 195},
+        {"active": true, "bet_chips": 8, "pot_chips": 5, "stake": 187},
+        {"active": true, "bet_chips": 0, "pot_chips": 5, "stake": 195},
+        {"active": false, "bet_chips": 0, "pot_chips": 5, "stake": 195},
+        {"active": true, "bet_chips": 0, "pot_chips": 5, "stake": 195}
+    ]
+}

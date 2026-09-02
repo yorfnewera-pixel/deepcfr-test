@@ -1,0 +1,5 @@
+- generic [ref=e1]:
+  - textbox "Спросите Gemini о чем-нибудь" [active] [ref=e4]
+  - 'button "Аккаунт Google: Амбивалентность инсинуации (yorfnewera@gmail.com)" [ref=e11] [cursor=pointer]':
+    - img [ref=e13]
+  - main [ref=e15]

@@ -1,0 +1,12 @@
+models/**/*.pt
+*.pt
+.postman/
+
+# Игнорировать тяжелые дамп-файлы буферов
+*_buffer_targets_*.json
+sizing_buffer_targets_*.json
+.idea/
+__pycache__/
+*.pyc
+logs/
+opencode.json

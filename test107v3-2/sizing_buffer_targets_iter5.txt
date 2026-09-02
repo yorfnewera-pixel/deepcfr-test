@@ -1,0 +1,10 @@
+Sizing buffer targets vs sizing-network anchor logits
+checkpoint: C:\Users\Cassmall\Desktop\deepcfr-test\models\test107v3\multi_checkpoint_iter_5.pt
+weights: advantage_sizing_net
+samples: 1000000; masked anchors: 4836032
+missing/unexpected keys: [] / []
+parameter sha256: 6d999b87cffff35994439a02b3526a8c483681d80731cd17ee8631d85699acde
+aggregate: pearson=0.0292787, spearman=0.0309573, cosine=0.00717484, sign_agreement=0.459506, mae=0.59432, rmse=0.981516
+affine target ~= 15.5337 * logit + -0.158053
+No Q-derived reconstruction is attempted because required fields are absent.
+detailed JSON: C:\Users\Cassmall\Desktop\deepcfr-test\sizing_buffer_targets_iter5.json

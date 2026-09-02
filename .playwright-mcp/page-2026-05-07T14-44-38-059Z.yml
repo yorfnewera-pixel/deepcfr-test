@@ -1,0 +1,425 @@
+- generic [ref=e1]:
+  - 'button "Аккаунт Google: Амбивалентность инсинуации (yorfnewera@gmail.com)" [ref=e11] [cursor=pointer]':
+    - img [ref=e13]
+  - main [ref=e15]:
+    - generic:
+      - button "Главное меню" [ref=e25] [cursor=pointer]:
+        - img [ref=e28]: menu
+      - button "Новый чат" [ref=e32] [cursor=pointer]:
+        - generic [ref=e34]: Gemini
+    - generic [ref=e36]:
+      - generic [ref=e40]: DeepPDCFR+ Улучшения и Результаты
+      - generic [ref=e41]:
+        - link "Сменить план" [ref=e44]:
+          - img [ref=e45]: spark
+          - generic [ref=e47]: Сменить план
+        - generic [ref=e50]:
+          - button "Поделиться чатом" [ref=e52] [cursor=pointer]:
+            - img [ref=e53]: share
+          - button "Открыть меню действий с чатом." [ref=e57] [cursor=pointer]:
+            - img [ref=e58]: more_vert
+    - generic [ref=e17]:
+      - navigation "Боковая панель" [ref=e61]:
+        - generic [ref=e63]:
+          - button "Поиск" [ref=e65] [cursor=pointer]:
+            - img [ref=e66]: search
+          - generic [ref=e69]:
+            - group [ref=e70]:
+              - link "Новый чат" [ref=e72] [cursor=pointer]:
+                - /url: /app
+                - img [ref=e75]: edit_square
+                - generic [ref=e79]: Новый чат
+            - generic [ref=e80]:
+              - link "Мой контент" [ref=e83] [cursor=pointer]:
+                - /url: mystuff
+                - img [ref=e86]: family_star
+                - generic [ref=e87]: Мой контент
+              - generic [ref=e89]:
+                - link "Блокноты" [ref=e91] [cursor=pointer]:
+                  - /url: /notebooks/view
+                  - generic [ref=e92]: Блокноты
+                  - img [ref=e95]: keyboard_arrow_right
+                - generic "Новый блокнот" [ref=e97] [cursor=pointer]:
+                  - img [ref=e100]: add_2
+                  - generic [ref=e101]: Новый блокнот
+              - generic [ref=e103]:
+                - link "Gem-боты" [ref=e106] [cursor=pointer]:
+                  - /url: /gems/view
+                  - generic [ref=e107]: Gem-боты
+                  - img [ref=e110]: keyboard_arrow_right
+                - region
+              - generic [ref=e113]:
+                - heading "Чаты" [level=1] [ref=e115]
+                - region [ref=e116]:
+                  - button "Алгоритмы для 6-max No-Limit Hold'em Закрепленный чат" [ref=e118] [cursor=pointer]:
+                    - generic [ref=e119]: Алгоритмы для 6-max No-Limit Hold'em
+                    - generic [ref=e120]:
+                      - img [ref=e122]: push_pin
+                      - generic [ref=e123]: Закрепленный чат
+                  - 'button "Deep CFR: Успех без Scaling и PER Закрепленный чат" [ref=e126] [cursor=pointer]':
+                    - generic [ref=e127]: "Deep CFR: Успех без Scaling и PER"
+                    - generic [ref=e128]:
+                      - img [ref=e130]: push_pin
+                      - generic [ref=e131]: Закрепленный чат
+                  - button "Гайд как сделать порт в опенкод Закрепленный чат" [ref=e134] [cursor=pointer]:
+                    - generic [ref=e135]: Гайд как сделать порт в опенкод
+                    - generic [ref=e136]:
+                      - img [ref=e138]: push_pin
+                      - generic [ref=e139]: Закрепленный чат
+                  - button "DeepPDCFR+ Улучшения и Результаты" [ref=e142] [cursor=pointer]:
+                    - generic [ref=e143]: DeepPDCFR+ Улучшения и Результаты
+                  - 'button "Claude: Бесплатное использование и подписка" [ref=e147] [cursor=pointer]':
+                    - generic [ref=e148]: "Claude: Бесплатное использование и подписка"
+                  - button "Superpowers плагин и правила проекта" [ref=e152] [cursor=pointer]:
+                    - generic [ref=e153]: Superpowers плагин и правила проекта
+                  - 'button "Обучение Deep CFR: Loss и Эксплуатируемость" [ref=e157] [cursor=pointer]':
+                    - generic [ref=e158]: "Обучение Deep CFR: Loss и Эксплуатируемость"
+                  - 'button "RLcard: Monkey Patching vs. Site-Packages" [ref=e162] [cursor=pointer]':
+                    - generic [ref=e163]: "RLcard: Monkey Patching vs. Site-Packages"
+                  - button "Installing Grounding DINO on Windows" [ref=e167] [cursor=pointer]:
+                    - generic [ref=e168]: Installing Grounding DINO on Windows
+                  - button "Устранение ошибок памяти при обучении YOLO" [ref=e172] [cursor=pointer]:
+                    - generic [ref=e173]: Устранение ошибок памяти при обучении YOLO
+                  - button "Покер-румы с выводом в России" [ref=e177] [cursor=pointer]:
+                    - generic [ref=e178]: Покер-румы с выводом в России
+                  - 'button "Алгоритмы покера: от CFR до RL" [ref=e182] [cursor=pointer]':
+                    - generic [ref=e183]: "Алгоритмы покера: от CFR до RL"
+                  - button "Алгоритмы для равновесия Нэша в покере" [ref=e187] [cursor=pointer]:
+                    - generic [ref=e188]: Алгоритмы для равновесия Нэша в покере
+                  - button "Мозг, детство и радость без скальпеля" [ref=e192] [cursor=pointer]:
+                    - generic [ref=e193]: Мозг, детство и радость без скальпеля
+                  - button "Алгоритмы покера лучше Deep CFR" [ref=e197] [cursor=pointer]:
+                    - generic [ref=e198]: Алгоритмы покера лучше Deep CFR
+                  - button "Алгоритмы покера лучше DeepCFR" [ref=e202] [cursor=pointer]:
+                    - generic [ref=e203]: Алгоритмы покера лучше DeepCFR
+            - group [ref=e206]:
+              - button "История действий в приложениях Gemini" [ref=e208] [cursor=pointer]:
+                - img [ref=e211]: history
+                - generic [ref=e215]: История
+              - button "Settings & help" [ref=e217] [cursor=pointer]:
+                - img [ref=e220]: settings_2
+                - generic [ref=e224]: Настройки и справка
+            - generic [ref=e227]:
+              - img [ref=e228]: circle
+              - generic [ref=e229]:
+                - button "Великобритания" [ref=e230]
+                - generic [ref=e231]: По IP-адресу
+                - generic [ref=e232]: •
+                - button "Обновить" [ref=e233]
+      - generic [ref=e235]:
+        - generic [ref=e236]:
+          - heading "Чат с Gemini" [level=1] [ref=e237]
+          - generic [ref=e240]:
+            - generic [ref=e246]:
+              - generic [ref=e247]:
+                - button "aaai2026.sty" [ref=e251] [cursor=pointer]:
+                  - img "Значок STY-файла" [ref=e252]
+                  - generic [ref=e253]: aaai2026
+                  - generic [ref=e254]: STY
+                - button "deeppdcfr.tex" [ref=e258] [cursor=pointer]:
+                  - img "Значок TEX-файла" [ref=e259]
+                  - generic [ref=e260]: deeppdcfr
+                  - generic [ref=e261]: TEX
+                - button "00README.json" [ref=e265] [cursor=pointer]:
+                  - img "Значок JSON-файла" [ref=e266]
+                  - generic [ref=e267]: 00README
+                  - generic [ref=e268]: JSON
+                - button "aaai2026.bib" [ref=e272] [cursor=pointer]:
+                  - img "Значок BIB-файла" [ref=e273]
+                  - generic [ref=e274]: aaai2026
+                  - generic [ref=e275]: BIB
+                - button "aaai2026.bst" [ref=e279] [cursor=pointer]:
+                  - img "Значок Неизвестно-файла" [ref=e280]
+                  - generic [ref=e281]: aaai2026.bst
+                  - generic [ref=e282]: Неизвестно
+                - button "2511.08174v1.pdf" [ref=e286] [cursor=pointer]:
+                  - img "Значок PDF-файла" [ref=e287]
+                  - generic [ref=e288]: 2511.08174v1
+                  - generic [ref=e289]: PDF
+              - button "Прокрутить к следующим файлам" [ref=e290] [cursor=pointer]:
+                - img [ref=e291]: chevron_right
+            - generic [ref=e297]:
+              - generic:
+                - generic:
+                  - generic:
+                    - generic:
+                      - generic:
+                        - button "Прослушать":
+                          - img: volume_up
+                    - menu
+              - generic [ref=e298]:
+                - generic [ref=e303]:
+                  - generic:
+                    - generic:
+                      - img
+                - generic [ref=e305]:
+                  - button [ref=e312]:
+                    - generic [ref=e314]:
+                      - status:
+                        - generic: Показать процесс размышления
+                      - img [ref=e316]: expand_more
+                  - heading "Ответ Gemini" [level=2] [ref=e319]
+                  - generic [ref=e323]:
+                    - paragraph [ref=e324]:
+                      - generic [ref=e325]:
+                        - text: Алгоритмы
+                        - generic [ref=e326]: DeepPDCFR+
+                        - text: и
+                        - generic [ref=e327]: VR-DeepPDCFR+
+                        - text: ", описанные в представленных документах, предлагают несколько ключевых улучшений по сравнению с классическим"
+                        - generic [ref=e328]: DeepCFR
+                      - generic:
+                        - generic:
+                          - superscript [ref=e329]
+                          - superscript [ref=e330]
+                          - superscript [ref=e331]
+                          - superscript [ref=e332]
+                      - text: .
+                      - generic [ref=e333]: Основные различия заключаются в методах обновления стратегий, использовании механизмов дисконтирования и сокращении дисперсии
+                      - generic:
+                        - generic:
+                          - superscript [ref=e334]
+                          - superscript [ref=e335]
+                          - superscript [ref=e336]
+                          - superscript [ref=e337]
+                          - superscript [ref=e338]
+                      - text: .
+                      - button "Посмотреть сведения об источниках. Откроется боковая панель." [ref=e342] [cursor=pointer]:
+                        - generic [ref=e343]:
+                          - img [ref=e344]: link
+                          - text: "+4"
+                    - heading "Основные отличия и улучшения" [level=3] [ref=e345]
+                    - list [ref=e346]:
+                      - listitem [ref=e347]:
+                        - paragraph
+                        - paragraph [ref=e348]:
+                          - generic [ref=e349]:
+                            - generic [ref=e350]: Интеграция продвинутых вариантов CFR
+                            - text: ": В отличие от DeepCFR, который аппроксимирует поведение ванильного CFR или LinearCFR, новые методы внедряют механизмы из"
+                            - generic [ref=e351]: DCFR+
+                            - text: (дисконтированный CFR) и
+                            - generic [ref=e352]: PDCFR+
+                            - text: (предиктивный дисконтированный CFR)
+                          - generic:
+                            - generic:
+                              - superscript [ref=e353]
+                              - superscript [ref=e354]
+                              - superscript [ref=e355]
+                              - superscript [ref=e356]
+                          - text: .
+                          - button "Посмотреть сведения об источниках. Откроется боковая панель." [ref=e360] [cursor=pointer]:
+                            - generic [ref=e361]:
+                              - img [ref=e362]: link
+                              - text: "+1"
+                      - listitem [ref=e363]:
+                        - paragraph
+                        - paragraph [ref=e364]:
+                          - generic [ref=e365]:
+                            - generic [ref=e366]: Использование бутстраппинга
+                            - text: ": Вместо того чтобы полагаться на большой буфер воспроизведения (replay buffer) для хранения опыта всех итераций, эти алгоритмы напрямую аппроксимируют кумулятивные преимущества, используя результаты предыдущей итерации в качестве основы (бутстраппинг)"
+                          - generic:
+                            - generic:
+                              - superscript [ref=e367]
+                              - superscript [ref=e368]
+                              - superscript [ref=e369]
+                              - superscript [ref=e370]
+                              - superscript [ref=e371]
+                              - superscript [ref=e372]
+                              - superscript [ref=e373]
+                              - superscript [ref=e374]
+                              - superscript [ref=e375]
+                              - superscript [ref=e376]
+                              - superscript [ref=e377]
+                              - superscript [ref=e378]
+                              - superscript [ref=e379]
+                              - superscript [ref=e380]
+                              - superscript [ref=e381]
+                              - superscript [ref=e382]
+                          - text: .
+                          - button "Посмотреть сведения об источниках. Откроется боковая панель." [ref=e386] [cursor=pointer]:
+                            - generic [ref=e387]:
+                              - img [ref=e388]: link
+                              - text: "+3"
+                      - listitem [ref=e389]:
+                        - paragraph [ref=e390]: "Дисконтирование и отсечение (Clipping):"
+                        - list [ref=e391]:
+                          - listitem [ref=e392]:
+                            - paragraph [ref=e393]:
+                              - generic [ref=e394]: "DeepPDCFR+: Применяет дисконтирование и отсечение отрицательных значений к кумулятивным преимуществам на каждой итерации."
+                              - generic [ref=e395]: Это позволяет эффективно повторно использовать действия и контролировать чрезмерный рост преимуществ со временем
+                              - generic:
+                                - generic:
+                                  - superscript [ref=e396]
+                                  - superscript [ref=e397]
+                                  - superscript [ref=e398]
+                                  - superscript [ref=e399]
+                                  - superscript [ref=e400]
+                                  - superscript [ref=e401]
+                                  - superscript [ref=e402]
+                                  - superscript [ref=e403]
+                                  - superscript [ref=e404]
+                              - text: .
+                              - button "Посмотреть сведения об источниках. Откроется боковая панель." [ref=e408] [cursor=pointer]:
+                                - generic [ref=e409]:
+                                  - img [ref=e410]: link
+                                  - text: "+2"
+                          - listitem [ref=e411]:
+                            - paragraph
+                            - paragraph [ref=e412]:
+                              - generic [ref=e413]:
+                                - generic [ref=e414]: VR-DeepPDCFR+
+                                - text: ": Дополнительно использует отдельную нейронную сеть для предсказания будущих преимуществ, что ускоряет сходимость к равновесию Нэша"
+                              - generic:
+                                - generic:
+                                  - superscript [ref=e415]
+                                  - superscript [ref=e416]
+                                  - superscript [ref=e417]
+                                  - superscript [ref=e418]
+                              - text: .
+                              - button "Посмотреть сведения об источниках. Откроется боковая панель." [ref=e422] [cursor=pointer]:
+                                - generic [ref=e423]:
+                                  - img [ref=e424]: link
+                                  - text: "+1"
+                      - listitem [ref=e425]:
+                        - paragraph
+                        - paragraph [ref=e426]:
+                          - generic [ref=e427]:
+                            - generic [ref=e428]: Снижение дисперсии (Variance Reduction)
+                            - text: ": В версии"
+                            - generic [ref=e429]: VR
+                            - text: (Variance Reduction) вводится вспомогательная сеть ценности (value network), вдохновленная методом DREAM
+                          - generic:
+                            - generic:
+                              - superscript [ref=e430]
+                              - superscript [ref=e431]
+                              - superscript [ref=e432]
+                              - superscript [ref=e433]
+                              - superscript [ref=e434]
+                              - superscript [ref=e435]
+                              - superscript [ref=e436]
+                              - superscript [ref=e437]
+                              - superscript [ref=e438]
+                          - text: .
+                          - generic [ref=e439]: Она служит базовой линией (baseline) для уменьшения высокой дисперсии, возникающей при выборке эпизодов в условиях отсутствия точной модели игры (model-free setting)
+                          - generic:
+                            - generic:
+                              - superscript [ref=e440]
+                              - superscript [ref=e441]
+                              - superscript [ref=e442]
+                              - superscript [ref=e443]
+                              - superscript [ref=e444]
+                              - superscript [ref=e445]
+                              - superscript [ref=e446]
+                              - superscript [ref=e447]
+                              - superscript [ref=e448]
+                          - text: .
+                          - button "Посмотреть сведения об источниках. Откроется боковая панель." [ref=e452] [cursor=pointer]:
+                            - generic [ref=e453]:
+                              - img [ref=e454]: link
+                              - text: "+4"
+                    - heading "Результаты улучшений" [level=3] [ref=e455]
+                    - list [ref=e456]:
+                      - listitem [ref=e457]:
+                        - paragraph
+                        - paragraph [ref=e458]:
+                          - generic [ref=e459]:
+                            - generic [ref=e460]: Более быстрая сходимость
+                            - text: ": Эксперименты показывают, что предложенные алгоритмы сходятся быстрее, чем другие безмодельные (model-free) нейронные методы в типичных играх с неполной информацией"
+                          - generic:
+                            - generic:
+                              - superscript [ref=e461]
+                              - superscript [ref=e462]
+                              - superscript [ref=e463]
+                              - superscript [ref=e464]
+                              - superscript [ref=e465]
+                              - superscript [ref=e466]
+                              - superscript [ref=e467]
+                          - text: .
+                          - button "Посмотреть сведения об источниках. Откроется боковая панель." [ref=e471] [cursor=pointer]:
+                            - generic [ref=e472]:
+                              - img [ref=e473]: link
+                              - text: "+2"
+                      - listitem [ref=e474]:
+                        - paragraph
+                        - paragraph [ref=e475]:
+                          - generic [ref=e476]:
+                            - generic [ref=e477]: Эффективность в крупных играх
+                            - text: ": Методы демонстрируют более сильные состязательные характеристики в масштабных покерных задачах по сравнению с классическими подходами"
+                          - generic:
+                            - generic:
+                              - superscript [ref=e478]
+                              - superscript [ref=e479]
+                              - superscript [ref=e480]
+                              - superscript [ref=e481]
+                          - text: .
+                          - button "Посмотреть сведения об источниках. Откроется боковая панель." [ref=e485] [cursor=pointer]:
+                            - generic [ref=e486]:
+                              - img [ref=e487]: link
+                              - text: "+1"
+                  - button "Источники" [ref=e493]:
+                    - img [ref=e494]: link
+                    - generic [ref=e495]: Источники
+              - generic [ref=e501]:
+                - button "Хороший ответ" [ref=e503] [cursor=pointer]:
+                  - img [ref=e504]: thumb_up
+                - button "Плохой ответ" [ref=e508] [cursor=pointer]:
+                  - img [ref=e509]: thumb_down
+                - button "Повторить" [ref=e514] [cursor=pointer]:
+                  - img [ref=e515]: refresh
+                - button "Копировать" [ref=e519]:
+                  - img [ref=e520]: content_copy
+                - button "Показать другие варианты" [ref=e526]:
+                  - img [ref=e527]: more_vert
+        - generic [ref=e530]:
+          - group [ref=e531]:
+            - generic [ref=e534]:
+              - textbox "Введите запрос для Gemini" [ref=e539]:
+                - text: Спросить Gemini
+                - paragraph [ref=e540]
+              - generic [ref=e541]:
+                - button "Открыть меню загрузки файлов" [ref=e546] [cursor=pointer]:
+                  - img [ref=e547]: add_2
+                - button "Инструменты" [ref=e553]:
+                  - img [ref=e554]: page_info
+                  - generic [ref=e557]: Инструменты
+              - generic [ref=e560]:
+                - button "Открыть меню выбора режима" [expanded] [ref=e563] [cursor=pointer]:
+                  - generic [ref=e565]:
+                    - generic [ref=e566]: Быстрая
+                    - img [ref=e567]: keyboard_arrow_down
+                - generic [ref=e570]:
+                  - button "Микрофон" [ref=e573] [cursor=pointer]:
+                    - img [ref=e575]: mic
+                  - generic:
+                    - button "Отправить сообщение" [disabled]:
+                      - img: send
+          - paragraph [ref=e580]:
+            - text: Gemini – это ИИ. Он может ошибаться, в том числе давать неверную информацию о людях.
+            - link "Gemini и ваша конфиденциальность Откроется в новом окне" [ref=e581] [cursor=pointer]:
+              - /url: https://support.google.com/gemini?p=privacy_notice
+              - text: Gemini и ваша конфиденциальность
+              - generic [ref=e582]: Откроется в новом окне
+  - menu [ref=e584]:
+    - generic [ref=e586]:
+      - generic [ref=e588]: Gemini 3
+      - menuitem "Быстрая Быстрые ответы" [active] [ref=e589] [cursor=pointer]:
+        - generic [ref=e591]:
+          - generic [ref=e593]:
+            - generic [ref=e594]: Быстрая
+            - generic [ref=e595]: Быстрые ответы
+          - img [ref=e596]: check_circle
+      - menuitem "Думающая Решает сложные задачи" [ref=e597] [cursor=pointer]:
+        - generic [ref=e601]:
+          - generic [ref=e602]: Думающая
+          - generic [ref=e603]: Решает сложные задачи
+      - menuitem "Pro Решение сложных математических задач и создание кода с 3.1 Pro" [ref=e604] [cursor=pointer]:
+        - generic [ref=e608]:
+          - generic [ref=e609]: Pro
+          - generic [ref=e610]: Решение сложных математических задач и создание кода с 3.1 Pro
+      - generic [ref=e611]:
+        - generic [ref=e612]:
+          - generic [ref=e613]: Google AI Pro
+          - generic [ref=e614]: Получите расширенный доступ к моделям и функциям
+        - menuitem "Сменить план" [ref=e615] [cursor=pointer]:
+          - button "Сменить план" [ref=e617]:
+            - generic [ref=e618]: Сменить план

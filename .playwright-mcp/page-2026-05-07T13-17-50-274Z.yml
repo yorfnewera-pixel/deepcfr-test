@@ -1,0 +1,39 @@
+- generic [active] [ref=e1]:
+  - 'button "Аккаунт Google: Амбивалентность инсинуации (yorfnewera@gmail.com)" [ref=e8] [cursor=pointer]':
+    - img [ref=e10]
+  - main [ref=e12]:
+    - button "Новый чат" [ref=e25] [cursor=pointer]:
+      - generic [ref=e27]: Gemini
+    - generic [ref=e28]:
+      - button "Перейти на страницу для разработчиков Gemini" [ref=e29]:
+        - generic [ref=e30]: Для разработчиков
+      - button "Перейти на страницу Gemini Enterprise" [ref=e33]:
+        - generic [ref=e34]: Для бизнеса
+      - link "Перейти к странице часто задаваемых вопросов" [ref=e37] [cursor=pointer]:
+        - /url: /faq
+        - generic [ref=e38]: Часто задаваемые вопросы
+    - generic [ref=e42]:
+      - generic [ref=e44]:
+        - generic [ref=e50]:
+          - generic [ref=e54]: Что случилось с моим комнатным растением? Напиши подробную инструкцию о том, как за ним ухаживать.
+          - generic [ref=e57]:
+            - generic [ref=e58]:
+              - text: На основе предоставленной информации можно предположить, что у вашего комнатного растения, вероятно,
+              - strong [ref=e59]: недостаток воды
+              - text: . Листья растения поникшие и вялые, что является характерным признаком недостатка воды.
+            - generic [ref=e60]: Чтобы спасти растение, необходимо как можно скорее его полить. Полейте растение обильно, пока вода не начнет вытекать из дренажных отверстий в горшке. Затем дайте растению стечь лишней воде.
+        - generic [ref=e61]:
+          - heading "Gemini" [level=1] [ref=e63]
+          - generic [ref=e64]:
+            - heading "Работайте креативнее и продуктивнее" [level=2] [ref=e65]
+            - paragraph [ref=e66]: Пишите, планируйте, учитесь и не только – в чате с ИИ от Google
+            - paragraph [ref=e67]:
+              - strong [ref=e68]: Gemini пока не поддерживается в вашей стране. Мы сообщим, когда это изменится.
+      - generic [ref=e69]:
+        - link "Google" [ref=e70] [cursor=pointer]:
+          - /url: https://www.google.com
+          - img "Google" [ref=e71]
+        - link "Политика конфиденциальности и Условия использования Откроется в новом окне" [ref=e72] [cursor=pointer]:
+          - /url: https://policies.google.com
+          - text: Политика конфиденциальности и Условия использования
+          - generic [ref=e73]: Откроется в новом окне

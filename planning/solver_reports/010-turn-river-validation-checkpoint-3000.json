@@ -1,0 +1,143 @@
+{
+  "seed": 107,
+  "requested_deals": 16,
+  "natural": {
+    "completed_deals": 16,
+    "failed_deals": 0,
+    "failure_messages": [],
+    "streets": {
+      "turn": {
+        "decisions": 3,
+        "mean_probability_mass": [
+          3.889540191473601e-24,
+          1.4593823834581816e-11,
+          0.6666666666666666,
+          0.0,
+          0.0,
+          0.3333333333333333
+        ],
+        "chosen_action_frequency": [
+          0.0,
+          0.0,
+          0.6666666666666666,
+          0.0,
+          0.0,
+          0.3333333333333333
+        ],
+        "mean_entropy": 3.4808911930446864e-10,
+        "mean_latency_milliseconds": 0.9365333341217289
+      },
+      "river": {
+        "decisions": 0,
+        "mean_probability_mass": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "chosen_action_frequency": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "mean_entropy": 0.0,
+        "mean_latency_milliseconds": 0.0
+      }
+    }
+  },
+  "constructed_spots": {
+    "turn": {
+      "legal_action_labels": [
+        "check",
+        "raise_0.5pot",
+        "all_in"
+      ],
+      "decisions": 1,
+      "mean_probability_mass": [
+        0.0,
+        0.0666579157114029,
+        0.0,
+        0.905373215675354,
+        0.0,
+        0.02796885184943676
+      ],
+      "mean_entropy": 0.37055827830382104,
+      "latency_milliseconds": 0.5631999956676736
+    },
+    "river": {
+      "legal_action_labels": [
+        "check",
+        "raise_0.5pot",
+        "all_in"
+      ],
+      "decisions": 1,
+      "mean_probability_mass": [
+        0.0,
+        0.014535265974700451,
+        0.0,
+        0.0012449382338672876,
+        0.0,
+        0.9842198491096497
+      ],
+      "mean_entropy": 0.08548325397072595,
+      "latency_milliseconds": 1.5427999896928668
+    },
+    "response_to_bet_turn": {
+      "legal_action_labels": [
+        "fold",
+        "call",
+        "raise_1pot",
+        "all_in"
+      ],
+      "decisions": 1,
+      "mean_probability_mass": [
+        1.3781294327941396e-08,
+        0.0,
+        0.001753688440658152,
+        0.0,
+        0.9982172846794128,
+        2.901926200138405e-05
+      ],
+      "mean_entropy": 0.013213521511727106,
+      "latency_milliseconds": 0.873700002557598
+    }
+  },
+  "search_probe": {
+    "action_label": "raise_1pot",
+    "action_is_legal": true,
+    "belief_particles": 0,
+    "latency_milliseconds": 2.271399993333034,
+    "root_blueprint_policy": [
+      1.3781294243002226e-08,
+      0.0,
+      0.0017536884298495273,
+      0.0,
+      0.9982172785270337,
+      2.9019261822527696e-05
+    ],
+    "root_search_policy": [
+      1.3781294243002226e-08,
+      0.0,
+      0.0017536884298495273,
+      0.0,
+      0.9982172785270337,
+      2.9019261822527696e-05
+    ],
+    "raw_ev": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "diagnostic_flags": [
+      "belief_history_missing_blueprint_fallback"
+    ]
+  }
+}

@@ -1,0 +1,86 @@
+{
+  "runs": [
+    {
+      "seed": 107,
+      "samples": 48,
+      "mean_difference": 0.0,
+      "std_difference": 0.0,
+      "bb_per_100": 0.0,
+      "search_decisions": 14,
+      "reach_weighted_decisions": 14,
+      "blueprint_fallback_decisions": 9,
+      "action_comparisons": 14,
+      "action_changes": 0,
+      "search_decisions_by_stage": {
+        "flop": 14,
+        "turn": 0,
+        "river": 0
+      },
+      "action_changes_by_stage": {
+        "flop": 0,
+        "turn": 0,
+        "river": 0
+      },
+      "policy_l1_sum": 0.03259471713170452,
+      "policy_l1_max": 0.012028271212455127,
+      "policy_argmax_changes": 0,
+      "policy_l1_sum_by_stage": {
+        "flop": 0.03259471713170452,
+        "turn": 0.0,
+        "river": 0.0
+      },
+      "policy_argmax_changes_by_stage": {
+        "flop": 0,
+        "turn": 0,
+        "river": 0
+      }
+    },
+    {
+      "seed": 109,
+      "samples": 48,
+      "mean_difference": 0.0,
+      "std_difference": 0.0,
+      "bb_per_100": 0.0,
+      "search_decisions": 15,
+      "reach_weighted_decisions": 15,
+      "blueprint_fallback_decisions": 11,
+      "action_comparisons": 15,
+      "action_changes": 0,
+      "search_decisions_by_stage": {
+        "flop": 15,
+        "turn": 0,
+        "river": 0
+      },
+      "action_changes_by_stage": {
+        "flop": 0,
+        "turn": 0,
+        "river": 0
+      },
+      "policy_l1_sum": 0.014033577474616251,
+      "policy_l1_max": 0.0050594444549933205,
+      "policy_argmax_changes": 0,
+      "policy_l1_sum_by_stage": {
+        "flop": 0.014033577474616251,
+        "turn": 0.0,
+        "river": 0.0
+      },
+      "policy_argmax_changes_by_stage": {
+        "flop": 0,
+        "turn": 0,
+        "river": 0
+      }
+    }
+  ],
+  "total_samples": 96,
+  "pooled_statistics": {
+    "mean_difference": 0.0,
+    "std_difference": 0.0,
+    "standard_error": 0.0,
+    "bb_per_100": 0.0,
+    "standard_error_bb_per_100": 0.0,
+    "t_statistic": 0.0,
+    "ci95_low_bb_per_100": 0.0,
+    "ci95_high_bb_per_100": 0.0,
+    "power_status": "insufficient_power"
+  }
+}
