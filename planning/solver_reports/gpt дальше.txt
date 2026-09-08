@@ -1,0 +1,1005 @@
+Использую `writing-plans`, чтобы подготовить исполнимый план для агента-разработчика: с конкретными файлами, тестами, диагностикой и порядком экспериментальных прогонов. Сейчас режим только планирования, поэтому изменения в репозитории не вношу.# План для агента-разработчика и экспериментатора
+
+**Цель:** проверить, действительно ли runtime search улучшает решения локально, не искажая статистику из-за дубликатов particles, peaked prior и выбора действий по тем же данным.
+
+**Порядок работ:**
+
+1. Диагностика diversity particles.
+2. Проверка диагностики на текущем отчёте 037.
+3. Реализация локального out-of-sample holdout.
+4. Эксперимент на constructed spots.
+5. Стратификация по `prior_log_ratio`.
+6. Mobility probe на новых checkpoint-ах.
+7. Только после положительного локального сигнала решить, нужен ли глобальный EV.
+
+Глобальный paired EV на десятки тысяч samples до завершения этих этапов не запускать.
+
+---
+
+## 1. Подготовка и проверка исходного состояния
+
+### Файлы для изучения
+
+- `src/runtime_search/beliefs.py`
+- `src/runtime_search/rollouts.py`
+- `src/runtime_search/policy.py`
+- `src/runtime_search/paired_evaluation.py`
+- `src/runtime_search/history.py`
+- `src/runtime_search/spots.py`
+- `tests/test_runtime_search_rollouts.py`
+- `tests/test_runtime_search_beliefs.py`
+- `planning/solver_reports/037-b1-fixed-config-checkpoint-5000.md`
+- `planning/solver_reports/036-b1-fixed-config-checkpoint-5000.json`
+
+### Проверки
+
+Запустить полный существующий набор тестов:
+
+```powershell
+python -m pytest -q
+```
+
+Зафиксировать:
+
+- количество тестов;
+- baseline runtime;
+- отсутствие изменений в исходном отчёте 037;
+- git status до начала работ.
+
+Не менять:
+
+- training loop;
+- checkpoint format;
+- `src/core/action_space.py`;
+- поведение текущего solver-а до добавления диагностик.
+
+---
+
+# Задача 1. Добавить прямую диагностику diversity
+
+## Цель
+
+Измерять фактическую уникальность частиц, а не пытаться выводить её из одного значения ESS.
+
+Текущий `belief_ess` в `beliefs.py` является ESS финальных proposal weights после последнего учтённого решения. Он не показывает напрямую:
+
+- сколько уникальных particles пережило resampling;
+- сколько уникальных particles попало в финальный draw;
+- сколько уникальных particles попало в будущий holdout;
+- сколько раз одна и та же hidden history повторяется.
+
+## Файлы
+
+Изменить:
+
+- `src/runtime_search/beliefs.py`
+- `src/runtime_search/policy.py`
+- `src/runtime_search/paired_evaluation.py`
+
+Тесты:
+
+- `tests/test_runtime_search_beliefs.py`
+- `tests/test_runtime_search_policy.py`
+
+## Изменение модели данных
+
+Добавить в `ReachWeightedBeliefs` диагностические поля:
+
+```python
+proposal_unique_count: int
+selected_unique_count: int
+selected_duplicate_count: int
+selected_duplicate_fraction: float
+```
+
+Если holdout будет формироваться внутри sampler-а, добавить:
+
+```python
+holdout_unique_count: int | None
+holdout_duplicate_count: int | None
+holdout_duplicate_fraction: float | None
+```
+
+Предпочтительно не помещать holdout-specific поля в общий sampler, если holdout будет отдельной функцией. В этом случае достаточно:
+
+```python
+@dataclass(frozen=True)
+class ParticleDiversity:
+    total_count: int
+    unique_count: int
+    duplicate_count: int
+    duplicate_fraction: float
+```
+
+и хранить два объекта:
+
+```python
+selected_diversity: ParticleDiversity
+proposal_diversity: ParticleDiversity
+```
+
+## Ключ particle
+
+Уникальность считать по полному hidden history:
+
+```text
+(
+    opponent hand 0,
+    opponent hand 1,
+    ...,
+    opponent hand N,
+    runout cards in order,
+)
+```
+
+Для карт использовать существующий `card_key()` из `src/runtime_search/cards.py`.
+
+Не использовать только hands или только runout: одинаковые руки с разным runout являются разными particle histories.
+
+Добавить небольшой helper:
+
+```python
+def particle_key(particle: BeliefParticle) -> tuple:
+    return (
+        tuple(
+            tuple(card_key(card) for card in hand)
+            for hand in particle.opponent_hands
+        ),
+        tuple(card_key(card) for card in particle.runout),
+    )
+```
+
+Для любой последовательности particles:
+
+```python
+def particle_diversity(
+    particles: Sequence[BeliefParticle],
+) -> ParticleDiversity:
+    keys = [particle_key(particle) for particle in particles]
+    unique_count = len(set(keys))
+    total_count = len(keys)
+    duplicate_count = total_count - unique_count
+    return ParticleDiversity(
+        total_count=total_count,
+        unique_count=unique_count,
+        duplicate_count=duplicate_count,
+        duplicate_fraction=(
+            duplicate_count / total_count if total_count else 0.0
+        ),
+    )
+```
+
+Не считать одинаковые Python object identity. Сравнивать нужно именно содержимое hidden history.
+
+## Тесты
+
+Добавить тесты:
+
+1. Все разные particles дают `unique_count == total_count`.
+2. Две particles с одинаковыми hands и runout считаются одной unique history.
+3. Разный порядок runout считается разной history.
+4. Разные opponent hands считаются разными history.
+5. Пустая последовательность не вызывает деление на ноль.
+6. Resampling с контролируемым RNG действительно может вернуть duplicates.
+7. Diversity финально выбранных particles сохраняется в результате sampler-а.
+
+Команда:
+
+```powershell
+python -m pytest tests/test_runtime_search_beliefs.py -q
+```
+
+---
+
+# Задача 2. Передать diversity в root diagnostics
+
+## Файлы
+
+Изменить:
+
+- `src/runtime_search/policy.py`
+- `src/runtime_search/paired_evaluation.py`
+
+Тесты:
+
+- `tests/test_runtime_search_policy.py`
+- `tests/test_paired_evaluation.py`
+
+## Поля в `SearchDecision`
+
+Добавить диагностические поля:
+
+```python
+proposal_unique_count: int | None
+selected_unique_count: int | None
+selected_duplicate_count: int | None
+selected_duplicate_fraction: float | None
+```
+
+Для fallback без beliefs значения должны быть `None`.
+
+В `_root_diagnostic()` сериализовать их в JSON.
+
+JSON должен оставаться совместимым с:
+
+```python
+json.dumps(..., allow_nan=False)
+```
+
+## Проверки
+
+Добавить тест, что:
+
+- поля присутствуют в root diagnostics;
+- значения JSON-сериализуемы;
+- fallback-root не выдаёт ложные нулевые значения;
+- active-root содержит корректные значения.
+
+Команда:
+
+```powershell
+python -m pytest tests/test_runtime_search_policy.py tests/test_paired_evaluation.py -q
+```
+
+---
+
+# Задача 3. Пересчитать diversity для отчёта 037
+
+После реализации диагностик повторить ровно текущий конфиг 037.
+
+Параметры должны быть зафиксированы:
+
+```text
+checkpoint = light_checkpoint_iter_5000.pt
+proposals = 256
+particles = 128
+eta = 10
+alpha = 0.05
+min_ess = 8
+min_ess_ratio = 0.03125
+resample_ess_ratio = 0.5
+min_root_gap_zscore = 1
+seeds = 107 109 113 127 131 137 139 149
+deals = 16
+```
+
+Не менять checkpoint и training state.
+
+Сохранить новый артефакт, например:
+
+```text
+planning/solver_reports/038-b1-diversity-checkpoint-5000.json
+```
+
+Отчёт:
+
+```text
+planning/solver_reports/038-b1-diversity-checkpoint-5000.md
+```
+
+## Обязательные агрегаты
+
+Для всех `263` roots:
+
+- `proposal_unique_count`;
+- `selected_unique_count`;
+- `selected_duplicate_fraction`;
+- `belief_ess`;
+- `belief_resample_count`.
+
+Отдельно для `133` active MMDS roots:
+
+- median/p10/p90/min ESS;
+- median/p10/p90/min selected unique count;
+- median duplicate fraction;
+- доля roots с `selected_unique_count < 64`;
+- доля roots с duplicate fraction `> 0`;
+- доля roots с ESS `< 64`;
+- cross-tab ESS и uniqueness.
+
+Обязательная таблица:
+
+```text
+ESS range | roots | median ESS | median unique holdout | median duplicate fraction | median gap_se | median z
+```
+
+Разделять:
+
+- все roots;
+- active roots `value_scale != null`.
+
+Не смешивать noise-gate fallback с active MMDS roots при выводах о завышенном z-score.
+
+## Результат этой задачи
+
+Проверить цепочку:
+
+```text
+низкий ESS
+→ низкая фактическая diversity
+→ меньше уникальных holdout histories
+→ возможное занижение nominal gap_se
+→ возможное завышение z-score
+```
+
+На этом этапе не делать причинного вывода только по корреляции `ESS` и `z`. Нужны прямые значения уникальности и, позднее, holdout с дедупликацией.
+
+---
+
+# Задача 4. Спроектировать локальный holdout без leakage
+
+## Основной estimand
+
+Для каждого root измерять не EV целой раздачи, а локальный эффект изменения root policy:
+
+```text
+local_delta =
+    E_holdout[Q_holdout · (pi_search - pi_blueprint)]
+```
+
+где:
+
+- `Q_holdout[a]` оценивается на свежих holdout particles;
+- `pi_blueprint` это root prior;
+- `pi_search` это policy после MMDS;
+- все root actions оцениваются на общих holdout histories/runouts.
+
+Это предпочтительнее одиночного сравнения sampled action, потому что не добавляет лишнюю дисперсию от финального сэмплирования действия.
+
+Дополнительно можно хранить:
+
+```text
+sampled_action_delta =
+    Q_holdout[sampled_search_action]
+    - Q_holdout[sampled_blueprint_action]
+```
+
+Но primary metric должна быть policy-level delta.
+
+## Трёхчастное разделение
+
+Для каждого root нужны три логически независимые роли:
+
+```text
+Part A: выбор пары best/runner-up или диагностического root signal
+Part B: оценка mc_values и построение MMDS policy
+Part C: свежий holdout для измерения local_delta
+```
+
+`Part C` не должна использоваться для:
+
+- выбора best action;
+- выбора runner-up;
+- noise gate;
+- MMDS update;
+- выбора конфигурации;
+- выбора strata post hoc.
+
+## Размер
+
+При текущих `128` particles:
+
+```text
+примерно 42 / 42 / 44
+```
+
+Это слишком мало для основного результата.
+
+Для первого рабочего локального эксперимента использовать:
+
+```text
+belief_particles = 384
+```
+
+Минимальный fallback:
+
+```text
+belief_particles = 256
+```
+
+Целевой параметр должен быть конфигурируемым:
+
+```python
+local_holdout_particles: int = 128
+local_selection_particles: int = 128
+local_update_particles: int = 128
+```
+
+или единый:
+
+```python
+local_particles_per_partition: int = 128
+```
+
+Начать с равных частей. Не подбирать размер после просмотра результата.
+
+---
+
+# Задача 5. Реализовать holdout particles без duplicates
+
+## Требование
+
+Holdout должен быть сформирован так, чтобы одна и та же hidden history не учитывалась несколько раз в расчёте standard error.
+
+Простое `rng.choice(..., replace=True)` для holdout запрещено.
+
+## Предпочтительная реализация
+
+1. Сгенерировать weighted proposal set.
+2. После финального weighting агрегировать одинаковые particle keys.
+3. Для каждого unique key получить суммарный вес.
+4. Выбрать holdout без replacement из unique histories.
+5. Нормализовать веса или использовать selected unique particles как равновесную empirical sample, но явно задокументировать estimand.
+6. Если unique histories меньше требуемого holdout size, вернуть diagnostic flag и не считать обычный iid `z-score`.
+
+Важно: нельзя просто удалить duplicates после reward calculation. Удаление должно происходить до rollout evaluation.
+
+Добавить helper:
+
+```python
+def select_unique_particles(
+    particles: Sequence[BeliefParticle],
+    *,
+    count: int,
+    rng: np.random.Generator,
+) -> tuple[BeliefParticle, ...]:
+    ...
+```
+
+Если weighted selection без replacement окажется статистически сложной, первая версия должна использовать независимый uniform blocker-aware sampler для holdout, отдельно от reach-weighted selection. Но это нужно явно обозначить:
+
+```text
+selection/update beliefs = reach-weighted
+holdout beliefs = fresh blocker-aware posterior approximation
+```
+
+Лучше сначала реализовать корректный holdout с прозрачным estimand, чем использовать псевдо-independent resampled particles и считать обычный SE.
+
+## Тесты
+
+Добавить:
+
+1. Holdout никогда не содержит повторяющиеся `particle_key`.
+2. Selection/update particles не попадают в holdout по key, если требуется disjoint split.
+3. При недостатке unique histories возвращается диагностический флаг.
+4. Повторный запуск с тем же seed воспроизводим.
+5. Разные seeds дают разные holdout, но legal/valid histories.
+6. Все holdout particles не содержат duplicate cards.
+
+---
+
+# Задача 6. Реализовать локальную оценку root policy
+
+## Файлы
+
+Предпочтительно создать:
+
+- `src/runtime_search/local_evaluation.py`
+
+Изменить:
+
+- `src/runtime_search/policy.py`
+- `src/runtime_search/paired_evaluation.py` только для общей сериализации, если потребуется.
+
+Тесты:
+
+- `tests/test_runtime_search_local_evaluation.py`
+
+## API
+
+Создать результат:
+
+```python
+@dataclass(frozen=True)
+class LocalRootEvaluation:
+    action_values: np.ndarray
+    blueprint_expected_value: float
+    search_expected_value: float
+    local_delta: float
+    local_delta_se: float
+    local_delta_zscore: float
+    holdout_count: int
+    holdout_unique_count: int
+    diagnostic_flags: tuple[str, ...]
+```
+
+Функция должна иметь контракт примерно такого вида:
+
+```python
+def evaluate_root_policy_holdout(
+    state: pkrs.State,
+    *,
+    hero_id: int,
+    root_actions: Sequence[pkrs.Action],
+    blueprint_policy: np.ndarray,
+    search_policy: np.ndarray,
+    holdout_particles: Sequence[BeliefParticle],
+    continuation_policy: BatchContinuationPolicy,
+    rng: np.random.Generator,
+    max_depth: int,
+) -> LocalRootEvaluation:
+    ...
+```
+
+## Rollout logic
+
+Для всех holdout particles:
+
+- один hidden history/runout на particle;
+- все root actions на общей particle;
+- continuation policy одинаковая;
+- reward matrix имеет форму:
+
+```text
+[num_holdout_particles, num_root_actions]
+```
+
+Для каждой particle:
+
+```python
+blueprint_value = dot(blueprint_policy[root_slots], rewards)
+search_value = dot(search_policy[root_slots], rewards)
+difference = search_value - blueprint_value
+```
+
+Затем:
+
+```python
+local_delta = mean(differences)
+local_delta_se = std(differences, ddof=1) / sqrt(n)
+local_delta_zscore = local_delta / local_delta_se
+```
+
+Если holdout particles дедуплицированы и являются неравномерно взвешенными, обычный iid SE использовать нельзя. Для первой версии выбрать один из двух явных режимов:
+
+```text
+mode A: unique holdout particles treated as empirical unweighted sample
+mode B: weighted estimator with weighted variance and effective sample size
+```
+
+Рекомендуемый первый вариант: `mode A`, но в отчёте указывать, что estimand является empirical mean по unique holdout histories.
+
+## Тесты
+
+Синтетические reward matrices:
+
+1. Одинаковые policies дают `local_delta == 0`.
+2. Policy с большей вероятностью лучшего action даёт положительный delta.
+3. Общие rewards для всех actions соблюдают CRN.
+4. Перестановка action slots с соответствующей перестановкой policy не меняет delta.
+5. Holdout duplicates не проходят в основной evaluator.
+6. Нулевая дисперсия даёт `z = inf` только если delta ненулевой; при delta `0` должен быть `0`.
+7. Некорректные policy shapes и non-finite values отклоняются.
+
+Команда:
+
+```powershell
+python -m pytest tests/test_runtime_search_local_evaluation.py -q
+```
+
+---
+
+# Задача 7. Интегрировать локальный holdout в диагностический режим
+
+## Не менять рабочее поведение по умолчанию
+
+Текущий `choose_action()` должен продолжить работать как раньше. Локальный holdout подключить отдельным режимом:
+
+```python
+local_holdout_enabled: bool = False
+```
+
+или отдельным runner-ом, не вызываемым в обычном paired EV.
+
+Рабочий solver не должен автоматически тратить втрое больше particles.
+
+## Добавить отдельный runner
+
+Создать:
+
+```text
+tools/run_runtime_local_evaluation.py
+```
+
+Параметры:
+
+```text
+--checkpoint
+--output
+--spots
+--seeds
+--proposals
+--selection-particles
+--update-particles
+--holdout-particles
+--eta
+--alpha
+--min-root-gap-zscore
+--min-ess
+--min-ess-ratio
+--resample-ess-ratio
+--max-depth
+```
+
+Default для основного прогона:
+
+```text
+selection_particles = 128
+update_particles = 128
+holdout_particles = 128
+proposals = 512 или 768
+```
+
+Полный рабочий запуск:
+
+```powershell
+python tools/run_runtime_local_evaluation.py `
+  --checkpoint <path-to-light-checkpoint> `
+  --output planning/solver_reports/039-local-holdout-checkpoint-5000.json `
+  --seeds 107 109 113 127 131 137 139 149 `
+  --selection-particles 128 `
+  --update-particles 128 `
+  --holdout-particles 128 `
+  --proposals 768
+```
+
+Не запускать основной эксперимент, пока unit-тесты не проходят.
+
+---
+
+# Задача 8. Constructed spots и набор roots
+
+## Использовать существующие helpers
+
+Изучить:
+
+- `src/runtime_search/spots.py`
+- `build_constructed_spot`
+- `build_response_to_bet_spot`
+- существующие diagnostics helpers.
+
+Сначала использовать response-to-bet spots, где root action set совпадает с compact blueprint action set:
+
+```text
+fold
+call
+raise_pot
+all_in
+```
+
+Это исключает confounder от mapping новых bet sizes на compact prior.
+
+## План набора spots
+
+Для каждого stage:
+
+```text
+turn
+river
+response_to_bet_turn
+response_to_bet_river
+```
+
+Если constructed spot уже содержит фиксированный state, генерировать разные hidden particles через sampler. Не читать будущий board через `state.deck[:k]`.
+
+Для каждого spot:
+
+- фиксированный hero hand;
+- фиксированный public board;
+- корректный pot/bets/active flags;
+- legal root action mask;
+- 8 или более независимых seeds;
+- минимум 100 roots на страту для первоначальной диагностики, если время позволяет.
+
+Если количество unique roots мало, не делать сильный вывод о population-level эффекте.
+
+---
+
+# Задача 9. Агрегация локальных результатов
+
+## До запуска зафиксировать estimand
+
+Основной агрегат:
+
+```text
+mean local_delta по root observations
+```
+
+Но roots могут иметь разный экономический масштаб. Поэтому сохранить два агрегата:
+
+1. Unweighted root mean:
+
+```text
+mean(delta_root)
+```
+
+2. Pot-normalized root mean:
+
+```text
+mean(delta_root / value_scale_root)
+```
+
+Не смешивать их в один показатель.
+
+Дополнительно:
+
+- median delta;
+- доля roots с `delta > 0`;
+- доля roots с `z > 1.96`;
+- доля roots с `z > 2`;
+- median/p90 `local_delta_se`;
+- median/p90 holdout unique count;
+- bootstrap CI по roots;
+- отдельные results по stage и prior stratum.
+
+## Единица независимости
+
+Root observations, происходящие из одной раздачи или одного constructed spot, могут быть зависимыми. Поэтому:
+
+- основной CI считать cluster bootstrap по `seed/spot`, а не bootstrap по отдельным particle rewards;
+- particle-level SE использовать только как внут(root)-диагностику;
+- в отчёте явно различать:
+  - `within_root_holdout_se`;
+  - `between_root bootstrap CI`.
+
+---
+
+# Задача 10. Стратификация по `prior_log_ratio`
+
+## Использовать фиксированные границы
+
+Для первого отчёта:
+
+```text
+[0, 5)
+[5, 15)
+[15, 40)
+[40, +inf)
+```
+
+Причина: границы связаны с требуемым normalized gap:
+
+```text
+need = prior_log_ratio / eta_effective
+```
+
+При `eta_effective = 6.6667`:
+
+```text
+[0, 5)   -> need < 0.75
+[5, 15)  -> need 0.75..2.25
+[15, 40) -> need 2.25..6.0
+[40, inf) -> need >= 6.0
+```
+
+Добавить отдельную категорию:
+
+```text
+prior_log_ratio approximately zero
+```
+
+Например:
+
+```python
+tie_epsilon = 1e-9
+```
+
+Но не считать `prior_log_ratio == 0` автоматически доказанной ничьей во всех случаях. Нужно также сохранить:
+
+- top prior values;
+- second prior values;
+- legal action count;
+- whether the top prior slots are tied within a numerical tolerance.
+
+## Для каждой страты публиковать
+
+- coverage среди всех roots;
+- coverage среди active roots;
+- количество roots;
+- median `prior_log_ratio`;
+- median `need`;
+- median `mc_gap`;
+- median local delta;
+- долю positive local delta;
+- median local z-score;
+- policy L1;
+- policy argmax changes;
+- action changes;
+- holdout unique count;
+- bootstrap CI.
+
+Квантили можно добавить только как вспомогательную таблицу. Не использовать их вместо фиксированных границ, чтобы результаты разных checkpoint-ов были сопоставимы.
+
+---
+
+# Задача 11. Критерии принятия решения
+
+## Локальный тест считается информативным, если
+
+- holdout не использовался при выборе search policy;
+- holdout histories уникальны или применяется явно описанная weighted variance;
+- для большинства roots есть минимум заранее заданного числа unique holdout histories;
+- есть результаты минимум по двум независимым seed groups;
+- нет систематического rollout failure;
+- CI рассчитан на уровне roots/clusters, а не только particles.
+
+## Гейт для перехода к глобальному EV
+
+Не требовать положительного результата в каждом отдельном root.
+
+Переходить к следующему этапу только если одновременно выполнены условия:
+
+1. Overall local delta положителен.
+2. CI для cluster bootstrap не полностью отрицателен.
+3. Хотя бы одна из двух основных strata с умеренным prior gap показывает устойчиво положительный результат.
+4. High-prior strata не маскируют результат искусственным отбором.
+5. При дедупликации holdout знак эффекта не меняется.
+6. Результат воспроизводится минимум на двух независимых seed subsets.
+7. Оценён ожидаемый effect size для глобального EV.
+
+Если local delta около нуля или отрицателен, глобальный EV не запускать.
+
+---
+
+# Задача 12. Mobility probe на новых checkpoint-ах
+
+Создать лёгкий runner:
+
+```text
+tools/run_runtime_mobility_probe.py
+```
+
+Он не должен выполнять локальный holdout и не должен запускать полный paired EV.
+
+Для каждого checkpoint фиксировать:
+
+- checkpoint iteration;
+- число roots;
+- active roots;
+- noise-gate fallback;
+- ESS fallback;
+- median/p10/p90 `prior_log_ratio`;
+- median/p90 `need`;
+- median/p90 normalized `mc_gap`;
+- долю `mc_gap > need`;
+- policy L1:
+  - median;
+  - `> 0.1`;
+  - `> 1.0`;
+- argmax changes:
+  - all;
+  - with `prior_log_ratio > tie_epsilon`;
+  - tie/near-tie category;
+- action changes;
+- proposal unique count;
+- selected unique count;
+- duplicate fraction;
+- resample count;
+- latency p50/p95.
+
+Каждый checkpoint прогонять с одинаковым:
+
+- числом deals;
+- seed set;
+- proposals;
+- particles;
+- thresholds.
+
+Иначе динамику между checkpoint-ами нельзя сравнивать.
+
+---
+
+# Задача 13. Обновить отчёты
+
+После получения данных обновить 037 только добавлением раздела с уточнениями, не переписывая исходные результаты.
+
+В новый раздел включить:
+
+- B1 подтверждён как `0/263 ESS fallback`;
+- split-half использует `128/64`, а не `32/16`;
+- z-score относится только к выбранной на первой половине паре;
+- множественный выбор не скорректирован;
+- `belief_ess` не равен прямой diversity после всех resampling;
+- фактические unique particle counts;
+- active-root ESS strata;
+- limitation текущего nominal `gap_se`;
+- power-анализ с допущениями.
+
+Отдельно сохранить новый отчёт по локальному holdout, например:
+
+```text
+planning/solver_reports/039-local-holdout-checkpoint-5000.md
+planning/solver_reports/039-local-holdout-checkpoint-5000.json
+```
+
+В отчёте обязательно указать:
+
+- точное определение local delta;
+- как строился holdout;
+- как исключались duplicates;
+- единицу независимости для CI;
+- fixed/random seed schedule;
+- количество roots и clusters;
+- результаты по prior strata;
+- критерий перехода к глобальному EV.
+
+---
+
+# Порядок команд для агента
+
+```powershell
+python -m pytest -q
+```
+
+После diversity implementation:
+
+```powershell
+python -m pytest tests/test_runtime_search_beliefs.py tests/test_runtime_search_policy.py tests/test_paired_evaluation.py -q
+```
+
+После local evaluator:
+
+```powershell
+python -m pytest tests/test_runtime_search_local_evaluation.py tests/test_runtime_search_rollouts.py -q
+```
+
+Перед экспериментом:
+
+```powershell
+python -m pytest -q
+```
+
+Диагностика 037:
+
+```powershell
+python tools/run_runtime_paired_evaluation.py `
+  --checkpoint <checkpoint> `
+  --output planning/solver_reports/038-b1-diversity-checkpoint-5000.json `
+  --deals 16 `
+  --seeds 107 109 113 127 131 137 139 149 `
+  --particles 128 `
+  --proposals 256 `
+  --eta 10 `
+  --min-ess 8 `
+  --min-ess-ratio 0.03125 `
+  --resample-ess-ratio 0.5 `
+  --min-root-gap-zscore 1
+```
+
+Основной локальный эксперимент:
+
+```powershell
+python tools/run_runtime_local_evaluation.py `
+  --checkpoint <checkpoint> `
+  --output planning/solver_reports/039-local-holdout-checkpoint-5000.json `
+  --seeds 107 109 113 127 131 137 139 149 `
+  --selection-particles 128 `
+  --update-particles 128 `
+  --holdout-particles 128 `
+  --proposals 768
+```
+
+После каждого результата:
+
+```powershell
+python -m pytest -q
+git status --short
+git diff --stat
+```
+
+Не делать commit автоматически без отдельного указания.
+
+---
+
+## Ожидаемый итог
+
+Агент должен закончить не изменением параметров solver-а, а одним из трёх чётких выводов:
+
+1. **Локальное улучшение подтверждено.** Тогда оценить effect size и спланировать глобальный EV с заранее рассчитанным числом samples.
+2. **Локального улучшения нет.** Глобальный EV не запускать, исследовать качество MMDS/continuation policy или blueprint.
+3. **Результат искажён diversity/holdout-проблемой.** Сначала исправить sampling и повторить локальный тест.
+
+`max_prior_log_ratio` до этого этапа не вводить в рабочую конфигурацию. Использовать только для стратификации и оценки coverage.
+
+Роутер ключей: @xersof  
+Лучшие абузы ИИ: @nulliix
