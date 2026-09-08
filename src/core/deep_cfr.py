@@ -43,7 +43,8 @@ class DeepCFRAgent:
                  device="cpu", **_legacy_options):
         self.player_id = int(player_id)
         self.num_players = int(num_players or cfg_get("num_players", 6))
-        self.num_trainable_players = 1
+        configured_trainable_players = int(cfg_get("num_trainable_players", 1))
+        self.num_trainable_players = max(1, min(configured_trainable_players, self.num_players))
         self.device = torch.device(device)
         self.num_actions = NUM_ACTIONS
         configured_actions = int(cfg_get("num_actions", NUM_ACTIONS))
@@ -78,6 +79,18 @@ class DeepCFRAgent:
             lr=float(cfg_get("strategy_lr", 5e-5)),
             weight_decay=float(cfg_get("strategy_weight_decay", 1e-5)),
         )
+        self.teacher_strategy_net: PokerNetwork | None = None
+        self.teacher_strategy_input_size: int | None = None
+        self.teacher_strategy_num_players: int | None = None
+        self.teacher_strategy_use_multi_agent = False
+        self.strategy_distillation_lambda = float(cfg_get("strategy_distillation_lambda", 0.0))
+        self.strategy_distillation_temperature = max(
+            float(cfg_get("strategy_distillation_temperature", 1.0)),
+            1e-6,
+        )
+        self.strategy_distillation_anneal_iterations = int(
+            cfg_get("strategy_distillation_anneal_iterations", 0) or 0
+        )
 
         advantage_memory_size = int(memory_size or cfg_get("advantage_memory_size", 300000))
         strategy_memory_size = int(cfg_get("strategy_memory_size", 300000))
@@ -100,6 +113,7 @@ class DeepCFRAgent:
         strategy_train_steps = cfg_get("strategy_train_steps", None)
         self.advantage_train_steps = int(advantage_train_steps) if advantage_train_steps is not None else None
         self.strategy_train_steps = int(strategy_train_steps) if strategy_train_steps is not None else None
+        self.training_preload_to_device = bool(cfg_get("training_preload_to_device", False))
         self.discount_alpha = float(cfg_get("discount_alpha", 2.0))
         self.discount_gamma = float(cfg_get("discount_gamma", 1.0))
         self.advantage_accumulation = str(cfg_get("advantage_accumulation", "dcfr_plus"))
@@ -122,6 +136,129 @@ class DeepCFRAgent:
         self.reset_traversal_stats()
 
     @staticmethod
+    def _network_input_size(num_players, use_multi_agent=False):
+        base_size = (
+            52 + 52 + 5 + 1 + int(num_players) + int(num_players)
+            + int(num_players) * 4 + 1 + 1 + 4 + 5
+        )
+        return base_size + (int(num_players) if use_multi_agent else 0)
+
+    @staticmethod
+    def _network_hidden_size_from_state(state_dict):
+        weight = state_dict.get("base.0.weight")
+        if weight is None:
+            raise ValueError("Teacher strategy state_dict не содержит base.0.weight")
+        return int(weight.shape[0])
+
+    def set_teacher_strategy_network(self, state_dict, num_players=None, use_multi_agent=None):
+        """Подключает замороженную strategy-сеть teacher-а для мягкой дистилляции."""
+        teacher_num_players = int(num_players if num_players is not None else self.num_players)
+        teacher_use_multi_agent = bool(self.use_multi_agent if use_multi_agent is None else use_multi_agent)
+        teacher_input_size = self._network_input_size(teacher_num_players, teacher_use_multi_agent)
+        teacher = PokerNetwork(
+            teacher_input_size,
+            self._network_hidden_size_from_state(state_dict),
+            NUM_ACTIONS,
+        )
+        teacher.load_state_dict(state_dict, strict=True)
+        teacher.to(self.device)
+        teacher.eval()
+        for parameter in teacher.parameters():
+            parameter.requires_grad_(False)
+        self.teacher_strategy_net = teacher
+        self.teacher_strategy_input_size = teacher_input_size
+        self.teacher_strategy_num_players = teacher_num_players
+        self.teacher_strategy_use_multi_agent = teacher_use_multi_agent
+
+    def load_teacher_strategy_checkpoint(self, path):
+        checkpoint = torch.load(path, map_location=self.device, weights_only=False)
+        if checkpoint.get("action_space_version") != ACTION_SPACE_VERSION:
+            raise ValueError("Teacher checkpoint имеет другое пространство действий")
+        if int(checkpoint.get("num_actions", -1)) != NUM_ACTIONS:
+            raise ValueError("Teacher checkpoint имеет другое число действий")
+        teacher_num_players = int(checkpoint.get("num_players", self.num_players))
+        teacher_use_multi_agent = bool(checkpoint.get("config", {}).get("use_multi_agent_advantage", False))
+        if teacher_num_players not in (self.num_players, 2):
+            raise ValueError("Teacher checkpoint поддержан только для того же стола или HU projection")
+        strategy_state = checkpoint.get("strategy_net")
+        if not isinstance(strategy_state, dict):
+            raise ValueError("В teacher checkpoint нет strategy_net")
+        self.set_teacher_strategy_network(
+            strategy_state,
+            num_players=teacher_num_players,
+            use_multi_agent=teacher_use_multi_agent,
+        )
+        return checkpoint
+
+    def _effective_strategy_distillation_lambda(self, iteration_now):
+        base = max(float(self.strategy_distillation_lambda), 0.0)
+        anneal_iterations = int(self.strategy_distillation_anneal_iterations)
+        if base <= 0.0 or anneal_iterations <= 0:
+            return base
+        progress = min(max(float(iteration_now), 0.0), float(anneal_iterations))
+        return base * max(0.0, 1.0 - progress / float(anneal_iterations))
+
+    @staticmethod
+    def _layout_offsets(num_players):
+        hand = 0
+        community = hand + 52
+        stage = community + 52
+        pot = stage + 5
+        button = pot + 1
+        current_player = button + int(num_players)
+        players = current_player + int(num_players)
+        tail = players + int(num_players) * 4
+        return hand, community, stage, pot, button, current_player, players, tail
+
+    def _project_states_for_teacher_strategy(self, state_t):
+        if self.teacher_strategy_num_players is None:
+            return state_t
+        if (
+            self.teacher_strategy_num_players == self.num_players
+            and self.teacher_strategy_use_multi_agent == self.use_multi_agent
+        ):
+            return state_t
+        if self.teacher_strategy_num_players != 2:
+            raise ValueError("Неподдерживаемый teacher projection")
+
+        hand, community, stage, pot, button, current_player, players, tail = self._layout_offsets(self.num_players)
+        player_blocks = state_t[:, players:tail].reshape(state_t.shape[0], self.num_players, 4)
+        opponent_active = player_blocks[:, 1:, 0] > 0.5
+        fallback = torch.ones(state_t.shape[0], dtype=torch.long, device=state_t.device)
+        first_active = torch.argmax(opponent_active.float(), dim=1) + 1
+        opponent_offsets = torch.where(opponent_active.any(dim=1), first_active, fallback)
+        batch_offsets = torch.arange(state_t.shape[0], device=state_t.device)
+        hero_block = player_blocks[:, 0, :]
+        opponent_block = player_blocks[batch_offsets, opponent_offsets, :]
+
+        button_offsets = torch.argmax(state_t[:, button:current_player], dim=1)
+        current_offsets = torch.argmax(state_t[:, current_player:players], dim=1)
+        button_hu = torch.zeros((state_t.shape[0], 2), dtype=state_t.dtype, device=state_t.device)
+        current_hu = torch.zeros((state_t.shape[0], 2), dtype=state_t.dtype, device=state_t.device)
+        button_hu[:, 0] = (button_offsets == 0).to(state_t.dtype)
+        button_hu[:, 1] = 1.0 - button_hu[:, 0]
+        current_hu[:, 0] = (current_offsets == 0).to(state_t.dtype)
+        current_hu[:, 1] = 1.0 - current_hu[:, 0]
+
+        tail_features = state_t[:, tail:tail + 11]
+        projected = [
+            state_t[:, hand:community],
+            state_t[:, community:stage],
+            state_t[:, stage:pot],
+            state_t[:, pot:button],
+            button_hu,
+            current_hu,
+            hero_block,
+            opponent_block,
+            tail_features,
+        ]
+        if self.teacher_strategy_use_multi_agent:
+            teacher_position = torch.zeros((state_t.shape[0], 2), dtype=state_t.dtype, device=state_t.device)
+            teacher_position[:, 0] = 1.0
+            projected.append(teacher_position)
+        return torch.cat(projected, dim=1)
+
+    @staticmethod
     def _full_epoch_batches(size, batch_size, epochs):
         size = int(size)
         if size <= 0:
@@ -140,6 +277,26 @@ class DeepCFRAgent:
         batch_size = max(1, int(batch_size))
         for step in range(max(0, int(steps))):
             yield step, np.random.choice(size, batch_size, replace=True)
+
+    def _synchronize_training_device(self):
+        if self.device.type == "cuda" and torch.cuda.is_available():
+            torch.cuda.synchronize(self.device)
+
+    def _preload_training_arrays(self, arrays, label):
+        if not self.training_preload_to_device:
+            return None
+        try:
+            return tuple(torch.as_tensor(array, device=self.device) for array in arrays)
+        except RuntimeError as exc:
+            if self.device.type != "cuda":
+                raise
+            print(f"[Training] Preload {label} на GPU не удался, использую обычные батчи: {exc}")
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            return None
+
+    def _training_indices(self, size, batch_size):
+        return torch.randint(int(size), (max(1, int(batch_size)),), device=self.device)
 
     def _encode_state(self, state, player_id):
         if self.use_multi_agent:
@@ -491,18 +648,41 @@ class DeepCFRAgent:
         self.advantage_net.train()
         total_loss, steps = 0.0, 0
         iteration_now = max(int(self.iteration_count), 1)
-        started = time.perf_counter()
         configured_steps = getattr(self, "advantage_train_steps", None)
+        preloaded = self._preload_training_arrays(
+            (states, regrets, masks, iterations),
+            "advantage",
+        )
+        self._synchronize_training_device()
+        started = time.perf_counter()
         batch_iterator = (
             self._fixed_step_batches(count, batch_size, configured_steps)
             if configured_steps is not None
             else self._full_epoch_batches(count, effective_batch, epochs)
         )
-        for _, indices in batch_iterator:
-            state_t = torch.from_numpy(states[indices].copy()).to(self.device)
-            regret_t = torch.from_numpy(regrets[indices].copy()).to(self.device)
-            mask_t = torch.from_numpy(masks[indices].copy()).to(self.device)
-            source_iteration_t = torch.from_numpy(iterations[indices].copy()).to(self.device)
+        fixed_preload_steps = int(configured_steps or 0) if preloaded is not None and configured_steps is not None else 0
+        preload_states, preload_regrets, preload_masks, preload_iterations = preloaded or (None, None, None, None)
+        step_source = range(max(0, fixed_preload_steps)) if fixed_preload_steps else batch_iterator
+        for item in step_source:
+            if fixed_preload_steps:
+                index_t = self._training_indices(count, batch_size)
+                state_t = preload_states.index_select(0, index_t)
+                regret_t = preload_regrets.index_select(0, index_t)
+                mask_t = preload_masks.index_select(0, index_t)
+                source_iteration_t = preload_iterations.index_select(0, index_t)
+            else:
+                _, indices = item
+                if preloaded is None:
+                    state_t = torch.from_numpy(states[indices].copy()).to(self.device)
+                    regret_t = torch.from_numpy(regrets[indices].copy()).to(self.device)
+                    mask_t = torch.from_numpy(masks[indices].copy()).to(self.device)
+                    source_iteration_t = torch.from_numpy(iterations[indices].copy()).to(self.device)
+                else:
+                    index_t = torch.as_tensor(indices, dtype=torch.long, device=self.device)
+                    state_t = preload_states.index_select(0, index_t)
+                    regret_t = preload_regrets.index_select(0, index_t)
+                    mask_t = preload_masks.index_select(0, index_t)
+                    source_iteration_t = preload_iterations.index_select(0, index_t)
             with torch.no_grad():
                 previous = self.advantage_target_net(state_t)
                 previous_positive = torch.clamp(previous, min=0.0)
@@ -526,6 +706,8 @@ class DeepCFRAgent:
             self.optimizer.step()
             total_loss += float(loss.item())
             steps += 1
+        self._synchronize_training_device()
+        train_seconds = time.perf_counter() - started
         self.advantage_target_net.load_state_dict(self.advantage_net.state_dict())
         self.last_advantage_train_steps = steps
         self.last_advantage_effective_batch_size = effective_batch
@@ -537,7 +719,8 @@ class DeepCFRAgent:
             "samples": count, "batch": batch_size if configured_steps is not None else effective_batch, "epochs": epochs,
             "configured_steps": configured_steps,
             "expected_steps": configured_steps if configured_steps is not None else epochs * math.ceil(count / effective_batch),
-            "actual_steps": steps, "total_seconds": time.perf_counter() - started,
+            "actual_steps": steps, "total_seconds": train_seconds,
+            "preloaded_to_device": preloaded is not None,
         }
         return total_loss / max(steps, 1)
 
@@ -553,37 +736,96 @@ class DeepCFRAgent:
             return 0.0
         states, policies, masks, iterations = samples
         self.strategy_net.train()
+        if self.teacher_strategy_net is not None:
+            self.teacher_strategy_net.eval()
         total_loss, steps = 0.0, 0
+        total_supervised_loss, total_distillation_loss = 0.0, 0.0
         iteration_now = max(int(self.iteration_count), 1)
-        started = time.perf_counter()
+        distillation_lambda = self._effective_strategy_distillation_lambda(iteration_now)
         configured_steps = getattr(self, "strategy_train_steps", None)
+        preloaded = self._preload_training_arrays(
+            (states, policies, masks, iterations),
+            "strategy",
+        )
+        self._synchronize_training_device()
+        started = time.perf_counter()
         batch_iterator = (
             self._fixed_step_batches(count, batch_size, configured_steps)
             if configured_steps is not None
             else self._full_epoch_batches(count, effective_batch, epochs)
         )
-        for _, indices in batch_iterator:
-            state_t = torch.from_numpy(states[indices].copy()).to(self.device)
-            policy_t = torch.from_numpy(policies[indices].copy()).to(self.device)
-            mask_t = torch.from_numpy(masks[indices].copy()).to(self.device)
-            iteration_t = torch.from_numpy(iterations[indices].copy()).to(self.device)
+        fixed_preload_steps = int(configured_steps or 0) if preloaded is not None and configured_steps is not None else 0
+        preload_states, preload_policies, preload_masks, preload_iterations = preloaded or (None, None, None, None)
+        step_source = range(max(0, fixed_preload_steps)) if fixed_preload_steps else batch_iterator
+        for item in step_source:
+            if fixed_preload_steps:
+                index_t = self._training_indices(count, batch_size)
+                state_t = preload_states.index_select(0, index_t)
+                policy_t = preload_policies.index_select(0, index_t)
+                mask_t = preload_masks.index_select(0, index_t)
+                iteration_t = preload_iterations.index_select(0, index_t)
+            else:
+                _, indices = item
+                if preloaded is None:
+                    state_t = torch.from_numpy(states[indices].copy()).to(self.device)
+                    policy_t = torch.from_numpy(policies[indices].copy()).to(self.device)
+                    mask_t = torch.from_numpy(masks[indices].copy()).to(self.device)
+                    iteration_t = torch.from_numpy(iterations[indices].copy()).to(self.device)
+                else:
+                    index_t = torch.as_tensor(indices, dtype=torch.long, device=self.device)
+                    state_t = preload_states.index_select(0, index_t)
+                    policy_t = preload_policies.index_select(0, index_t)
+                    mask_t = preload_masks.index_select(0, index_t)
+                    iteration_t = preload_iterations.index_select(0, index_t)
             logits = self.strategy_net(state_t)
             masked_logits = torch.where(mask_t > 0.0, logits, torch.full_like(logits, -1e20))
             predicted = F.softmax(masked_logits, dim=1)
             weights = torch.pow(torch.clamp(iteration_t / iteration_now, min=1e-6), self.discount_gamma)
             per_sample_loss = ((predicted - policy_t).square() * mask_t).sum(dim=1)
-            loss = torch.sum(per_sample_loss * weights) / torch.clamp(weights.sum(), min=1e-8)
+            supervised_loss = torch.sum(per_sample_loss * weights) / torch.clamp(weights.sum(), min=1e-8)
+            distillation_loss = torch.zeros((), device=self.device)
+            if self.teacher_strategy_net is not None and distillation_lambda > 0.0:
+                temperature = self.strategy_distillation_temperature
+                with torch.no_grad():
+                    teacher_state_t = self._project_states_for_teacher_strategy(state_t)
+                    teacher_logits = self.teacher_strategy_net(teacher_state_t)
+                    teacher_logits = torch.where(
+                        mask_t > 0.0,
+                        teacher_logits / temperature,
+                        torch.full_like(teacher_logits, -1e20),
+                    )
+                    teacher_probs = F.softmax(teacher_logits, dim=1)
+                student_log_probs = F.log_softmax(masked_logits / temperature, dim=1)
+                per_sample_distillation = F.kl_div(
+                    student_log_probs,
+                    teacher_probs,
+                    reduction="none",
+                    log_target=False,
+                ).sum(dim=1)
+                distillation_loss = (
+                    torch.sum(per_sample_distillation * weights)
+                    / torch.clamp(weights.sum(), min=1e-8)
+                ) * (temperature ** 2)
+            loss = supervised_loss + float(distillation_lambda) * distillation_loss
             self.strategy_optimizer.zero_grad()
             loss.backward()
             torch.nn.utils.clip_grad_norm_(self.strategy_net.parameters(), max_norm=0.5)
             self.strategy_optimizer.step()
             total_loss += float(loss.item())
+            total_supervised_loss += float(supervised_loss.item())
+            total_distillation_loss += float(distillation_loss.item())
             steps += 1
+        self._synchronize_training_device()
+        train_seconds = time.perf_counter() - started
         self.last_strategy_profile = {
             "buffer_size": count, "batch_size": batch_size if configured_steps is not None else effective_batch, "epochs": epochs,
             "configured_steps": configured_steps,
             "expected_steps": configured_steps if configured_steps is not None else epochs * math.ceil(count / effective_batch),
-            "actual_steps": steps, "train_seconds": time.perf_counter() - started,
+            "actual_steps": steps, "train_seconds": train_seconds,
+            "preloaded_to_device": preloaded is not None,
+            "supervised_loss": total_supervised_loss / max(steps, 1),
+            "distillation_loss": total_distillation_loss / max(steps, 1),
+            "distillation_lambda": distillation_lambda,
         }
         return total_loss / max(steps, 1)
 
@@ -667,6 +909,10 @@ class DeepCFRAgent:
                 "strategy_train_steps": self.strategy_train_steps,
                 "discount_alpha": self.discount_alpha,
                 "discount_gamma": self.discount_gamma,
+                "num_trainable_players": self.num_trainable_players,
+                "strategy_distillation_lambda": self.strategy_distillation_lambda,
+                "strategy_distillation_temperature": self.strategy_distillation_temperature,
+                "strategy_distillation_anneal_iterations": self.strategy_distillation_anneal_iterations,
             },
         }
         if self.save_replay_buffers_in_checkpoint:

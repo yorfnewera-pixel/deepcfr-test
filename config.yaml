@@ -1,6 +1,7 @@
 # Единственный игровой контракт: fold, check, call, raise 0.5 pot, raise pot, all-in.
 num_actions: 6
 num_players: 6
+num_trainable_players: 1
 
 hidden_size: 256
 advantage_lr: 1.0e-4
@@ -13,6 +14,10 @@ advantage_epochs: 1
 strategy_epochs: 3
 advantage_train_steps: 750
 strategy_train_steps: 5000
+teacher_strategy_checkpoint: null
+strategy_distillation_lambda: 0.0
+strategy_distillation_temperature: 1.0
+strategy_distillation_anneal_iterations: 0
 
 advantage_memory_size: 1000000
 strategy_memory_size: 1000000
@@ -36,4 +41,5 @@ checkpoint_save_every: 1000
 checkpoint_keep_every: 50000
 traversal_single_thread: true
 training_torch_threads: 12
+training_preload_to_device: true
 process_priority: above_normal

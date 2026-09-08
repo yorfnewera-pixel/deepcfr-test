@@ -43,6 +43,12 @@ _DEFAULTS = {
     "checkpoint_keep_every": 50000,
     "traversal_single_thread": True,
     "training_torch_threads": None,
+    "training_preload_to_device": False,
+    "num_trainable_players": 1,
+    "teacher_strategy_checkpoint": None,
+    "strategy_distillation_lambda": 0.0,
+    "strategy_distillation_temperature": 1.0,
+    "strategy_distillation_anneal_iterations": 0,
     "process_priority": "normal",
 }
 

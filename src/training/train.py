@@ -583,6 +583,9 @@ def train_self_play_multi(
     seed: int | None = None,
     initial_checkpoint: str | None = None,
     log_dir: str | Path | None = None,
+    opponent_checkpoint_dir: str | Path | None = None,
+    trainable_players: int | None = None,
+    teacher_strategy_checkpoint: str | Path | None = None,
     **_unused_options,
 ) -> DeepCFRAgent:
     """Обучает один общий action-only агент external-sampling Deep CFR."""
@@ -592,17 +595,24 @@ def train_self_play_multi(
         torch.manual_seed(seed)
 
     agent = DeepCFRAgent(player_id=0, num_players=num_players, device=device)
+    if trainable_players is not None:
+        agent.num_trainable_players = max(1, min(int(trainable_players), agent.num_players))
+    if teacher_strategy_checkpoint is None:
+        teacher_strategy_checkpoint = cfg_get("teacher_strategy_checkpoint", None)
+    if teacher_strategy_checkpoint:
+        agent.load_teacher_strategy_checkpoint(teacher_strategy_checkpoint)
     opponent_state_cache: dict[Path, dict[str, torch.Tensor]] = {}
     if initial_checkpoint:
         checkpoint = agent.load_model(initial_checkpoint)
         if isinstance(checkpoint, dict) and isinstance(checkpoint.get("strategy_net"), dict):
             opponent_state_cache[Path(initial_checkpoint).resolve()] = checkpoint["strategy_net"]
-        if not _heavy_checkpoints(save_dir):
+        if opponent_checkpoint_dir is None and not _heavy_checkpoints(save_dir):
             save_dir = Path(initial_checkpoint).parent
+    opponent_checkpoint_dir = Path(opponent_checkpoint_dir) if opponent_checkpoint_dir is not None else Path(save_dir)
 
     checkpoint_every = int(cfg_get("checkpoint_save_every", 1000))
     opponent_pool_schedule = OpponentPoolSchedule(
-        save_dir,
+        opponent_checkpoint_dir,
         checkpoint_every=checkpoint_every,
         historical_every=int(cfg_get("checkpoint_keep_every", 50000)),
     )
@@ -619,58 +629,81 @@ def train_self_play_multi(
             agent.iteration_count = iteration
             print(f"\nИтерация {iteration}:")
             opponent_setup_started = time.perf_counter()
-            strategy_count = _current_strategy_opponent_count(iteration, checkpoint_every)
-            transition_iterations = _transition_checkpoint_iterations(iteration, checkpoint_every)
-            if transition_iterations:
-                available_checkpoints = _heavy_checkpoints(save_dir)
-                selected_paths = [
-                    _resolve_checkpoint_path(number, available_checkpoints)
-                    for number in transition_iterations
-                ]
-            else:
-                selected_paths = opponent_pool_schedule.paths_for_iteration(
-                    iteration,
-                    num_opponents=agent.num_players - strategy_count,
-                )
-            strategy_positions, checkpoint_by_player = _assign_checkpoint_opponents(
-                traversing_player=0,
-                num_players=agent.num_players,
-                strategy_count=strategy_count,
-                checkpoint_paths=selected_paths,
-            )
-            opponent_checkpoints = _configure_strategy_opponent_pool(
-                agent,
-                checkpoint_by_player=checkpoint_by_player,
-                strategy_positions=strategy_positions,
-                current_strategy_path=None,
-                traversing_player=0,
-                state_cache=opponent_state_cache,
-            )
-            if strategy_count:
-                _print_current_strategy_opponents(strategy_count)
-            if opponent_checkpoints:
-                _print_opponent_checkpoints(opponent_checkpoints, 0)
-            agent.prepare_iteration(iteration, traversing_player=0)
-            agent.reset_traversal_stats()
-            print(f"  Запускаю {traversals_per_iteration} обходов...")
+            trainable_player_count = max(1, int(getattr(agent, "num_trainable_players", 1)))
+            traversing_players = range(trainable_player_count)
             opponent_setup_elapsed = time.perf_counter() - opponent_setup_started
             traversal_started = time.perf_counter()
             with _traversal_thread_limit(bool(cfg_get("traversal_single_thread", True))):
-                for traversal in range(int(traversals_per_iteration)):
-                    state_seed = (seed or 0) + iteration * max(1, int(traversals_per_iteration)) + traversal
-                    agent.cfr_traverse_multi(
-                        _new_hand(num_players, state_seed),
-                        iteration,
-                        traversing_player=0,
-                        random_agent=None,
+                for traversing_player in traversing_players:
+                    max_opponents = max(0, agent.num_players - 1)
+                    strategy_count = min(
+                        _current_strategy_opponent_count(iteration, checkpoint_every),
+                        max_opponents,
                     )
+                    transition_iterations = _transition_checkpoint_iterations(iteration, checkpoint_every)
+                    if transition_iterations:
+                        available_checkpoints = _heavy_checkpoints(opponent_checkpoint_dir)
+                        selected_paths = [
+                            _resolve_checkpoint_path(number, available_checkpoints)
+                            for number in transition_iterations[:max(0, max_opponents - strategy_count)]
+                        ]
+                    else:
+                        checkpoint_opponent_count = max_opponents - strategy_count
+                        selected_paths = (
+                            opponent_pool_schedule.paths_for_iteration(
+                                iteration,
+                                num_opponents=checkpoint_opponent_count,
+                            )
+                            if checkpoint_opponent_count > 0
+                            else []
+                        )
+                    strategy_positions, checkpoint_by_player = _assign_checkpoint_opponents(
+                        traversing_player=traversing_player,
+                        num_players=agent.num_players,
+                        strategy_count=strategy_count,
+                        checkpoint_paths=selected_paths,
+                    )
+                    opponent_checkpoints = _configure_strategy_opponent_pool(
+                        agent,
+                        checkpoint_by_player=checkpoint_by_player,
+                        strategy_positions=strategy_positions,
+                        current_strategy_path=None,
+                        traversing_player=traversing_player,
+                        state_cache=opponent_state_cache,
+                    )
+                    if strategy_count:
+                        _print_current_strategy_opponents(strategy_count)
+                    if opponent_checkpoints:
+                        _print_opponent_checkpoints(opponent_checkpoints, traversing_player)
+                    agent.prepare_iteration(iteration, traversing_player=traversing_player)
+                    agent.reset_traversal_stats()
+                    if trainable_player_count == 1:
+                        print(f"  Запускаю {traversals_per_iteration} обходов...")
+                    else:
+                        print(
+                            f"  Игрок {traversing_player}: запускаю "
+                            f"{traversals_per_iteration} обходов..."
+                        )
+                    for traversal in range(int(traversals_per_iteration)):
+                        state_seed = (
+                            (seed or 0)
+                            + iteration * max(1, int(traversals_per_iteration)) * trainable_player_count
+                            + traversing_player * max(1, int(traversals_per_iteration))
+                            + traversal
+                        )
+                        agent.cfr_traverse_multi(
+                            _new_hand(num_players, state_seed),
+                            iteration,
+                            traversing_player=traversing_player,
+                            random_agent=None,
+                        )
+                    _log_multi_cfr_diagnostics(agent, writer, iteration, traversing_player, traversals_per_iteration)
             traversal_elapsed = time.perf_counter() - traversal_started
 
             training_threads = cfg_get("training_torch_threads")
             with _training_thread_limit(training_threads):
                 advantage_loss = agent.train_advantage_network_multi()
                 strategy_loss = agent.train_strategy_network()
-            _log_multi_cfr_diagnostics(agent, writer, iteration, 0, traversals_per_iteration)
             if writer is not None:
                 writer.add_scalar("Loss/Advantage", advantage_loss, iteration)
                 writer.add_scalar("Loss/Strategy", strategy_loss, iteration)
@@ -740,6 +773,22 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--traversals", type=int, default=100, help="Обходов на итерацию")
     parser.add_argument("--save-dir", default="models", help="Каталог checkpoint-файлов")
     parser.add_argument("--log-dir", default=None, help="Каталог TensorBoard-логов")
+    parser.add_argument(
+        "--opponent-checkpoint-dir",
+        default=None,
+        help="Каталог full checkpoint-файлов для opponent pool",
+    )
+    parser.add_argument(
+        "--trainable-players",
+        type=int,
+        default=int(cfg_get("num_trainable_players", 1)),
+        help="Сколько мест собирать как traversing players за итерацию",
+    )
+    parser.add_argument(
+        "--teacher-strategy-checkpoint",
+        default=cfg_get("teacher_strategy_checkpoint", None),
+        help="Checkpoint strategy-сети teacher-а для policy distillation",
+    )
     parser.add_argument("--evaluate-every", type=int, default=10)
     parser.add_argument("--evaluation-games", type=int, default=500)
     parser.add_argument("--num-players", type=int, default=int(cfg_get("num_players", 6)))
@@ -769,6 +818,9 @@ def main() -> None:
         device=args.device,
         seed=args.seed,
         initial_checkpoint=args.initial_checkpoint,
+        opponent_checkpoint_dir=args.opponent_checkpoint_dir,
+        trainable_players=args.trainable_players,
+        teacher_strategy_checkpoint=args.teacher_strategy_checkpoint,
     )
 
 

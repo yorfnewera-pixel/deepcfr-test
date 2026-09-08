@@ -76,6 +76,165 @@ def test_training_uses_configured_advantage_learning_rate_from_first_iteration(m
     assert observed_learning_rates == [1e-4]
 
 
+def test_strategy_training_preload_uses_device_sampling(monkeypatch):
+    agent = DeepCFRAgent(player_id=0, num_players=6, device="cpu")
+    agent.training_preload_to_device = True
+    agent.strategy_train_steps = 2
+    agent.strategy_batch_size = 2
+    policy = np.full(NUM_ACTIONS, 1.0 / NUM_ACTIONS, dtype=np.float32)
+    mask = np.ones(NUM_ACTIONS, dtype=np.float32)
+    for idx in range(4):
+        agent.strategy_buffer.add(
+            np.full(agent.input_size, float(idx), dtype=np.float32),
+            policy,
+            mask,
+            idx + 1,
+        )
+
+    original_choice = np.random.choice
+
+    def fail_step_numpy_choice(*args, **kwargs):
+        if kwargs.get("replace") is False:
+            return original_choice(*args, **kwargs)
+        raise AssertionError("preload path должен сэмплировать индексы на torch device")
+
+    monkeypatch.setattr(np.random, "choice", fail_step_numpy_choice)
+
+    loss = agent.train_strategy_network()
+
+    assert isinstance(loss, float)
+    assert agent.last_strategy_profile["actual_steps"] == 2
+
+
+def test_advantage_training_preload_uses_device_sampling(monkeypatch):
+    agent = DeepCFRAgent(player_id=0, num_players=6, device="cpu")
+    agent.training_preload_to_device = True
+    agent.advantage_train_steps = 2
+    agent.advantage_batch_size = 2
+    regrets = np.arange(NUM_ACTIONS, dtype=np.float32)
+    mask = np.ones(NUM_ACTIONS, dtype=np.float32)
+    for idx in range(4):
+        agent.advantage_buffer.add(
+            np.full(agent.input_size, float(idx), dtype=np.float32),
+            regrets,
+            mask,
+            idx + 1,
+        )
+
+    original_choice = np.random.choice
+
+    def fail_step_numpy_choice(*args, **kwargs):
+        if kwargs.get("replace") is False:
+            return original_choice(*args, **kwargs)
+        raise AssertionError("preload path должен сэмплировать индексы на torch device")
+
+    monkeypatch.setattr(np.random, "choice", fail_step_numpy_choice)
+
+    loss = agent.train_advantage_network_multi()
+
+    assert isinstance(loss, float)
+    assert agent.last_advantage_profile["actual_steps"] == 2
+
+
+def test_training_can_traverse_all_heads_up_players(monkeypatch, tmp_path):
+    traversing_players = []
+    agent = SimpleNamespace(
+        iteration_count=0,
+        num_players=2,
+        num_trainable_players=2,
+        optimizer=SimpleNamespace(param_groups=[{"lr": 1e-4}]),
+        advantage_buffer=[],
+        strategy_buffer=[],
+        strategy_net=SimpleNamespace(state_dict=lambda: {"weight": torch.tensor([1.0])}),
+        set_opponent_strategy_states_by_player=lambda *_args, **_kwargs: None,
+        prepare_iteration=lambda *_args, **_kwargs: None,
+        reset_traversal_stats=lambda: None,
+        cfr_traverse_multi=lambda _state, _iteration, traversing_player, **_kwargs: traversing_players.append(traversing_player),
+        train_advantage_network_multi=lambda: 0.0,
+        train_strategy_network=lambda: 0.0,
+    )
+    monkeypatch.setattr(train_mod, "DeepCFRAgent", lambda **_kwargs: agent)
+    monkeypatch.setattr(train_mod, "_new_hand", lambda *_args: None)
+    monkeypatch.setattr(train_mod, "_create_writer", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(train_mod, "_log_multi_cfr_diagnostics", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(train_mod, "_configure_strategy_opponent_pool", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(train_mod, "_print_current_strategy_opponents", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(train_mod, "_print_opponent_checkpoints", lambda *_args, **_kwargs: None)
+
+    train_mod.train_self_play_multi(
+        num_iterations=1,
+        traversals_per_iteration=2,
+        evaluate_every=0,
+        save_dir=tmp_path,
+        num_players=2,
+        trainable_players=2,
+    )
+
+    assert traversing_players == [0, 0, 1, 1]
+
+
+def test_strategy_training_adds_teacher_policy_distillation_loss():
+    agent = DeepCFRAgent(player_id=0, num_players=2, device="cpu")
+    agent.strategy_train_steps = 1
+    agent.strategy_batch_size = 2
+    agent.strategy_distillation_lambda = 0.5
+    agent.strategy_distillation_temperature = 1.0
+    teacher = DeepCFRAgent(player_id=0, num_players=2, device="cpu")
+    with torch.no_grad():
+        teacher.strategy_net.action_head.bias.copy_(
+            torch.tensor([4.0, -1.0, -1.0, -1.0, -1.0, -1.0])
+        )
+    agent.set_teacher_strategy_network(teacher.strategy_net.state_dict())
+
+    policy = np.full(NUM_ACTIONS, 1.0 / NUM_ACTIONS, dtype=np.float32)
+    mask = np.ones(NUM_ACTIONS, dtype=np.float32)
+    for idx in range(4):
+        agent.strategy_buffer.add(
+            np.full(agent.input_size, float(idx), dtype=np.float32),
+            policy,
+            mask,
+            idx + 1,
+        )
+
+    loss = agent.train_strategy_network()
+
+    assert isinstance(loss, float)
+    assert agent.last_strategy_profile["distillation_lambda"] == 0.5
+    assert agent.last_strategy_profile["distillation_loss"] > 0.0
+
+
+def test_sixmax_strategy_training_can_distill_from_heads_up_teacher(tmp_path):
+    teacher = DeepCFRAgent(player_id=0, num_players=2, device="cpu")
+    teacher.iteration_count = 10
+    with torch.no_grad():
+        teacher.strategy_net.action_head.bias.copy_(
+            torch.tensor([3.0, -1.0, -1.0, -1.0, -1.0, -1.0])
+        )
+    checkpoint_path = tmp_path / "hu_teacher.pt"
+    torch.save(teacher.build_light_checkpoint(), checkpoint_path)
+
+    student = DeepCFRAgent(player_id=0, num_players=6, device="cpu")
+    student.strategy_train_steps = 1
+    student.strategy_batch_size = 2
+    student.strategy_distillation_lambda = 0.25
+    student.load_teacher_strategy_checkpoint(checkpoint_path)
+
+    policy = np.full(NUM_ACTIONS, 1.0 / NUM_ACTIONS, dtype=np.float32)
+    mask = np.ones(NUM_ACTIONS, dtype=np.float32)
+    for idx in range(4):
+        student.strategy_buffer.add(
+            np.full(student.input_size, float(idx), dtype=np.float32),
+            policy,
+            mask,
+            idx + 1,
+        )
+
+    loss = student.train_strategy_network()
+
+    assert isinstance(loss, float)
+    assert student.last_strategy_profile["distillation_loss"] > 0.0
+
+
 def test_self_play_cli_evaluates_against_random_every_ten_iterations(monkeypatch):
     monkeypatch.setattr(sys, "argv", ["train.py", "--self-play-multi"])
 
@@ -123,6 +282,97 @@ def test_training_resumes_from_full_checkpoint_before_next_iteration(monkeypatch
 
     assert loaded_paths == [str(full_path)]
     assert prepared_iterations == [4001]
+
+
+def test_resume_can_save_to_clean_dir_while_reading_opponents_from_source_dir(monkeypatch, tmp_path):
+    source_dir = tmp_path / "source"
+    output_dir = tmp_path / "output"
+    source_dir.mkdir()
+    output_dir.mkdir()
+    checkpoint_path = source_dir / "multi_checkpoint_iter_5000.pt"
+    torch.save(
+        {
+            "iteration": 5000,
+            "action_space_version": ACTION_SPACE_VERSION,
+            "strategy_net": {"weight": torch.tensor([1.0])},
+        },
+        checkpoint_path,
+    )
+    checkpoint_dirs = []
+    saved_dirs = []
+
+    class ResumeAgent:
+        iteration_count = 0
+        num_players = 6
+        optimizer = SimpleNamespace(param_groups=[{"lr": 1e-4}])
+        advantage_buffer = []
+        strategy_buffer = []
+        strategy_net = SimpleNamespace(state_dict=lambda: {"weight": torch.tensor([0.0])})
+
+        def load_model(self, path):
+            self.iteration_count = 5000
+            return {"strategy_net": {"weight": torch.tensor([1.0])}}
+
+        def set_opponent_strategy_states_by_player(self, *_args, **_kwargs):
+            pass
+
+        def prepare_iteration(self, *_args, **_kwargs):
+            pass
+
+        def reset_traversal_stats(self):
+            pass
+
+        def cfr_traverse_multi(self, *_args, **_kwargs):
+            pass
+
+        def train_advantage_network_multi(self):
+            return 0.0
+
+        def train_strategy_network(self):
+            return 0.0
+
+        def _build_checkpoint(self, **_kwargs):
+            return {"iteration": 6000}
+
+        def build_light_checkpoint(self, **_kwargs):
+            return {"iteration": 6000}
+
+    agent = ResumeAgent()
+    monkeypatch.setattr(train_mod, "DeepCFRAgent", lambda **_kwargs: agent)
+    monkeypatch.setattr(train_mod, "_create_writer", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(train_mod, "_new_hand", lambda *_args: None)
+    monkeypatch.setattr(train_mod, "_log_multi_cfr_diagnostics", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(train_mod, "_configure_strategy_opponent_pool", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(train_mod, "_checkpoint_save_due", lambda *_args, **_kwargs: True)
+
+    class TrackingSchedule:
+        def __init__(self, checkpoint_dir, **_kwargs):
+            checkpoint_dirs.append(Path(checkpoint_dir))
+
+        def paths_for_iteration(self, *_args, **_kwargs):
+            return [source_dir / f"multi_checkpoint_iter_{slot}.pt" for slot in range(1, 6)]
+
+    monkeypatch.setattr(train_mod, "OpponentPoolSchedule", TrackingSchedule)
+
+    def record_save(agent_arg, save_dir, iteration, **_kwargs):
+        del agent_arg, iteration
+        saved_dirs.append(Path(save_dir))
+        return Path(save_dir) / "checkpoint.pt"
+
+    monkeypatch.setattr(train_mod, "_save_iteration_checkpoint", record_save)
+    monkeypatch.setattr(train_mod, "_save_iteration_light_checkpoint", record_save)
+
+    train_mod.train_self_play_multi(
+        num_iterations=1,
+        traversals_per_iteration=0,
+        evaluate_every=0,
+        save_dir=output_dir,
+        initial_checkpoint=str(checkpoint_path),
+        opponent_checkpoint_dir=source_dir,
+    )
+
+    assert checkpoint_dirs == [source_dir]
+    assert saved_dirs == [output_dir, output_dir]
 
 
 def test_training_resume_reuses_initial_checkpoint_strategy_state(monkeypatch, tmp_path):
@@ -325,6 +575,46 @@ def test_training_uses_current_strategy_without_per_traversal_progress(monkeypat
 )
 def test_current_strategy_opponent_count_fades_out_after_five_checkpoints(iteration, expected):
     assert _current_strategy_opponent_count(iteration, checkpoint_every=1000) == expected
+
+
+def test_training_rotates_five_checkpoint_opponents_after_strategy_fades_out(monkeypatch, tmp_path):
+    configured_states = {}
+    for iteration in range(1000, 5001, 1000):
+        torch.save(
+            {
+                "action_space_version": ACTION_SPACE_VERSION,
+                "strategy_net": {"weight": torch.tensor([float(iteration)])},
+            },
+            tmp_path / f"multi_checkpoint_iter_{iteration}.pt",
+        )
+
+    agent = SimpleNamespace(
+        iteration_count=5000,
+        num_players=6,
+        optimizer=SimpleNamespace(param_groups=[{"lr": 1e-4}]),
+        advantage_buffer=[],
+        strategy_buffer=[],
+        strategy_net=SimpleNamespace(state_dict=lambda: {"weight": torch.tensor([0.0])}),
+        set_opponent_strategy_states_by_player=lambda states, _traversing_player: configured_states.update(states),
+        prepare_iteration=lambda *_args, **_kwargs: None,
+        reset_traversal_stats=lambda: None,
+        cfr_traverse_multi=lambda *_args, **_kwargs: None,
+        train_advantage_network_multi=lambda: 0.0,
+        train_strategy_network=lambda: 0.0,
+    )
+    monkeypatch.setattr(train_mod, "DeepCFRAgent", lambda **_kwargs: agent)
+    monkeypatch.setattr(train_mod, "_create_writer", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(train_mod, "_log_multi_cfr_diagnostics", lambda *_args, **_kwargs: {})
+
+    train_mod.train_self_play_multi(
+        num_iterations=1,
+        traversals_per_iteration=0,
+        evaluate_every=0,
+        save_dir=tmp_path,
+    )
+
+    assert set(configured_states) == {1, 2, 3, 4, 5}
+    assert len(configured_states) == 5
 
 
 def test_current_strategy_uses_latest_prior_heavy_checkpoint(tmp_path):
