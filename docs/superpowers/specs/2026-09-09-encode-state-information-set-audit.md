@@ -33,7 +33,7 @@ Deep CFR не требует Transformer, RNN или передачи raw action
 
 Проверка использовала настоящее Python API `pokers`, `src.core.model.encode_state`, `src.core.action_space.legal_action_mask` и только действия, разрешённые `resolve_action`.
 
-1. Ручной regression-контрпример: heads-up, `seed=17`, `sb=1`, `bb=2`, stack `200`.
+1. Ручной regression-контрпример: heads-up, `seed=17`, `sb=1`, `bb=2`, stack `30`.
 2. Ограниченный исчерпывающий перебор: heads-up, тот же seed, stack `30`, все шесть compact slots, глубина не более 12.
 3. Состояния группировались по байтам `float32` результата `encode_state(state, 0)`; в bucket сравнивались полные action traces и legal masks.
 
@@ -46,13 +46,13 @@ Deep CFR не требует Transformer, RNN или передачи raw action
 Обе линии доходят до river:
 
 ```text
-A: preflop Raise(8), Call; flop Check, Check; turn Check, Check
-B: preflop Call, Call; flop Raise(8), Call; turn Check, Check
+A: preflop Call, Call; flop Check, RaiseHalfPot, Call; turn Check, Check; river Check
+B: preflop Call, Call; flop Check, Check; turn Check, RaiseHalfPot, Call; river Check
 ```
 
-На river совпадают board, pot `20`, stacks `190`, `pot_chips=10` у обоих игроков, текущий игрок, последний action `Check` игрока 0 и legal mask. `np.array_equal(encode_state(A, 0), encode_state(B, 0))` возвращает `True`.
+На river совпадают board, pot `8`, stacks `26`, `pot_chips=4` у обоих игроков, текущий игрок, последний action `Check` игрока 1 и legal mask. `np.array_equal(encode_state(A, 0), encode_state(B, 0))` возвращает `True`. Каждое действие построено через `resolve_action` из шести compact slots.
 
-Hero наблюдал, была ли агрессия preflop или flop. Для стратегии это может быть сигналом о диапазоне оппонента; tensor его теряет.
+Hero наблюдал, была ли агрессия flop или turn. Для стратегии это может быть сигналом о диапазоне оппонента; tensor его теряет.
 
 ### B. Агрессор на одной улице
 

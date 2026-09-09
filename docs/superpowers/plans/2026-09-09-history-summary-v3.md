@@ -60,7 +60,7 @@
 - [ ] Вынести единую формулу базового input из `DeepCFRAgent`, `model.py` и `policy_runtime` в импортируемую константу/функцию. Для `n` игроков v2 base size равен `121 + 6 * n`, а v3 base size — `121 + 6 * n + 4 * (2 * n + 8)`; это 181 для HU и 237 для six-max.
 - [ ] Реализовать private helper, который валидирует `action_history_complete`, группирует `ActionRecord` по street и строит блоки в hero-relative системе координат: `last_actor_relative`, `last_action_kind`, `raise_actor_relative_mask`, `raise_count`, `raise_amount_total / norm_unit`. Учитывать raise в последних трёх полях только при `is_effective_raise`; Python не повторяет условие с `CHIP_EPSILON`.
 - [ ] Добавить unit-тест для пустой complete history, проверки размера для 2 и 6 игроков, а также hero-relative преобразования actor id.
-- [ ] Добавить regression для линии «preflop raise против flop raise»: оба состояния доходят до river с одинаковым v2 snapshot, но v3 vectors различаются.
+- [ ] Добавить regression для линии «flop half-pot raise против turn half-pot raise»: оба состояния достигаются только через `resolve_action`, приходят к river с одинаковым v2 snapshot, но v3 vectors различаются.
 - [ ] Добавить regression для линии «turn aggressor P0 против P1»: same river snapshot и mask, но разные v3 vectors.
 - [ ] Добавить тест, что incomplete `from_mid_hand` вызывает `ValueError` с текстом об отсутствующей полной history. Не заменять исключение на нулевой summary.
 - [ ] Запустить `pytest tests/test_information_set_encoding.py tests/test_relative_encoding.py tests/test_action_space.py -q`.
