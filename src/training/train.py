@@ -18,7 +18,12 @@ import torch
 from src.agents.random_agent import RandomAgent
 from src.core.action_space import ACTION_SPACE_VERSION
 from src.core.deep_cfr import DeepCFRAgent
-from src.utils.config import cfg_get
+from src.core.traversal_errors import TraversalFailure
+from src.utils.config import (
+    cfg_get,
+    cfg_training_error_mode,
+    cfg_training_max_failed_traversals_per_iteration,
+)
 
 
 _HEAVY_CHECKPOINT_PREFIX = "multi_checkpoint_iter_"
@@ -473,10 +478,26 @@ def _log_multi_cfr_diagnostics(agent, writer, iteration, traversing_player, trav
     """Пишет только метрики обхода, независимые от представления действий."""
     del traversing_player, traversals_per_iteration
     stats = agent.get_traversal_stats()
-    print(f"  Traversal: nodes={stats['nodes']}, max_depth={stats['max_depth']}")
+    print(
+        f"  Обходы: узлы={stats['nodes']}, макс_глубина={stats['max_depth']}, "
+        f"попытки={stats.get('attempted', 0)}, успешные={stats.get('successful', 0)}, "
+        f"ошибки={stats.get('failed', 0)}, отменённые_образцы={stats.get('cancelled_samples', 0)}, "
+        f"лимит_глубины={stats.get('depth_limit_hits', 0)}"
+    )
     if writer is None:
         return stats
-    for key in ("nodes", "terminal_nodes", "max_depth", "recorded_nodes", "buffer_skip_ratio"):
+    for key in (
+        "nodes",
+        "terminal_nodes",
+        "max_depth",
+        "recorded_nodes",
+        "buffer_skip_ratio",
+        "attempted",
+        "successful",
+        "failed",
+        "cancelled_samples",
+        "depth_limit_hits",
+    ):
         writer.add_scalar(f"Traversal/{key}", stats[key], iteration)
     writer.add_scalar("Memory/Advantage", len(agent.advantage_buffer), iteration)
     writer.add_scalar("Memory/Strategy", len(agent.strategy_buffer), iteration)
@@ -634,6 +655,8 @@ def train_self_play_multi(
             opponent_setup_elapsed = time.perf_counter() - opponent_setup_started
             traversal_started = time.perf_counter()
             with _traversal_thread_limit(bool(cfg_get("traversal_single_thread", True))):
+                failed_traversals = 0
+                agent.reset_traversal_stats()
                 for traversing_player in traversing_players:
                     max_opponents = max(0, agent.num_players - 1)
                     strategy_count = min(
@@ -676,7 +699,6 @@ def train_self_play_multi(
                     if opponent_checkpoints:
                         _print_opponent_checkpoints(opponent_checkpoints, traversing_player)
                     agent.prepare_iteration(iteration, traversing_player=traversing_player)
-                    agent.reset_traversal_stats()
                     if trainable_player_count == 1:
                         print(f"  Запускаю {traversals_per_iteration} обходов...")
                     else:
@@ -691,12 +713,25 @@ def train_self_play_multi(
                             + traversing_player * max(1, int(traversals_per_iteration))
                             + traversal
                         )
-                        agent.cfr_traverse_multi(
-                            _new_hand(num_players, state_seed),
-                            iteration,
-                            traversing_player=traversing_player,
-                            random_agent=None,
-                        )
+                        try:
+                            agent.record_traversal_attempt()
+                            agent.cfr_traverse_multi(
+                                _new_hand(num_players, state_seed),
+                                iteration,
+                                traversing_player=traversing_player,
+                                random_agent=None,
+                                traversal_index=traversal,
+                            )
+                            agent.record_traversal_success()
+                        except TraversalFailure as error:
+                            agent.record_traversal_failure(error)
+                            if cfg_training_error_mode() != "skip_traversal":
+                                raise
+                            failed_traversals += 1
+                            if failed_traversals >= cfg_training_max_failed_traversals_per_iteration():
+                                raise RuntimeError(
+                                    "Превышен training_max_failed_traversals_per_iteration"
+                                ) from error
                     _log_multi_cfr_diagnostics(agent, writer, iteration, traversing_player, traversals_per_iteration)
             traversal_elapsed = time.perf_counter() - traversal_started
 

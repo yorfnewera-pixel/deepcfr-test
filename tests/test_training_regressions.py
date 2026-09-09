@@ -8,6 +8,7 @@ from pathlib import Path
 
 from src.core.action_space import ACTION_SPACE_VERSION, NUM_ACTIONS
 from src.core.deep_cfr import DeepCFRAgent
+from src.core.traversal_errors import TraversalFailure, TraversalFailureContext
 from src.agents.random_agent import RandomAgent
 from src.training.train import (
     _assign_checkpoint_opponents,
@@ -21,6 +22,240 @@ from src.training.train import (
     _traversal_thread_limit,
 )
 from src.training import train as train_mod
+
+
+def _traversal_failure_context(reason="Превышена допустимая глубина обхода"):
+    return TraversalFailureContext(
+        iteration=1,
+        traversal_index=None,
+        traversing_player=0,
+        acting_player=0,
+        depth=201,
+        reason=reason,
+        action_trace=(),
+    )
+
+
+def _fake_agent_with_traversal_outcomes(outcomes):
+    agent = SimpleNamespace(
+        iteration_count=0,
+        num_players=2,
+        optimizer=SimpleNamespace(param_groups=[{"lr": 1e-4}]),
+        advantage_buffer=[],
+        strategy_buffer=[],
+        strategy_net=SimpleNamespace(state_dict=lambda: {"weight": torch.tensor([1.0])}),
+        traversal_attempts=0,
+        traversal_successes=0,
+        traversal_failures=0,
+        train_advantage_calls=0,
+        prepare_iteration=lambda *_args, **_kwargs: None,
+        reset_traversal_stats=lambda: None,
+    )
+    pending_outcomes = iter(outcomes)
+
+    def cfr_traverse_multi(*_args, **_kwargs):
+        outcome = next(pending_outcomes)
+        if outcome is not None:
+            raise outcome
+
+    agent.cfr_traverse_multi = cfr_traverse_multi
+    agent.record_traversal_attempt = lambda: setattr(
+        agent, "traversal_attempts", agent.traversal_attempts + 1
+    )
+    agent.record_traversal_success = lambda: setattr(
+        agent, "traversal_successes", agent.traversal_successes + 1
+    )
+    agent.record_traversal_failure = lambda _error: setattr(
+        agent, "traversal_failures", agent.traversal_failures + 1
+    )
+    agent.train_advantage_network_multi = lambda: setattr(
+        agent, "train_advantage_calls", agent.train_advantage_calls + 1
+    ) or 0.0
+    agent.train_strategy_network = lambda: 0.0
+    return agent
+
+
+def _configure_training_error_mode(monkeypatch, mode, limit):
+    monkeypatch.setattr(train_mod, "cfg_training_error_mode", lambda: mode, raising=False)
+    monkeypatch.setattr(
+        train_mod,
+        "cfg_training_max_failed_traversals_per_iteration",
+        lambda: limit,
+        raising=False,
+    )
+
+
+def _configure_fake_training_loop(monkeypatch, agent):
+    monkeypatch.setattr(train_mod, "DeepCFRAgent", lambda **_kwargs: agent)
+    monkeypatch.setattr(train_mod, "_new_hand", lambda *_args: None)
+    monkeypatch.setattr(train_mod, "_create_writer", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(train_mod, "_log_multi_cfr_diagnostics", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(train_mod, "_configure_strategy_opponent_pool", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(train_mod, "_print_current_strategy_opponents", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(train_mod, "_print_opponent_checkpoints", lambda *_args, **_kwargs: None)
+
+
+def _add_traversal_recorders(agent):
+    agent.record_traversal_attempt = lambda: None
+    agent.record_traversal_success = lambda: None
+    agent.record_traversal_failure = lambda _error: None
+    return agent
+
+
+def test_skip_traversal_continues_after_one_failure(monkeypatch, tmp_path):
+    agent = _fake_agent_with_traversal_outcomes([TraversalFailure(_traversal_failure_context()), None])
+    _configure_training_error_mode(monkeypatch, "skip_traversal", limit=2)
+    _configure_fake_training_loop(monkeypatch, agent)
+
+    train_mod.train_self_play_multi(
+        num_iterations=1,
+        traversals_per_iteration=2,
+        evaluate_every=0,
+        save_dir=tmp_path,
+        num_players=2,
+    )
+
+    assert agent.traversal_attempts == 2
+    assert agent.traversal_failures == 1
+    assert agent.train_advantage_calls == 1
+
+
+def test_skip_traversal_stops_when_iteration_limit_is_reached(monkeypatch, tmp_path):
+    agent = _fake_agent_with_traversal_outcomes(
+        [TraversalFailure(_traversal_failure_context()), TraversalFailure(_traversal_failure_context())]
+    )
+    _configure_training_error_mode(monkeypatch, "skip_traversal", limit=2)
+    _configure_fake_training_loop(monkeypatch, agent)
+
+    with pytest.raises(RuntimeError, match="training_max_failed_traversals_per_iteration"):
+        train_mod.train_self_play_multi(
+            num_iterations=1,
+            traversals_per_iteration=2,
+            evaluate_every=0,
+            save_dir=tmp_path,
+            num_players=2,
+        )
+
+    assert agent.train_advantage_calls == 0
+
+
+def test_skip_traversal_limit_is_global_across_heads_up_players(monkeypatch, tmp_path):
+    agent = _fake_agent_with_traversal_outcomes(
+        [TraversalFailure(_traversal_failure_context()), TraversalFailure(_traversal_failure_context())]
+    )
+    _configure_training_error_mode(monkeypatch, "skip_traversal", limit=2)
+    _configure_fake_training_loop(monkeypatch, agent)
+
+    with pytest.raises(RuntimeError, match="training_max_failed_traversals_per_iteration"):
+        train_mod.train_self_play_multi(
+            num_iterations=1,
+            traversals_per_iteration=1,
+            evaluate_every=0,
+            save_dir=tmp_path,
+            num_players=2,
+            trainable_players=2,
+        )
+
+    assert agent.traversal_failures == 2
+    assert agent.train_advantage_calls == 0
+
+
+def test_strict_mode_propagates_first_traversal_failure_without_training(monkeypatch, tmp_path):
+    failure = TraversalFailure(_traversal_failure_context())
+    agent = _fake_agent_with_traversal_outcomes([failure])
+    _configure_training_error_mode(monkeypatch, "strict", limit=2)
+    _configure_fake_training_loop(monkeypatch, agent)
+
+    with pytest.raises(TraversalFailure) as caught:
+        train_mod.train_self_play_multi(
+            num_iterations=1,
+            traversals_per_iteration=1,
+            evaluate_every=0,
+            save_dir=tmp_path,
+            num_players=2,
+        )
+
+    assert caught.value is failure
+    assert agent.train_advantage_calls == 0
+
+
+def test_skip_traversal_propagates_unrelated_runtime_error(monkeypatch, tmp_path):
+    failure = RuntimeError("не относится к обходу")
+    agent = _fake_agent_with_traversal_outcomes([failure])
+    _configure_training_error_mode(monkeypatch, "skip_traversal", limit=2)
+    _configure_fake_training_loop(monkeypatch, agent)
+
+    with pytest.raises(RuntimeError, match="не относится к обходу"):
+        train_mod.train_self_play_multi(
+            num_iterations=1,
+            traversals_per_iteration=1,
+            evaluate_every=0,
+            save_dir=tmp_path,
+            num_players=2,
+        )
+
+    assert agent.train_advantage_calls == 0
+
+
+def test_traversal_failure_stats_track_reason_depth_and_success():
+    agent = DeepCFRAgent(player_id=0, num_players=2, device="cpu")
+
+    agent.record_traversal_attempt()
+    diagnostic = agent.record_traversal_failure(TraversalFailure(_traversal_failure_context()))
+    agent.record_traversal_attempt()
+    agent.record_traversal_success()
+
+    stats = agent.get_traversal_stats()
+    assert diagnostic == {
+        "iteration": 1,
+        "traversal_index": None,
+        "traversing_player": 0,
+        "acting_player": 0,
+        "reason": "Превышена допустимая глубина обхода",
+        "depth": 201,
+        "action_trace": (),
+    }
+    assert stats["attempted"] == 2
+    assert stats["successful"] == 1
+    assert stats["failed"] == 1
+    assert stats["failure_reasons"] == {"Превышена допустимая глубина обхода": 1}
+    assert stats["depth_limit_hits"] == 1
+
+
+def test_traversal_failure_diagnostic_retains_local_context_fields():
+    agent = DeepCFRAgent(player_id=0, num_players=2, device="cpu")
+    context = TraversalFailureContext(
+        iteration=7,
+        traversal_index=3,
+        traversing_player=0,
+        acting_player=1,
+        depth=4,
+        reason="Некорректная policy оппонента",
+        action_trace=("slot 1: call",),
+        details={
+            "action": "slot 1: call",
+            "status": "StateStatus.IllegalAction",
+            "mask": [1.0, 1.0, 0.0, 0.0, 0.0, 0.0],
+            "policy": [0.5, 0.5, 0.0, 0.0, 0.0, 0.0],
+        },
+    )
+
+    diagnostic = agent.record_traversal_failure(TraversalFailure(context))
+
+    assert diagnostic == {
+        "iteration": 7,
+        "traversal_index": 3,
+        "traversing_player": 0,
+        "acting_player": 1,
+        "depth": 4,
+        "reason": "Некорректная policy оппонента",
+        "action_trace": ("slot 1: call",),
+        "action": "slot 1: call",
+        "status": "StateStatus.IllegalAction",
+        "mask": [1.0, 1.0, 0.0, 0.0, 0.0, 0.0],
+        "policy": [0.5, 0.5, 0.0, 0.0, 0.0, 0.0],
+    }
+    assert agent.get_traversal_stats()["failure_diagnostics"] == [diagnostic]
 
 
 def test_iteration_summary_contains_all_requested_metrics():
@@ -59,6 +294,7 @@ def test_training_uses_configured_advantage_learning_rate_from_first_iteration(m
         train_advantage_network_multi=lambda: observed_learning_rates.append(agent.optimizer.param_groups[0]["lr"]) or 0.0,
         train_strategy_network=lambda: 0.0,
     )
+    _add_traversal_recorders(agent)
     monkeypatch.setattr(train_mod, "DeepCFRAgent", lambda **_kwargs: agent)
     monkeypatch.setattr(train_mod, "_new_hand", lambda *_args: None)
     monkeypatch.setattr(train_mod, "_log_multi_cfr_diagnostics", lambda *_args: {})
@@ -153,6 +389,7 @@ def test_training_can_traverse_all_heads_up_players(monkeypatch, tmp_path):
         train_advantage_network_multi=lambda: 0.0,
         train_strategy_network=lambda: 0.0,
     )
+    _add_traversal_recorders(agent)
     monkeypatch.setattr(train_mod, "DeepCFRAgent", lambda **_kwargs: agent)
     monkeypatch.setattr(train_mod, "_new_hand", lambda *_args: None)
     monkeypatch.setattr(train_mod, "_create_writer", lambda *_args, **_kwargs: None)
@@ -266,6 +503,7 @@ def test_training_resumes_from_full_checkpoint_before_next_iteration(monkeypatch
         set_opponent_strategy_states_by_player=lambda *_args, **_kwargs: None,
         strategy_net=SimpleNamespace(state_dict=lambda: {"weight": torch.tensor([1.0])}),
     )
+    _add_traversal_recorders(agent)
     monkeypatch.setattr(train_mod, "DeepCFRAgent", lambda **_kwargs: agent)
     monkeypatch.setattr(train_mod, "_configure_strategy_opponent_pool", lambda *_args, **_kwargs: [])
     monkeypatch.setattr(train_mod, "_new_hand", lambda *_args: None)
@@ -338,6 +576,7 @@ def test_resume_can_save_to_clean_dir_while_reading_opponents_from_source_dir(mo
             return {"iteration": 6000}
 
     agent = ResumeAgent()
+    _add_traversal_recorders(agent)
     monkeypatch.setattr(train_mod, "DeepCFRAgent", lambda **_kwargs: agent)
     monkeypatch.setattr(train_mod, "_create_writer", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(train_mod, "_new_hand", lambda *_args: None)
@@ -423,6 +662,7 @@ def test_training_resume_reuses_initial_checkpoint_strategy_state(monkeypatch, t
             return {"nodes": 0, "max_depth": 0}
 
     agent = ResumeAgent()
+    _add_traversal_recorders(agent)
 
     def tracked_load(path, *args, **kwargs):
         loaded_paths.append(Path(path))
@@ -545,6 +785,7 @@ def test_training_uses_current_strategy_without_per_traversal_progress(monkeypat
         train_advantage_network_multi=lambda: 0.0,
         train_strategy_network=lambda: 0.0,
     )
+    _add_traversal_recorders(agent)
     monkeypatch.setattr(train_mod, "DeepCFRAgent", lambda **_kwargs: agent)
     monkeypatch.setattr(train_mod, "_configure_strategy_opponent_pool", lambda *_args, **_kwargs: [])
     monkeypatch.setattr(train_mod, "_new_hand", lambda *_args: None)
@@ -602,6 +843,7 @@ def test_training_rotates_five_checkpoint_opponents_after_strategy_fades_out(mon
         train_advantage_network_multi=lambda: 0.0,
         train_strategy_network=lambda: 0.0,
     )
+    _add_traversal_recorders(agent)
     monkeypatch.setattr(train_mod, "DeepCFRAgent", lambda **_kwargs: agent)
     monkeypatch.setattr(train_mod, "_create_writer", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(train_mod, "_log_multi_cfr_diagnostics", lambda *_args, **_kwargs: {})
@@ -675,6 +917,7 @@ def test_training_stops_passing_random_agent_after_thousandth_checkpoint(monkeyp
         train_advantage_network_multi=lambda: 0.0,
         train_strategy_network=lambda: 0.0,
     )
+    _add_traversal_recorders(agent)
     monkeypatch.setattr(train_mod, "DeepCFRAgent", lambda **_kwargs: agent)
     checkpoint_path = tmp_path / "multi_checkpoint_iter_1000.pt"
     monkeypatch.setattr(train_mod, "_heavy_checkpoints", lambda *_args, **_kwargs: {1000: checkpoint_path})
@@ -747,7 +990,7 @@ def test_training_logs_nodes_and_max_depth_to_console(capsys):
     result = _log_multi_cfr_diagnostics(agent, None, 1, 0, 10)
 
     assert result == {"nodes": 1234, "max_depth": 17}
-    assert "Traversal: nodes=1234, max_depth=17" in capsys.readouterr().out
+    assert "Обходы: узлы=1234, макс_глубина=17" in capsys.readouterr().out
 
 
 def test_training_logs_loaded_opponent_checkpoints_to_console(capsys, tmp_path):
@@ -888,6 +1131,77 @@ def test_dcfr_plus_advantage_discount_uses_unit_denominator():
     loss = agent.train_advantage_network_multi(batch_size=1)
 
     assert loss == pytest.approx((0.5 ** 2) / NUM_ACTIONS)
+
+
+def test_advantage_training_stops_before_optimizer_step_on_nonfinite_loss(monkeypatch):
+    agent = DeepCFRAgent(player_id=0, num_players=2, device="cpu")
+    agent.advantage_train_steps = 1
+    agent.advantage_buffer.add(
+        np.zeros(agent.input_size, dtype=np.float32),
+        np.full(NUM_ACTIONS, np.nan, dtype=np.float32),
+        np.ones(NUM_ACTIONS, dtype=np.float32),
+        1,
+    )
+
+    monkeypatch.setattr(
+        agent.optimizer,
+        "step",
+        lambda: pytest.fail("optimizer.step не должен вызываться при NaN loss"),
+    )
+
+    with pytest.raises(FloatingPointError, match="сети преимуществ"):
+        agent.train_advantage_network_multi(batch_size=1)
+
+    assert all(parameter.grad is None for parameter in agent.advantage_net.parameters())
+
+
+def test_strategy_training_stops_before_optimizer_step_on_nonfinite_loss(monkeypatch):
+    agent = DeepCFRAgent(player_id=0, num_players=2, device="cpu")
+    agent.strategy_train_steps = 1
+    agent.strategy_buffer.add(
+        np.zeros(agent.input_size, dtype=np.float32),
+        np.full(NUM_ACTIONS, np.nan, dtype=np.float32),
+        np.ones(NUM_ACTIONS, dtype=np.float32),
+        1,
+    )
+
+    monkeypatch.setattr(
+        agent.strategy_optimizer,
+        "step",
+        lambda: pytest.fail("optimizer.step не должен вызываться при NaN loss"),
+    )
+
+    with pytest.raises(FloatingPointError, match="сети стратегии"):
+        agent.train_strategy_network(batch_size=1)
+
+    assert all(parameter.grad is None for parameter in agent.strategy_net.parameters())
+
+
+def test_advantage_training_stops_before_optimizer_step_on_nonfinite_gradient(monkeypatch):
+    agent = DeepCFRAgent(player_id=0, num_players=2, device="cpu")
+    agent.advantage_train_steps = 1
+    agent.advantage_buffer.add(
+        np.zeros(agent.input_size, dtype=np.float32),
+        np.zeros(NUM_ACTIONS, dtype=np.float32),
+        np.ones(NUM_ACTIONS, dtype=np.float32),
+        1,
+    )
+    hook = next(agent.advantage_net.parameters()).register_hook(
+        lambda gradient: torch.full_like(gradient, torch.nan)
+    )
+    monkeypatch.setattr(
+        agent.optimizer,
+        "step",
+        lambda: pytest.fail("optimizer.step не должен вызываться при NaN градиенте"),
+    )
+
+    try:
+        with pytest.raises(FloatingPointError, match="сети преимуществ"):
+            agent.train_advantage_network_multi(batch_size=1)
+    finally:
+        hook.remove()
+
+    assert all(parameter.grad is None for parameter in agent.advantage_net.parameters())
 
 
 def test_checkpoint_opponent_strategy_uses_strategy_net_not_advantage_net(monkeypatch):

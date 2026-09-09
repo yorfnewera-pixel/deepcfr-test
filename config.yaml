@@ -42,4 +42,10 @@ checkpoint_keep_every: 50000
 traversal_single_thread: true
 training_torch_threads: 12
 training_preload_to_device: true
+# Режим обработки ожидаемых ошибок при обходе дерева.
+training_error_mode: strict
+# Проверять инварианты игрового состояния во время обучения.
+training_validate_state_invariants: false
+# Допустимое число пропущенных обходов за итерацию.
+training_max_failed_traversals_per_iteration: 3
 process_priority: above_normal
