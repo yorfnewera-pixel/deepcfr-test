@@ -33,11 +33,15 @@
 - `State.action_history: list[ActionRecord]`
 - `State.action_history_complete: bool`
 - `State.from_mid_hand(..., action_history: list[ActionRecord] | None = None)`
+- `ActionRecord.paid_amount: float`
+- `ActionRecord.applied_raise_increment: float`
+- `ActionRecord.is_effective_raise: bool`
 
 - [ ] Добавить в `State` публичные для PyO3 поля `action_history: Vec<ActionRecord>` и `action_history_complete: bool`.
 - [ ] Инициализировать `from_seed` и `from_deck` пустой complete history; `from_mid_hand` получает optional `action_history` последним аргументом и устанавливает complete только при явно переданной полной history.
-- [ ] В `apply_action_internal` создать `ActionRecord` до перехода, но append выполнять лишь после проверки legal action и успешного применения; в записи сохранить actor, исходную street, action и legal actions до хода.
-- [ ] Добавить Rust/Python regression: legal `Raise` затем `Call` создают две записи с правильными actor и street; illegal action не меняет length history; clone сохраняет history; `from_mid_hand` без history создаёт incomplete state.
+- [ ] В `apply_action_internal` создать `ActionRecord` до перехода, но append выполнять лишь после проверки legal action и успешного применения. В записи сохранить actor, исходную street, requested `action`, legal actions до хода, `paid_amount`, `applied_raise_increment` и `is_effective_raise`. Для raise вычислить `applied_raise_increment = max(0, min(call_amount + requested_amount, available_stack) - call_amount)` в Rust; выставить `is_effective_raise` по тому же `CHIP_EPSILON=1e-9`, который движок использует для изменения `min_bet`. Для Call сохранить фактически оплаченный call, для Fold/Check — ноль и `False`.
+- [ ] Добавить Rust/Python regression: legal `Raise` затем `Call` создают две записи с правильными actor, street, фактическими amounts и флагом; raw raise больше стека сохраняет requested amount отдельно от меньшего `applied_raise_increment`; short all-in с положительным increment имеет `is_effective_raise=True`; raise, не превысивший текущую ставку, имеет `False`; illegal action не меняет length history; clone сохраняет history; `from_mid_hand` без history создаёт incomplete state.
+- [ ] Добавить regression на compact action: `ActionRecord.applied_raise_increment == ResolvedAction.additional_amount` для каждого legal raise slot. Это проверяет согласованность, но не переносит вычисление amount из Rust в Python.
 - [ ] Запустить `cargo test` в `pokers` и `pytest pokers/tests/test_game_logic.py -q`.
 
 ### Задача 2: Детеминированный summary и анти-aliasing regression-тесты
@@ -54,7 +58,7 @@
 - `encode_state(state, player_id=0) -> np.ndarray`
 
 - [ ] Вынести единую формулу базового input из `DeepCFRAgent`, `model.py` и `policy_runtime` в импортируемую константу/функцию. Для `n` игроков v2 base size равен `121 + 6 * n`, а v3 base size — `121 + 6 * n + 4 * (2 * n + 8)`; это 181 для HU и 237 для six-max.
-- [ ] Реализовать private helper, который валидирует `action_history_complete`, группирует `ActionRecord` по street и строит блоки в hero-relative системе координат: `last_actor_relative`, `last_action_kind`, `raise_actor_relative_mask`, `raise_count`, `raise_amount_total / norm_unit`.
+- [ ] Реализовать private helper, который валидирует `action_history_complete`, группирует `ActionRecord` по street и строит блоки в hero-relative системе координат: `last_actor_relative`, `last_action_kind`, `raise_actor_relative_mask`, `raise_count`, `raise_amount_total / norm_unit`. Учитывать raise в последних трёх полях только при `is_effective_raise`; Python не повторяет условие с `CHIP_EPSILON`.
 - [ ] Добавить unit-тест для пустой complete history, проверки размера для 2 и 6 игроков, а также hero-relative преобразования actor id.
 - [ ] Добавить regression для линии «preflop raise против flop raise»: оба состояния доходят до river с одинаковым v2 snapshot, но v3 vectors различаются.
 - [ ] Добавить regression для линии «turn aggressor P0 против P1»: same river snapshot и mask, но разные v3 vectors.

@@ -101,17 +101,19 @@ last_actor_relative:       one-hot(num_players + 1), включая None
 last_action_kind:          one-hot(5): Fold, Check, Call, Raise, None
 raise_actor_relative_mask: multi-hot(num_players)
 raise_count:               один нормированный scalar
-raise_amount_total:        сумма raise increments / norm_unit
+raise_amount_total:        сумма фактических raise increments / norm_unit
 ```
 
 В HU это `4 * (4 + 8) = 48` новых признаков: базовый input меняется с 133 на 181. В 6-max это `4 * (12 + 8) = 80`: базовый input меняется с 157 на 237, а multi-agent input — с 163 на 243.
+
+`raise_amount_total` суммирует только records с engine-флагом `is_effective_raise=True`. Для такого record `applied_raise_increment` равен `max(0, min(call_amount + requested_amount, available_stack) - call_amount)`, где `call_amount` и `available_stack` взяты до действия. Rust выставляет флаг по своему `CHIP_EPSILON=1e-9`; Python не дублирует этот порог. Short all-in учитывается по фактически внесённому increment; raise, не превысивший текущую ставку, имеет `is_effective_raise=False` и не попадает в `raise_count` или `raise_actor_relative_mask`. Для action, построенного `resolve_action`, `applied_raise_increment` обязан совпадать с `ResolvedAction.additional_amount`, но Python-объект не является источником истины.
 
 Summary различает оба доказанных класса: street-specific `raise_actor_relative_mask` сохраняет улицу и aggressor, а `last_actor_relative` сохраняет автора call/check после завершения улицы. Он не пытается маскироваться под полный information set: порядок нескольких одинаковых действий и все отдельные sizing остаются намеренно сжатыми.
 
 ## Границы API
 
 1. `pokers.State` получает `action_history: Vec<ActionRecord>` и `action_history_complete: bool`.
-2. `apply_action` добавляет только валидное действие с его исходной улицей и actor. Illegal action не попадает в history.
+2. `apply_action` добавляет только валидное действие с его исходной улицей, actor, `paid_amount`, `applied_raise_increment` и `is_effective_raise`. Illegal action не попадает в history; фактические amounts и флаг рассчитывает Rust-движок, а не Python.
 3. `from_seed` создаёт complete history. `from_mid_hand` принимает опциональную полную history; без неё создаёт incomplete state, а v3-inference обязан завершаться явной диагностикой, а не кодировать нули как «действий не было».
 4. Rollout и belief rebuild передают обе history-поля без изменений.
 5. В checkpoint добавляются `encoding_version="history_summary_v3"` и `encoder_input_size`; format version повышается с 5 до 6. V2 веса и replay buffers не загружаются в v3.
