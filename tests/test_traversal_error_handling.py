@@ -113,8 +113,10 @@ def test_apply_action_failure_is_not_silenced_when_strict_mode_is_disabled(monke
 def test_depth_limit_is_failure_not_zero_reward():
     agent, state = _agent_and_nonterminal_state(lambda _action: _TerminalState())
 
-    with pytest.raises(TraversalFailure, match="depth"):
+    with pytest.raises(TraversalFailure, match="depth") as error:
         agent.cfr_traverse_multi(state, iteration=1, traversing_player=0, depth=201)
+
+    assert error.value.context.acting_player == 0
 
 
 def test_real_terminal_zero_reward_is_returned():
@@ -141,6 +143,16 @@ def test_non_ok_state_status_raises_traversal_failure(monkeypatch):
 
     with pytest.raises(TraversalFailure, match="status"):
         agent.cfr_traverse_multi(state, iteration=1, traversing_player=0)
+
+
+def test_missing_state_status_after_apply_action_raises_traversal_failure(monkeypatch):
+    agent, state = _agent_and_nonterminal_state(lambda _action: None)
+    _configure_single_legal_action(monkeypatch, agent)
+
+    with pytest.raises(TraversalFailure, match="status") as error:
+        agent.cfr_traverse_multi(state, iteration=1, traversing_player=0)
+
+    assert isinstance(error.value.__cause__, AttributeError)
 
 
 def test_empty_legal_slots_on_nonterminal_state_raise_traversal_failure(monkeypatch):

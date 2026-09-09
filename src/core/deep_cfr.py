@@ -646,15 +646,27 @@ class DeepCFRAgent:
         acting_player,
         depth,
     ) -> None:
-        if next_state.status == pkrs.StateStatus.Ok:
+        try:
+            next_status = next_state.status
+        except (AttributeError, TypeError) as error:
+            self._raise_traversal_failure(
+                iteration,
+                traversing_player,
+                acting_player,
+                depth,
+                f"Не удалось получить status следующего состояния после действия {action_description}",
+                action_description,
+                error,
+            )
+        if next_status == pkrs.StateStatus.Ok:
             return
-        log_game_error(state, action, f"State status not OK ({next_state.status})")
+        log_game_error(state, action, f"State status not OK ({next_status})")
         self._raise_traversal_failure(
             iteration,
             traversing_player,
             acting_player,
             depth,
-            f"Недопустимый status состояния после действия {action_description}: {next_state.status}",
+            f"Недопустимый status состояния после действия {action_description}: {next_status}",
             action_description,
         )
 
@@ -662,20 +674,21 @@ class DeepCFRAgent:
         self.traversal_nodes += 1
         self.traversal_max_depth_observed = max(self.traversal_max_depth_observed, depth)
         self.depth_histogram[depth] = self.depth_histogram.get(depth, 0) + 1
+        is_terminal = bool(state.final_state)
+        current_player = None if is_terminal else int(state.current_player)
         if depth > 200:
             self.traversal_max_depth_hits += 1
             self._raise_traversal_failure(
                 iteration,
                 traversing_player,
-                None,
+                current_player,
                 depth,
                 f"Превышена допустимая глубина обхода: depth={depth}",
             )
-        if state.final_state:
+        if is_terminal:
             self.traversal_terminal_nodes += 1
             return float(state.players_state[traversing_player].reward)
 
-        current_player = int(state.current_player)
         external_policy = self._opponent_policy_agents.get(current_player)
         if external_policy is not None:
             try:
