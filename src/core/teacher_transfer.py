@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import hashlib
 from io import BytesIO
+import math
 from pathlib import Path
 import pickle
 from typing import Any
@@ -30,14 +31,29 @@ from src.training.train import (
 _HU_INPUT_SIZE = encoder_input_size(2, HISTORY_SUMMARY_V3_ENCODING_VERSION)
 _HU_STRATEGY_INPUT_SIZE = _HU_INPUT_SIZE + 2
 _CARD_ENCODER_PARAMETER_NAMES = ("0.weight", "0.bias")
-_STRATEGY_PARAMETER_NAMES = {
+_NETWORK_PARAMETER_NAMES = (
     "card_encoder.0.weight",
     "card_encoder.0.bias",
     "context_encoder.0.weight",
     "context_encoder.0.bias",
     "action_head.weight",
     "action_head.bias",
-}
+)
+_STRATEGY_PARAMETER_NAMES = frozenset(_NETWORK_PARAMETER_NAMES)
+_ADAMW_GROUP_KEYS = frozenset({
+    "lr",
+    "betas",
+    "eps",
+    "weight_decay",
+    "amsgrad",
+    "maximize",
+    "foreach",
+    "capturable",
+    "differentiable",
+    "fused",
+    "decoupled_weight_decay",
+    "params",
+})
 _TRAJECTORY_CONFIG_KEYS = frozenset({
     "advantage_accumulation",
     "discount_alpha",
@@ -222,16 +238,18 @@ def _validate_hu_full_training_state(
     if not isinstance(capacities, list) or len(capacities) != 2:
         raise ValueError("HU checkpoint имеет некорректную конфигурацию replay-буферов")
     for index, leg in enumerate(advantage_legs):
-        _validate_network_state(leg["network"], _HU_INPUT_SIZE, hidden_size, "advantage")
+        advantage_state = _validate_network_state(
+            leg["network"], _HU_INPUT_SIZE, hidden_size, "advantage"
+        )
         _validate_network_state(leg["target_network"], _HU_INPUT_SIZE, hidden_size, "advantage")
-        _validate_optimizer_state(leg["optimizer"])
+        _validate_optimizer_state(leg["optimizer"], advantage_state)
         _validate_advantage_buffer(leg["buffer"], capacities[index])
     strategy_state = _validate_network_state(
         strategy["network"], _HU_STRATEGY_INPUT_SIZE, hidden_size, "strategy"
     )
-    _validate_optimizer_state(strategy["optimizer"])
+    _validate_optimizer_state(strategy["optimizer"], strategy_state)
     _validate_strategy_buffer(strategy["buffer"], config["strategy_buffer_capacity"])
-    _validate_rng_state(checkpoint["rng"])
+    _validate_rng_state(checkpoint.get("rng"))
     return strategy_state
 
 
@@ -265,15 +283,94 @@ def _validate_network_state(
     return state
 
 
-def _validate_optimizer_state(payload: object) -> None:
+def _validate_optimizer_state(
+    payload: object,
+    network_state: dict[str, torch.Tensor],
+) -> None:
+    """Проверяет ровно сериализацию AdamW, созданного для параметров PokerNetwork."""
     if not isinstance(payload, dict) or set(payload) != {"state", "param_groups"}:
         raise ValueError("HU checkpoint содержит повреждённый optimizer")
     state = payload["state"]
     groups = payload["param_groups"]
-    if not isinstance(state, dict) or not state or not isinstance(groups, list) or not groups:
+    expected_parameter_ids = list(range(len(_NETWORK_PARAMETER_NAMES)))
+    if (
+        not isinstance(state, dict)
+        or not isinstance(groups, list)
+        or len(groups) != 1
+        or not _is_expected_adamw_group(groups[0], expected_parameter_ids)
+    ):
         raise ValueError("HU checkpoint содержит повреждённый optimizer")
-    if any(not isinstance(group, dict) or not isinstance(group.get("params"), list) or not group["params"] for group in groups):
-        raise ValueError("HU checkpoint содержит повреждённый optimizer")
+    parameter_shapes = tuple(
+        tuple(network_state[name].shape) for name in _NETWORK_PARAMETER_NAMES
+    )
+    for parameter_id, parameter_state in state.items():
+        if (
+            isinstance(parameter_id, bool)
+            or not isinstance(parameter_id, int)
+            or parameter_id not in expected_parameter_ids
+            or not _is_expected_adamw_parameter_state(
+                parameter_state, parameter_shapes[parameter_id]
+            )
+        ):
+            raise ValueError("HU checkpoint содержит повреждённый optimizer")
+
+
+def _is_expected_adamw_group(group: object, expected_parameter_ids: list[int]) -> bool:
+    """Отсекает группы, которые невозможно восстановить штатным AdamW HU runtime."""
+    if not isinstance(group, dict) or set(group) != _ADAMW_GROUP_KEYS:
+        return False
+    if group["params"] != expected_parameter_ids:
+        return False
+    if (
+        not _positive_float(group["lr"])
+        or not _positive_float(group["eps"])
+        or not _nonnegative_float(group["weight_decay"])
+        or not isinstance(group["betas"], tuple)
+        or len(group["betas"]) != 2
+        or any(not _nonnegative_float(beta) or beta >= 1.0 for beta in group["betas"])
+    ):
+        return False
+    if any(
+        not isinstance(group[name], bool)
+        for name in ("amsgrad", "maximize", "capturable", "differentiable", "decoupled_weight_decay")
+    ):
+        return False
+    return all(group[name] is None or isinstance(group[name], bool) for name in ("foreach", "fused"))
+
+
+def _is_expected_adamw_parameter_state(
+    parameter_state: object,
+    parameter_shape: tuple[int, ...],
+) -> bool:
+    """Проверяет формы и dtype AdamW moments относительно параметра сети."""
+    if not isinstance(parameter_state, dict) or set(parameter_state) != {
+        "step", "exp_avg", "exp_avg_sq"
+    }:
+        return False
+    return (
+        _is_cpu_float32_tensor(parameter_state["step"], ())
+        and _is_cpu_float32_tensor(parameter_state["exp_avg"], parameter_shape)
+        and _is_cpu_float32_tensor(parameter_state["exp_avg_sq"], parameter_shape)
+    )
+
+
+def _is_cpu_float32_tensor(value: object, shape: tuple[int, ...]) -> bool:
+    return (
+        torch.is_tensor(value)
+        and tuple(value.shape) == shape
+        and value.device.type == "cpu"
+        and value.layout == torch.strided
+        and value.dtype == torch.float32
+        and value.is_contiguous()
+    )
+
+
+def _positive_float(value: object) -> bool:
+    return isinstance(value, float) and math.isfinite(value) and value > 0.0
+
+
+def _nonnegative_float(value: object) -> bool:
+    return isinstance(value, float) and math.isfinite(value) and value >= 0.0
 
 
 def _validate_advantage_buffer(payload: object, capacity: object) -> None:
@@ -356,11 +453,14 @@ def _validate_rng_state(payload: object) -> None:
     if (
         not isinstance(python_state, tuple)
         or len(python_state) != 3
-        or isinstance(python_state[0], bool)
-        or not isinstance(python_state[0], int)
+        or python_state[0] != 3
         or not isinstance(python_state[1], tuple)
-        or not all(isinstance(value, int) and not isinstance(value, bool) for value in python_state[1])
-        or (python_state[2] is not None and not isinstance(python_state[2], float))
+        or len(python_state[1]) != 625
+        or not _is_python_mt19937_state(python_state[1])
+        or (
+            python_state[2] is not None
+            and (not isinstance(python_state[2], float) or not math.isfinite(python_state[2]))
+        )
     ):
         raise ValueError("HU checkpoint содержит повреждённое RNG состояние")
     numpy_state = payload["numpy"]
@@ -370,37 +470,63 @@ def _validate_rng_state(payload: object) -> None:
     state = numpy_state["state"]
     torch_cpu = payload["torch_cpu"]
     if (
-        not isinstance(numpy_state["algorithm"], str)
+        numpy_state["algorithm"] != "MT19937"
         or isinstance(numpy_state["position"], bool)
         or not isinstance(numpy_state["position"], int)
+        or not 0 <= numpy_state["position"] <= 624
         or isinstance(numpy_state["has_gauss"], bool)
-        or not isinstance(numpy_state["has_gauss"], int)
+        or numpy_state["has_gauss"] not in (0, 1)
         or not isinstance(numpy_state["cached_gaussian"], float)
-        or not torch.is_tensor(state)
-        or state.device.type != "cpu"
-        or state.layout != torch.strided
-        or state.dtype != torch.uint32
-        or not state.is_contiguous()
-        or not torch.is_tensor(torch_cpu)
-        or torch_cpu.device.type != "cpu"
-        or torch_cpu.layout != torch.strided
-        or torch_cpu.dtype != torch.uint8
-        or not torch_cpu.is_contiguous()
+        or not math.isfinite(numpy_state["cached_gaussian"])
+        or not _is_cpu_uint32_tensor(state, (624,))
+        or not _is_cpu_uint8_rng_tensor(torch_cpu)
     ):
         raise ValueError("HU checkpoint содержит повреждённое RNG состояние")
     cuda_state = payload.get("torch_cuda")
-    if cuda_state is not None and (
+    if "torch_cuda" in payload and (
         not isinstance(cuda_state, list)
-        or any(
-            not torch.is_tensor(value)
-            or value.device.type != "cpu"
-            or value.layout != torch.strided
-            or value.dtype != torch.uint8
-            or not value.is_contiguous()
-            for value in cuda_state
-        )
+        or not cuda_state
+        or any(not _is_cpu_uint8_rng_tensor(value) for value in cuda_state)
     ):
         raise ValueError("HU checkpoint содержит повреждённое RNG состояние")
+
+
+def _is_python_mt19937_state(state: tuple[object, ...]) -> bool:
+    """Проверяет формат random.getstate() CPython, который создаёт HU checkpoint."""
+    return (
+        all(
+            isinstance(value, int)
+            and not isinstance(value, bool)
+            and 0 <= value < 2**32
+            for value in state[:-1]
+        )
+        and isinstance(state[-1], int)
+        and not isinstance(state[-1], bool)
+        and 0 <= state[-1] <= 624
+    )
+
+
+def _is_cpu_uint32_tensor(value: object, shape: tuple[int, ...]) -> bool:
+    return (
+        torch.is_tensor(value)
+        and tuple(value.shape) == shape
+        and value.device.type == "cpu"
+        and value.layout == torch.strided
+        and value.dtype == torch.uint32
+        and value.is_contiguous()
+    )
+
+
+def _is_cpu_uint8_rng_tensor(value: object) -> bool:
+    return (
+        torch.is_tensor(value)
+        and value.ndim == 1
+        and value.numel() > 0
+        and value.device.type == "cpu"
+        and value.layout == torch.strided
+        and value.dtype == torch.uint8
+        and value.is_contiguous()
+    )
 
 
 def _validate_hu_architecture(checkpoint: dict[str, Any]) -> dict[str, Any]:

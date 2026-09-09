@@ -20,21 +20,22 @@ _HU_INPUT_SIZE = 181
 _HU_STRATEGY_INPUT_SIZE = 183
 
 
-def _network_with_optimizer(input_size: int):
+def _network_with_optimizer(input_size: int, *, step_optimizer: bool = True):
     network = PokerNetwork(input_size, hidden_size=8, architecture=CARD_CONTEXT_ARCHITECTURE)
     optimizer = torch.optim.AdamW(network.parameters(), lr=1e-3)
-    network(torch.ones((1, input_size))).sum().backward()
-    optimizer.step()
-    optimizer.zero_grad(set_to_none=True)
+    if step_optimizer:
+        network(torch.ones((1, input_size))).sum().backward()
+        optimizer.step()
+        optimizer.zero_grad(set_to_none=True)
     return network, optimizer
 
 
-def _real_hu_runtime():
+def _real_hu_runtime(*, step_optimizers: bool = True):
     """Строит компактный, но реальный HU runtime для штатного checkpoint builder."""
     advantage_nets, advantage_targets = [], []
     advantage_optimizers, advantage_buffers = [], []
     for player_id in (0, 1):
-        network, optimizer = _network_with_optimizer(_HU_INPUT_SIZE)
+        network, optimizer = _network_with_optimizer(_HU_INPUT_SIZE, step_optimizer=step_optimizers)
         target, _ = _network_with_optimizer(_HU_INPUT_SIZE)
         advantage_nets.append(network)
         advantage_targets.append(target)
@@ -48,7 +49,9 @@ def _real_hu_runtime():
         )
         advantage_buffers.append(buffer)
 
-    strategy_net, strategy_optimizer = _network_with_optimizer(_HU_STRATEGY_INPUT_SIZE)
+    strategy_net, strategy_optimizer = _network_with_optimizer(
+        _HU_STRATEGY_INPUT_SIZE, step_optimizer=step_optimizers
+    )
     strategy_buffer = HuStrategyBuffer(3, _HU_INPUT_SIZE)
     strategy_buffer.add(
         1,
@@ -95,9 +98,9 @@ def _real_hu_runtime():
     )
 
 
-def _hu_card_checkpoint(path: Path):
+def _hu_card_checkpoint(path: Path, *, step_optimizers: bool = True):
     """Сохраняет checkpoint, созданный штатным HU builder, без ручной подделки схемы."""
-    source = _real_hu_runtime()
+    source = _real_hu_runtime(step_optimizers=step_optimizers)
     with torch.no_grad():
         source.strategy_net.card_encoder[0].weight.fill_(17.0)
         source.strategy_net.card_encoder[0].bias.fill_(-3.0)
@@ -150,6 +153,17 @@ def test_transfer_copies_only_card_encoder_without_aliasing_or_head_mutation(tmp
     assert not torch.equal(student.strategy_net.card_encoder[0].weight, source_network.card_encoder[0].weight)
 
 
+def test_transfer_accepts_genuine_hu_checkpoint_with_empty_adamw_state(tmp_path):
+    """Ломается, если checkpoint границы итерации без AdamW update отвергается."""
+    checkpoint_path = tmp_path / "hu-empty-optimizer-state.pt"
+    source_network = _hu_card_checkpoint(checkpoint_path, step_optimizers=False)
+    student = _six_max_student()
+
+    student.load_card_encoder_from_hu_checkpoint(checkpoint_path)
+
+    assert torch.equal(student.strategy_net.card_encoder[0].weight, source_network.card_encoder[0].weight)
+
+
 @pytest.mark.parametrize(
     ("mutate", "message"),
     [
@@ -162,10 +176,27 @@ def test_transfer_copies_only_card_encoder_without_aliasing_or_head_mutation(tmp
         (lambda checkpoint: checkpoint["advantage_legs"][0]["network"].clear(), "advantage-сети"),
         (lambda checkpoint: checkpoint["advantage_legs"][1]["target_network"].clear(), "advantage-сети"),
         (lambda checkpoint: checkpoint["advantage_legs"][0]["optimizer"]["param_groups"].clear(), "optimizer"),
+        (
+            lambda checkpoint: checkpoint["strategy"]["optimizer"].__setitem__(
+                "state",
+                {
+                    99: {
+                        "step": torch.tensor(1.0),
+                        "exp_avg": torch.zeros(1),
+                        "exp_avg_sq": torch.zeros(1),
+                    }
+                },
+            ),
+            "optimizer",
+        ),
         (lambda checkpoint: checkpoint["advantage_legs"][0]["buffer"].pop("states"), "replay-буфер"),
         (lambda checkpoint: checkpoint["advantage_legs"][1]["buffer"].__setitem__("regrets", torch.empty(0)), "replay-буфер"),
         (lambda checkpoint: checkpoint["rng"]["numpy"].pop("state"), "RNG"),
         (lambda checkpoint: checkpoint["rng"].__setitem__("python", {}), "RNG"),
+        (lambda checkpoint: checkpoint["rng"].__setitem__("python", (3, (), None)), "RNG"),
+        (lambda checkpoint: checkpoint["rng"]["numpy"].__setitem__("state", torch.empty(0, dtype=torch.uint32)), "RNG"),
+        (lambda checkpoint: checkpoint["rng"].__setitem__("torch_cuda", None), "RNG"),
+        (lambda checkpoint: checkpoint.pop("rng"), "RNG"),
         (lambda checkpoint: checkpoint["mode"].__setitem__("encoder_input_size", 110), "режим"),
         (lambda checkpoint: checkpoint["architecture"]["strategy"].__setitem__("input_size", 112), "архитектуру"),
     ],
