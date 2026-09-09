@@ -69,6 +69,59 @@ def _координатор(sampler=None, train_advantage=None):
     )
 
 
+def _аргументы_координатора():
+    advantages = [_ОднослойнаяСеть([1, 0, 0, 0, 0, 0]), _ОднослойнаяСеть([0, 1, 0, 0, 0, 0])]
+    targets = [_ОднослойнаяСеть([0] * 6), _ОднослойнаяСеть([0] * 6)]
+    strategy_net = torch.nn.Linear(4, 6)
+    tree = _Дерево()
+    return {
+        "advantage_nets": advantages,
+        "advantage_target_nets": targets,
+        "advantage_optimizers": [torch.optim.SGD(network.parameters(), lr=0.1) for network in advantages],
+        "advantage_buffers": [AdvantageBuffer(8, 2), AdvantageBuffer(8, 2)],
+        "strategy_net": strategy_net,
+        "strategy_optimizer": torch.optim.SGD(strategy_net.parameters(), lr=0.1),
+        "strategy_buffer": HuStrategyBuffer(8, 2),
+        "adapter": HuTraversalAdapter(
+            current_player=tree.current_player,
+            is_terminal=tree.is_terminal,
+            legal_mask=tree.legal_mask,
+            encode=tree.encode,
+            apply=tree.apply,
+            terminal_value=tree.terminal_value,
+        ),
+    }
+
+
+@pytest.mark.parametrize(
+    "resource_name",
+    ["advantage_nets", "advantage_target_nets", "advantage_optimizers", "advantage_buffers"],
+)
+def test_hu_otklonyaet_obshchiy_resurs_mezhdu_p0_i_p1(resource_name):
+    arguments = _аргументы_координатора()
+    arguments[resource_name][1] = arguments[resource_name][0]
+
+    with pytest.raises(ValueError, match="независим"):
+        HuCurrentPolicySelfPlayCoordinator(**arguments)
+
+
+def test_hu_otklonyaet_optimizer_ne_svyazannyy_s_setyu_igroka():
+    arguments = _аргументы_координатора()
+    unrelated_network = _ОднослойнаяСеть([0] * 6)
+    arguments["advantage_optimizers"][1] = torch.optim.SGD(unrelated_network.parameters(), lr=0.1)
+
+    with pytest.raises(ValueError, match="optimizer P1"):
+        HuCurrentPolicySelfPlayCoordinator(**arguments)
+
+
+def test_hu_otklonyaet_target_kak_ssylku_na_advantage_set():
+    arguments = _аргументы_координатора()
+    arguments["advantage_target_nets"][1] = arguments["advantage_nets"][1]
+
+    with pytest.raises(ValueError, match="независим"):
+        HuCurrentPolicySelfPlayCoordinator(**arguments)
+
+
 def test_hu_traversals_marshrutiziruyut_regrety_i_strategy_mezhdu_igrokami():
     coordinator = _координатор()
     coordinator.begin_iteration()

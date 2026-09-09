@@ -99,6 +99,23 @@ def load_config(path=None):
             raise ValueError(
                 "hu_current_policy_self_play требует num_players == num_trainable_players == 2"
             )
+        if bool(_config["hu_current_policy_self_play"]):
+            forbidden_sources = [
+                key
+                for key, value in _raw_config.items()
+                if value is not None
+                and (
+                    key == "teacher_strategy_checkpoint"
+                    or "opponent_pool" in key.lower()
+                    or key.lower() in {"opponent_checkpoint_dir", "opponent_checkpoints"}
+                )
+            ]
+            if forbidden_sources:
+                raise ValueError(
+                    "hu_current_policy_self_play несовместим с teacher_strategy_checkpoint "
+                    "и внешним opponent pool: "
+                    + ", ".join(sorted(forbidden_sources))
+                )
         if _config["encoding_version"] not in (
             LEGACY_ENCODING_VERSION,
             HISTORY_SUMMARY_V3_ENCODING_VERSION,

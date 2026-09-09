@@ -151,3 +151,33 @@ def test_hu_current_policy_self_play_trebuet_rovno_dvuh_igrokov(tmp_path):
             config_mod.load_config(config_path)
     finally:
         config_mod.load_config("config.yaml")
+
+
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [
+        ("teacher_strategy_checkpoint", "teacher.pt"),
+        ("opponent_checkpoint_dir", "external_pool"),
+        ("external_opponent_pool", "external_pool"),
+    ],
+)
+def test_hu_current_policy_self_play_otklonyaet_vneshnie_policy_istochniki(tmp_path, key, value):
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(
+        "\n".join(
+            [
+                "num_actions: 6",
+                "hu_current_policy_self_play: true",
+                "num_players: 2",
+                "num_trainable_players: 2",
+                f"{key}: {value}",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    try:
+        with pytest.raises(ValueError, match="hu_current_policy_self_play"):
+            config_mod.load_config(config_path)
+    finally:
+        config_mod.load_config("config.yaml")

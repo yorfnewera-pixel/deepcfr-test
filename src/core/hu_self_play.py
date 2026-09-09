@@ -157,6 +157,15 @@ class HuCurrentPolicySelfPlayCoordinator(Generic[StateT]):
         ):
             if len(collection) != 2:
                 raise ValueError(f"HU требует ровно две коллекции {collection_name}")
+            if id(collection[0]) == id(collection[1]):
+                raise ValueError(f"HU P0/P1 требуют независимые {collection_name}")
+        all_networks = [*advantage_nets, *advantage_target_nets]
+        if len({id(network) for network in all_networks}) != len(all_networks):
+            raise ValueError("HU advantage-сети и target-сети должны быть независимыми")
+        for player_id, (network, optimizer) in enumerate(
+            zip(advantage_nets, advantage_optimizers, strict=True)
+        ):
+            self._validate_optimizer_ownership(player_id, network, optimizer)
         self.advantage_nets = tuple(advantage_nets)
         self.advantage_target_nets = tuple(advantage_target_nets)
         self.advantage_optimizers = tuple(advantage_optimizers)
@@ -184,6 +193,24 @@ class HuCurrentPolicySelfPlayCoordinator(Generic[StateT]):
         if base is not None and len(base) and hasattr(base[0], "in_features"):
             return int(base[0].in_features)
         return None
+
+    @staticmethod
+    def _validate_optimizer_ownership(
+        player_id: int,
+        network: nn.Module,
+        optimizer: Optimizer,
+    ) -> None:
+        """Не допускает, чтобы обновление P0/P1 меняло чужие параметры."""
+        network_parameter_ids = {id(parameter) for parameter in network.parameters()}
+        optimizer_parameter_ids = {
+            id(parameter)
+            for parameter_group in optimizer.param_groups
+            for parameter in parameter_group["params"]
+        }
+        if network_parameter_ids != optimizer_parameter_ids:
+            raise ValueError(
+                f"HU optimizer P{player_id} должен принадлежать только advantage-сети P{player_id}"
+            )
 
     @staticmethod
     def validate_runtime_configuration(
