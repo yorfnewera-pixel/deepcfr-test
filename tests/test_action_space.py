@@ -4,7 +4,8 @@ import torch
 
 from src.core.action_space import ActionSlot, NUM_ACTIONS, legal_action_mask, resolve_action
 from src.core.deep_cfr import DeepCFRAgent
-from policy_runtime.core import PolicyRuntimeAgent
+from src.core.model import CARD_CONTEXT_ARCHITECTURE, encode_state_for_version as encode_training_state
+from policy_runtime.core import PolicyRuntimeAgent, encode_state_for_version as encode_runtime_state
 
 
 def _state(stake=200.0):
@@ -64,3 +65,43 @@ def test_policy_runtime_loads_v2_light_checkpoint(tmp_path):
 
     assert loaded.iteration == 0
     assert loaded.validate() == ["OK: чекпоинт совместим"]
+
+
+def test_policy_runtime_loads_card_context_light_checkpoint(tmp_path):
+    checkpoint = tmp_path / "card_context.pt"
+    agent = DeepCFRAgent(
+        player_id=0,
+        num_players=2,
+        network_architecture=CARD_CONTEXT_ARCHITECTURE,
+    )
+    torch.save(agent.build_light_checkpoint(), checkpoint)
+
+    loaded = PolicyRuntimeAgent(str(checkpoint))
+    state = _state()
+    player_id = int(state.current_player)
+    training_encoded = torch.from_numpy(
+        encode_training_state(state, player_id, agent.encoding_version)
+    ).unsqueeze(0)
+    runtime_encoded = torch.from_numpy(
+        encode_runtime_state(state, player_id, loaded.encoding_version)
+    ).unsqueeze(0)
+
+    assert loaded.strategy_net.architecture == CARD_CONTEXT_ARCHITECTURE
+    torch.testing.assert_close(training_encoded, runtime_encoded)
+    with torch.inference_mode():
+        torch.testing.assert_close(
+            agent.strategy_net(training_encoded),
+            loaded.strategy_net(runtime_encoded),
+        )
+    assert loaded.choose_action(state, player_id=player_id, deterministic=True) in range(NUM_ACTIONS)
+
+
+def test_policy_runtime_loads_top_level_metadata_when_checkpoint_config_is_invalid(tmp_path):
+    checkpoint = tmp_path / "invalid_config.pt"
+    payload = DeepCFRAgent(player_id=0, num_players=2).build_light_checkpoint()
+    payload["config"] = None
+    torch.save(payload, checkpoint)
+
+    loaded = PolicyRuntimeAgent(str(checkpoint))
+
+    assert loaded.encoding_version == "history_summary_v3"

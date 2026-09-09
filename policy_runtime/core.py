@@ -18,6 +18,10 @@ CHECKPOINT_FORMAT_VERSION = 6
 INPUT_SIZE = 157
 NUM_ACTIONS = 6
 DEFAULT_HIDDEN = 256
+MONOLITHIC_ARCHITECTURE = "monolithic_v1"
+CARD_CONTEXT_ARCHITECTURE = "card_context_v1"
+NETWORK_ARCHITECTURES = (MONOLITHIC_ARCHITECTURE, CARD_CONTEXT_ARCHITECTURE)
+CARD_FEATURE_SIZE = 109
 @runtime_checkable
 class PlayerState(Protocol):
     hand: list
@@ -307,19 +311,38 @@ def encoder_input_size(num_players: int, encoding_version: str, use_multi_agent:
 
 class PokerNetwork(nn.Module):
     def __init__(self, input_size=INPUT_SIZE, hidden_size=DEFAULT_HIDDEN,
-                 num_actions=NUM_ACTIONS):
+                 num_actions=NUM_ACTIONS, architecture=MONOLITHIC_ARCHITECTURE):
         super().__init__()
-        self.num_actions = num_actions
+        if architecture not in NETWORK_ARCHITECTURES:
+            raise ValueError(f"Неизвестная архитектура сети: {architecture}")
+        if architecture == CARD_CONTEXT_ARCHITECTURE and int(input_size) < CARD_FEATURE_SIZE:
+            raise ValueError(
+                f"Архитектура {CARD_CONTEXT_ARCHITECTURE} требует не менее {CARD_FEATURE_SIZE} признаков"
+            )
 
-        self.base = nn.Sequential(
-            nn.Linear(input_size, hidden_size),
-            nn.ReLU(),
-            nn.Linear(hidden_size, hidden_size),
-            nn.ReLU(),
-            nn.Linear(hidden_size, hidden_size),
-            nn.ReLU()
-        )
-        self.action_head = nn.Linear(hidden_size, num_actions)
+        self.num_actions = num_actions
+        self.architecture = architecture
+        if architecture == MONOLITHIC_ARCHITECTURE:
+            self.base = nn.Sequential(
+                nn.Linear(input_size, hidden_size),
+                nn.ReLU(),
+                nn.Linear(hidden_size, hidden_size),
+                nn.ReLU(),
+                nn.Linear(hidden_size, hidden_size),
+                nn.ReLU()
+            )
+            action_input_size = hidden_size
+        else:
+            self.card_encoder = nn.Sequential(
+                nn.Linear(CARD_FEATURE_SIZE, hidden_size),
+                nn.ReLU(),
+            )
+            self.context_encoder = nn.Sequential(
+                nn.Linear(int(input_size) - CARD_FEATURE_SIZE, hidden_size),
+                nn.ReLU(),
+            )
+            action_input_size = hidden_size * 2
+        self.action_head = nn.Linear(action_input_size, num_actions)
         self._init_output_layers()
 
     def _init_output_layers(self):
@@ -327,7 +350,13 @@ class PokerNetwork(nn.Module):
         nn.init.zeros_(self.action_head.bias)
 
     def forward(self, x):
-        features = self.base(x)
+        if self.architecture == MONOLITHIC_ARCHITECTURE:
+            features = self.base(x)
+        else:
+            features = torch.cat((
+                self.card_encoder(x[..., :CARD_FEATURE_SIZE]),
+                self.context_encoder(x[..., CARD_FEATURE_SIZE:]),
+            ), dim=-1)
         return self.action_head(features)
 
 
@@ -376,19 +405,44 @@ class PolicyRuntimeAgent:
             raise ValueError("Checkpoint имеет другое пространство действий")
 
         strategy_sd = checkpoint['strategy_net']
-        first_weight_key = 'base.0.weight'
-        if first_weight_key not in strategy_sd:
-            raise ValueError(
-                f"Ожидался ключ '{first_weight_key}' в strategy_net. "
-                f"Несовместимая архитектура.")
-
-        self.hidden_size = strategy_sd['base.0.weight'].shape[0]
-        self.input_size = strategy_sd['base.0.weight'].shape[1]
+        if not isinstance(strategy_sd, dict):
+            raise ValueError("strategy_net имеет некорректный формат")
+        cfg = checkpoint.get('config', {})
+        if not isinstance(cfg, dict):
+            cfg = {}
+        if 'network_architecture' in checkpoint:
+            architecture = checkpoint['network_architecture']
+        elif 'network_architecture' in cfg:
+            architecture = cfg['network_architecture']
+        elif 'card_encoder.0.weight' in strategy_sd:
+            raise ValueError("Checkpoint card_context_v1 не содержит метаданные архитектуры")
+        else:
+            architecture = MONOLITHIC_ARCHITECTURE
+        if architecture not in NETWORK_ARCHITECTURES:
+            raise ValueError("Checkpoint имеет некорректную архитектуру сети")
+        if architecture == CARD_CONTEXT_ARCHITECTURE:
+            card_feature_size = checkpoint.get('card_feature_size', cfg.get('card_feature_size'))
+            if card_feature_size != CARD_FEATURE_SIZE:
+                raise ValueError("Checkpoint имеет несовместимый размер card-признаков")
+            card_weight = strategy_sd.get('card_encoder.0.weight')
+            context_weight = strategy_sd.get('context_encoder.0.weight')
+            if card_weight is None or context_weight is None:
+                raise ValueError("Checkpoint не содержит веса card_context_v1")
+            self.hidden_size = int(card_weight.shape[0])
+            self.input_size = int(card_weight.shape[1]) + int(context_weight.shape[1])
+        else:
+            first_weight_key = 'base.0.weight'
+            if first_weight_key not in strategy_sd:
+                raise ValueError(
+                    f"Ожидался ключ '{first_weight_key}' в strategy_net. "
+                    f"Несовместимая архитектура.")
+            self.hidden_size = strategy_sd[first_weight_key].shape[0]
+            self.input_size = strategy_sd[first_weight_key].shape[1]
         self.num_players = int(checkpoint.get('num_players', 6))
         self.use_multi_agent = bool(checkpoint.get('use_multi_agent_advantage',
-            checkpoint.get('config', {}).get('use_multi_agent_advantage', False)))
+            cfg.get('use_multi_agent_advantage', False)))
         self.encoding_version = checkpoint.get(
-            'encoding_version', checkpoint.get('config', {}).get('encoding_version'))
+            'encoding_version', cfg.get('encoding_version'))
         if not isinstance(self.encoding_version, str):
             raise ValueError("Checkpoint не содержит версию encoder")
         expected_input_size = encoder_input_size(
@@ -398,12 +452,11 @@ class PolicyRuntimeAgent:
 
         self.iteration = int(checkpoint.get('iteration', 0))
 
-        cfg = checkpoint.get('config', {})
-
         self.strategy_net = PokerNetwork(
             input_size=self.input_size,
             hidden_size=self.hidden_size,
             num_actions=NUM_ACTIONS,
+            architecture=architecture,
         ).to(self.device)
         self.strategy_net.load_state_dict(strategy_sd, strict=True)
         self.strategy_net.eval()

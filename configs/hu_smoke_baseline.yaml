@@ -4,6 +4,7 @@ num_players: 2
 num_trainable_players: 2
 hu_current_policy_self_play: true
 encoding_version: history_summary_v3
+network_architecture: card_context_v1
 
 hidden_size: 32
 advantage_batch_size: 8

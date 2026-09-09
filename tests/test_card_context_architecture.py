@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 import torch
 
@@ -9,6 +11,18 @@ from src.core.model import (
     PokerNetwork,
 )
 from src.utils import config as config_mod
+
+
+def test_hu_smoke_baseline_creates_card_context_agent():
+    smoke_config = Path(__file__).parents[1] / "configs" / "hu_smoke_baseline.yaml"
+
+    try:
+        config_mod.load_config(smoke_config)
+        agent = DeepCFRAgent(player_id=0, num_players=2, device="cpu")
+
+        assert agent.network_architecture == CARD_CONTEXT_ARCHITECTURE
+    finally:
+        config_mod.load_config("config.yaml")
 
 
 def test_card_encoder_ignores_context_features():

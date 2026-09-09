@@ -8,6 +8,7 @@ from pathlib import Path
 
 from src.core.action_space import ACTION_SPACE_VERSION, NUM_ACTIONS
 from src.core.deep_cfr import CHECKPOINT_FORMAT_VERSION, DeepCFRAgent
+from src.core.model import MONOLITHIC_ARCHITECTURE
 from src.core.traversal_errors import TraversalFailure, TraversalFailureContext
 from src.agents.random_agent import RandomAgent
 from src.training.train import (
@@ -22,6 +23,19 @@ from src.training.train import (
     _traversal_thread_limit,
 )
 from src.training import train as train_mod
+
+
+@pytest.fixture(autouse=True)
+def _disable_hu_current_policy_mode(monkeypatch):
+    """Сохраняет unit-тесты обычного training path независимыми от config.yaml."""
+    original_cfg_get = train_mod.cfg_get
+
+    def cfg_get_without_hu_mode(key, default=None):
+        if key == "hu_current_policy_self_play":
+            return False
+        return original_cfg_get(key, default)
+
+    monkeypatch.setattr(train_mod, "cfg_get", cfg_get_without_hu_mode)
 
 
 def _traversal_failure_context(reason="Превышена допустимая глубина обхода"):
@@ -476,12 +490,22 @@ def test_training_can_traverse_all_heads_up_players(monkeypatch, tmp_path):
 
 
 def test_strategy_training_adds_teacher_policy_distillation_loss():
-    agent = DeepCFRAgent(player_id=0, num_players=2, device="cpu")
+    agent = DeepCFRAgent(
+        player_id=0,
+        num_players=2,
+        device="cpu",
+        network_architecture=MONOLITHIC_ARCHITECTURE,
+    )
     agent.strategy_train_steps = 1
     agent.strategy_batch_size = 2
     agent.strategy_distillation_lambda = 0.5
     agent.strategy_distillation_temperature = 1.0
-    teacher = DeepCFRAgent(player_id=0, num_players=2, device="cpu")
+    teacher = DeepCFRAgent(
+        player_id=0,
+        num_players=2,
+        device="cpu",
+        network_architecture=MONOLITHIC_ARCHITECTURE,
+    )
     with torch.no_grad():
         teacher.strategy_net.action_head.bias.copy_(
             torch.tensor([4.0, -1.0, -1.0, -1.0, -1.0, -1.0])
@@ -506,7 +530,12 @@ def test_strategy_training_adds_teacher_policy_distillation_loss():
 
 
 def test_sixmax_strategy_training_can_distill_from_heads_up_teacher(tmp_path):
-    teacher = DeepCFRAgent(player_id=0, num_players=2, device="cpu")
+    teacher = DeepCFRAgent(
+        player_id=0,
+        num_players=2,
+        device="cpu",
+        network_architecture=MONOLITHIC_ARCHITECTURE,
+    )
     teacher.iteration_count = 10
     with torch.no_grad():
         teacher.strategy_net.action_head.bias.copy_(
@@ -1141,12 +1170,22 @@ def test_checkpoint_rejects_different_player_count_before_loading_weights(tmp_pa
 
 
 def test_teacher_checkpoint_rejects_wrong_declared_encoder_input_size(tmp_path):
-    teacher = DeepCFRAgent(player_id=0, num_players=2, device="cpu")
+    teacher = DeepCFRAgent(
+        player_id=0,
+        num_players=2,
+        device="cpu",
+        network_architecture=MONOLITHIC_ARCHITECTURE,
+    )
     payload = teacher.build_light_checkpoint()
     payload["encoder_input_size"] = 0
     checkpoint = tmp_path / "wrong_teacher_input.pt"
     torch.save(payload, checkpoint)
-    student = DeepCFRAgent(player_id=0, num_players=6, device="cpu")
+    student = DeepCFRAgent(
+        player_id=0,
+        num_players=6,
+        device="cpu",
+        network_architecture=MONOLITHIC_ARCHITECTURE,
+    )
 
     with pytest.raises(ValueError, match="размер входа encoder"):
         student.load_teacher_strategy_checkpoint(checkpoint)
