@@ -26,7 +26,12 @@ from src.core.hu_self_play import (
     HuStrategyBuffer,
     HuTraversalAdapter,
 )
-from src.core.model import CARD_CONTEXT_ARCHITECTURE, CARD_FEATURE_SIZE, PokerNetwork
+from src.core.model import (
+    CARD_CONTEXT_ARCHITECTURE,
+    CARD_FEATURE_SIZE,
+    MONOLITHIC_ARCHITECTURE,
+    PokerNetwork,
+)
 from src.core.traversal_errors import TraversalFailure
 from src.utils.config import (
     cfg_get,
@@ -393,6 +398,65 @@ def _network_architecture(network: PokerNetwork) -> dict[str, int | str]:
     }
 
 
+def _normalize_hu_network_architecture(
+    schema: object,
+    expected_schema: dict[str, int | str],
+) -> dict[str, int | str]:
+    if not isinstance(schema, dict):
+        raise ValueError("HU checkpoint имеет некорректное описание сети")
+    normalized = dict(schema)
+    expected_architecture = expected_schema["network_architecture"]
+    checkpoint_architecture = normalized.get("network_architecture")
+    if checkpoint_architecture is None:
+        if expected_architecture != MONOLITHIC_ARCHITECTURE:
+            raise ValueError(
+                "HU checkpoint не содержит метаданные архитектуры и несовместим с card_context_v1"
+            )
+        checkpoint_architecture = MONOLITHIC_ARCHITECTURE
+        normalized["network_architecture"] = checkpoint_architecture
+    if checkpoint_architecture != expected_architecture:
+        raise ValueError("HU checkpoint имеет несовместимую архитектуру сети")
+    if checkpoint_architecture == CARD_CONTEXT_ARCHITECTURE:
+        if normalized.get("card_feature_size") != CARD_FEATURE_SIZE:
+            raise ValueError("HU checkpoint имеет несовместимый размер card-признаков")
+    return normalized
+
+
+def _normalize_hu_architecture(
+    architecture: object,
+    expected_architecture: dict[str, object],
+) -> dict[str, object]:
+    if not isinstance(architecture, dict):
+        raise ValueError("HU checkpoint не содержит описание архитектуры")
+    advantage = architecture.get("advantage")
+    advantage_target = architecture.get("advantage_target")
+    strategy = architecture.get("strategy")
+    expected_advantage = expected_architecture["advantage"]
+    expected_advantage_target = expected_architecture["advantage_target"]
+    expected_strategy = expected_architecture["strategy"]
+    if (
+        not isinstance(advantage, list)
+        or not isinstance(advantage_target, list)
+        or not isinstance(expected_advantage, list)
+        or not isinstance(expected_advantage_target, list)
+        or len(advantage) != len(expected_advantage)
+        or len(advantage_target) != len(expected_advantage_target)
+        or not isinstance(expected_strategy, dict)
+    ):
+        raise ValueError("HU checkpoint имеет несовместимую архитектуру")
+    return {
+        "advantage": [
+            _normalize_hu_network_architecture(schema, expected)
+            for schema, expected in zip(advantage, expected_advantage, strict=True)
+        ],
+        "advantage_target": [
+            _normalize_hu_network_architecture(schema, expected)
+            for schema, expected in zip(advantage_target, expected_advantage_target, strict=True)
+        ],
+        "strategy": _normalize_hu_network_architecture(strategy, expected_strategy),
+    }
+
+
 def _capture_rng_state() -> dict[str, Any]:
     """Сохраняет все генераторы, влияющие на HU traversal и reservoir."""
     numpy_algorithm, numpy_state, numpy_position, numpy_has_gauss, numpy_cached_gaussian = np.random.get_state()
@@ -688,14 +752,15 @@ def _validate_hu_checkpoint(agent: DeepCFRAgent, checkpoint: object) -> dict[str
     strategy = checkpoint.get("strategy")
     if not isinstance(advantage_legs, list) or len(advantage_legs) != 2 or not isinstance(strategy, dict):
         raise ValueError("HU checkpoint не содержит полный набор training state")
-    architecture = checkpoint.get("architecture")
-    if not isinstance(architecture, dict):
-        raise ValueError("HU checkpoint не содержит описание архитектуры")
     expected_architecture = {
         "advantage": [_network_architecture(network) for network in agent.hu_advantage_nets],
         "advantage_target": [_network_architecture(network) for network in agent.hu_advantage_target_nets],
         "strategy": _network_architecture(agent.strategy_net),
     }
+    architecture = _normalize_hu_architecture(
+        checkpoint.get("architecture"),
+        expected_architecture,
+    )
     if architecture != expected_architecture:
         raise ValueError("HU checkpoint имеет несовместимую архитектуру")
     for leg in advantage_legs:
