@@ -50,6 +50,9 @@ _DEFAULTS = {
     "strategy_distillation_temperature": 1.0,
     "strategy_distillation_anneal_iterations": 0,
     "process_priority": "normal",
+    "training_error_mode": "strict",
+    "training_validate_state_invariants": False,
+    "training_max_failed_traversals_per_iteration": 3,
 }
 
 _config = None
@@ -83,6 +86,15 @@ def load_config(path=None):
         _config = _deep_merge(_DEFAULTS, loaded)
         if int(_config["num_actions"]) != NUM_ACTIONS:
             raise ValueError(f"num_actions должен быть равен {NUM_ACTIONS}")
+        if _config["training_error_mode"] not in {"strict", "skip_traversal"}:
+            raise ValueError("training_error_mode должен быть strict или skip_traversal")
+        max_failed_traversals = _config["training_max_failed_traversals_per_iteration"]
+        if (
+            isinstance(max_failed_traversals, bool)
+            or not isinstance(max_failed_traversals, int)
+            or max_failed_traversals < 0
+        ):
+            raise ValueError("training_max_failed_traversals_per_iteration должен быть целым числом >= 0")
         print(f"[Config] Загружен: {path}")
     else:
         _raw_config = {}
@@ -123,3 +135,15 @@ def cfg_clear_strategy_buffer_each_iteration():
     if cfg_has_raw("strategy_buffer_reservoir"):
         return not bool(cfg_get("strategy_buffer_reservoir"))
     return bool(cfg_get("clear_strategy_buffer_each_iteration"))
+
+
+def cfg_training_error_mode() -> str:
+    return str(cfg_get("training_error_mode"))
+
+
+def cfg_training_validate_state_invariants() -> bool:
+    return bool(cfg_get("training_validate_state_invariants"))
+
+
+def cfg_training_max_failed_traversals_per_iteration() -> int:
+    return int(cfg_get("training_max_failed_traversals_per_iteration"))
