@@ -402,6 +402,12 @@ class DeepCFRAgent:
         )
         return checkpoint
 
+    def load_card_encoder_from_hu_checkpoint(self, path, freeze=False):
+        """Переносит card_encoder HU teacher в six-max strategy-сеть."""
+        from src.core.teacher_transfer import transfer_card_encoder_from_hu_checkpoint
+
+        return transfer_card_encoder_from_hu_checkpoint(self, path, freeze=freeze)
+
     def _effective_strategy_distillation_lambda(self, iteration_now):
         base = max(float(self.strategy_distillation_lambda), 0.0)
         anneal_iterations = int(self.strategy_distillation_anneal_iterations)
