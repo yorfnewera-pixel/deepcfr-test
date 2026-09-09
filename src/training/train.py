@@ -406,14 +406,17 @@ def _normalize_hu_network_architecture(
         raise ValueError("HU checkpoint имеет некорректное описание сети")
     normalized = dict(schema)
     expected_architecture = expected_schema["network_architecture"]
-    checkpoint_architecture = normalized.get("network_architecture")
-    if checkpoint_architecture is None:
+    if "network_architecture" not in normalized:
         if expected_architecture != MONOLITHIC_ARCHITECTURE:
             raise ValueError(
                 "HU checkpoint не содержит метаданные архитектуры и несовместим с card_context_v1"
             )
         checkpoint_architecture = MONOLITHIC_ARCHITECTURE
         normalized["network_architecture"] = checkpoint_architecture
+    else:
+        checkpoint_architecture = normalized["network_architecture"]
+        if not isinstance(checkpoint_architecture, str):
+            raise ValueError("HU checkpoint имеет некорректное значение архитектуры сети")
     if checkpoint_architecture != expected_architecture:
         raise ValueError("HU checkpoint имеет несовместимую архитектуру сети")
     if checkpoint_architecture == CARD_CONTEXT_ARCHITECTURE:

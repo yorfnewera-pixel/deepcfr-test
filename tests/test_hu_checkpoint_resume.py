@@ -148,6 +148,16 @@ def test_hu_resume_accepts_legacy_monolithic_architecture_without_metadata(tmp_p
     assert train_mod._load_hu_checkpoint(restored, path)["iteration"] == 7
 
 
+def test_hu_resume_rejects_explicit_null_monolithic_architecture_metadata(tmp_path):
+    checkpoint = train_mod._build_hu_checkpoint(_hu_runtime())
+    checkpoint["architecture"]["strategy"]["network_architecture"] = None
+    path = tmp_path / "null-monolithic-hu.pt"
+    torch.save(checkpoint, path)
+
+    with pytest.raises(ValueError, match="некорректное значение архитектуры"):
+        train_mod._load_hu_checkpoint(_hu_runtime(iteration=0), path)
+
+
 def test_hu_card_context_checkpoint_round_trip(tmp_path):
     source = _hu_runtime(network_architecture=CARD_CONTEXT_ARCHITECTURE)
     checkpoint = train_mod._build_hu_checkpoint(source)
