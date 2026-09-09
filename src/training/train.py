@@ -779,7 +779,7 @@ def _train_hu_current_policy_self_play(
             f"итераций={num_iterations}, обходов/итерацию={traversals_per_iteration}, device={agent.device}"
         )
         print(
-            "Порядок фаз HU: обе traversal на frozen snapshots -> "
+            "Порядок фаз HU: обе фазы обходов P0/P1 на frozen snapshots -> "
             "обучение advantage P0/P1 -> обучение shared strategy."
         )
         for iteration in range(start_iteration, start_iteration + int(num_iterations)):

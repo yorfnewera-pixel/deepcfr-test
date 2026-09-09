@@ -326,6 +326,9 @@ class HuCurrentPolicySelfPlayCoordinator(Generic[StateT]):
         depth: int,
         action_trace: tuple[str, ...],
     ) -> float:
+        self._active_actor_id = None
+        self._active_depth = int(depth)
+        self._active_action_trace = action_trace
         if self.adapter.is_terminal(state):
             return float(self.adapter.terminal_value(state, traverser))
         actor_id = int(self.adapter.current_player(state))
@@ -346,12 +349,16 @@ class HuCurrentPolicySelfPlayCoordinator(Generic[StateT]):
         if actor_id == traverser:
             action_values = np.zeros(NUM_ACTIONS, dtype=np.float32)
             for slot in legal_slots:
+                next_trace = (*action_trace, f"P{actor_id}:slot {slot}")
+                self._active_actor_id = actor_id
+                self._active_depth = int(depth)
+                self._active_action_trace = next_trace
                 action_values[slot] = self._traverse(
                     self.adapter.apply(state, int(slot)),
                     traverser,
                     iteration,
                     depth=depth + 1,
-                    action_trace=(*action_trace, f"P{actor_id}:slot {slot}"),
+                    action_trace=next_trace,
                 )
             expected_value = float(np.dot(policy, action_values))
             regrets = (action_values - expected_value) * mask
@@ -363,12 +370,16 @@ class HuCurrentPolicySelfPlayCoordinator(Generic[StateT]):
         slot = int(self.sampler(legal_slots, policy))
         if slot not in legal_slots:
             raise ValueError("HU sampler выбрал недопустимое действие")
+        next_trace = (*action_trace, f"P{actor_id}:slot {slot}")
+        self._active_actor_id = actor_id
+        self._active_depth = int(depth)
+        self._active_action_trace = next_trace
         return self._traverse(
             self.adapter.apply(state, slot),
             traverser,
             iteration,
             depth=depth + 1,
-            action_trace=(*action_trace, f"P{actor_id}:slot {slot}"),
+            action_trace=next_trace,
         )
 
     def run_iteration(
@@ -400,6 +411,9 @@ class HuCurrentPolicySelfPlayCoordinator(Generic[StateT]):
                         )
                         if on_traversal_attempt is not None:
                             on_traversal_attempt()
+                        self._active_actor_id = None
+                        self._active_depth = 0
+                        self._active_action_trace = ()
                         try:
                             self.traverse(
                                 new_initial_state(traverser, traversal_index),

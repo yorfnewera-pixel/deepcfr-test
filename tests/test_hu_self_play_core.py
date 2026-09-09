@@ -312,3 +312,28 @@ def test_hu_udalyaet_samples_upavshego_traversal_no_prodolzhaet_iteratsiyu():
     assert len(coordinator.advantage_buffers[0]) == 0
     assert len(coordinator.advantage_buffers[1]) == 1
     assert coordinator.strategy_buffer.actor_ids().tolist() == [0]
+
+
+def test_hu_ne_ispolzuet_staryy_context_pri_oshibke_sozdaniya_kornya():
+    coordinator = _координатор(sampler=lambda _slots, _policy: 99)
+    with pytest.raises(TraversalFailure):
+        coordinator.run_iteration(
+            iteration=6,
+            traversals_per_player=1,
+            new_initial_state=lambda _player, _index: (0, 0),
+        )
+
+    def broken_initial_state(_player, _index):
+        raise ValueError("не удалось создать root state")
+
+    with pytest.raises(TraversalFailure) as caught:
+        coordinator.run_iteration(
+            iteration=7,
+            traversals_per_player=1,
+            new_initial_state=broken_initial_state,
+        )
+
+    assert caught.value.context.traversing_player == 0
+    assert caught.value.context.acting_player is None
+    assert caught.value.context.depth == 0
+    assert caught.value.context.action_trace == ()
