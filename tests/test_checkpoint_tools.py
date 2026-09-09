@@ -2,6 +2,7 @@ import numpy as np
 import torch
 
 from src.core.deep_cfr import DeepCFRAgent
+from src.core.model import CARD_CONTEXT_ARCHITECTURE
 from tools import checkpoint_tools
 
 
@@ -96,3 +97,23 @@ def test_full_probe_of_identical_checkpoints_has_zero_network_differences(tmp_pa
     assert all(item["difference"] == 0.0 for item in result["advantages"].values())
     assert result["buffers"]["advantage"]["present"] is True
     assert result["buffers"]["advantage"]["baseline"]["count"] == 0
+
+
+def test_full_probe_loads_card_context_checkpoint(tmp_path):
+    checkpoint = tmp_path / "card-context-full.pt"
+    agent = DeepCFRAgent(
+        player_id=0,
+        num_players=6,
+        network_architecture=CARD_CONTEXT_ARCHITECTURE,
+    )
+    torch.save(agent._build_checkpoint(), checkpoint)
+
+    result = checkpoint_tools.probe_full_checkpoints(
+        checkpoint,
+        checkpoint,
+        games=200,
+        seed=7,
+    )
+
+    assert result["samples"] > 0
+    assert result["strategy"]["mean_l1_distance"] == 0.0

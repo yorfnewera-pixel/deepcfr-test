@@ -16,7 +16,13 @@ from policy_runtime.core import PolicyRuntimeAgent
 from src.agents.random_agent import RandomAgent
 from src.core.action_space import ACTION_LABELS, ACTION_SPACE_VERSION, NUM_ACTIONS
 from src.core.deep_cfr import CHECKPOINT_FORMAT_VERSION, DeepCFRAgent
-from src.core.model import encoder_input_size
+from src.core.model import (
+    CARD_CONTEXT_ARCHITECTURE,
+    CARD_FEATURE_SIZE,
+    MONOLITHIC_ARCHITECTURE,
+    NETWORK_ARCHITECTURES,
+    encoder_input_size,
+)
 from src.evaluation import FrozenBlueprintPolicy, evaluate_paired
 
 
@@ -324,13 +330,43 @@ def probe_flop_probabilities(
     }
 
 
+def _checkpoint_network_architecture(payload: dict) -> str:
+    checkpoint_config = payload.get("config", {})
+    if not isinstance(checkpoint_config, dict):
+        checkpoint_config = {}
+    if "network_architecture" in payload:
+        architecture = payload["network_architecture"]
+    elif "network_architecture" in checkpoint_config:
+        architecture = checkpoint_config["network_architecture"]
+    else:
+        return MONOLITHIC_ARCHITECTURE
+    if not isinstance(architecture, str):
+        raise ValueError("Full checkpoint имеет некорректное значение архитектуры сети")
+    if architecture not in NETWORK_ARCHITECTURES:
+        raise ValueError("Full checkpoint имеет неизвестную архитектуру сети")
+    if architecture == CARD_CONTEXT_ARCHITECTURE:
+        if "card_feature_size" in payload:
+            card_feature_size = payload["card_feature_size"]
+        else:
+            card_feature_size = checkpoint_config.get("card_feature_size")
+        if card_feature_size != CARD_FEATURE_SIZE:
+            raise ValueError("Full checkpoint имеет несовместимый размер card-признаков")
+    return architecture
+
+
 def _load_full_checkpoint_agent(path: str | Path) -> tuple[DeepCFRAgent, dict]:
     payload = torch.load(path, map_location="cpu", weights_only=False)
     required = ("advantage_net", "advantage_target_net", "strategy_net")
     missing = [key for key in required if key not in payload]
     if missing:
         raise ValueError(f"Для full-probe нужны полные checkpoint-веса: отсутствуют {missing}")
-    agent = DeepCFRAgent(player_id=0, num_players=int(payload.get("num_players", 6)), device="cpu")
+    architecture = _checkpoint_network_architecture(payload)
+    agent = DeepCFRAgent(
+        player_id=0,
+        num_players=int(payload.get("num_players", 6)),
+        device="cpu",
+        network_architecture=architecture,
+    )
     agent.load_model(str(path))
     agent.advantage_net.eval()
     agent.strategy_net.eval()

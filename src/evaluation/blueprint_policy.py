@@ -94,17 +94,19 @@ class FrozenBlueprintPolicy:
         checkpoint_config = checkpoint.get("config", {})
         if not isinstance(checkpoint_config, dict):
             checkpoint_config = {}
-        architecture = checkpoint.get(
-            "network_architecture",
-            checkpoint_config.get("network_architecture"),
-        )
-        if architecture is None:
+        if "network_architecture" in checkpoint:
+            architecture = checkpoint["network_architecture"]
+        elif "network_architecture" in checkpoint_config:
+            architecture = checkpoint_config["network_architecture"]
+        else:
             state_dict = checkpoint.get("strategy_net")
             if isinstance(state_dict, dict) and "card_encoder.0.weight" in state_dict:
                 raise ValueError(
                     "Чекпоинт с card_context_v1 не содержит метаданные архитектуры"
                 )
             return MONOLITHIC_ARCHITECTURE
+        if not isinstance(architecture, str):
+            raise ValueError("Чекпоинт имеет некорректное значение архитектуры сети")
         if architecture not in NETWORK_ARCHITECTURES:
             raise ValueError("Чекпоинт имеет неизвестную архитектуру сети")
         if architecture == CARD_CONTEXT_ARCHITECTURE:

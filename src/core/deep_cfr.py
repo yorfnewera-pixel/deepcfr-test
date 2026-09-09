@@ -201,16 +201,18 @@ class DeepCFRAgent:
         checkpoint_config = checkpoint.get("config", {})
         if not isinstance(checkpoint_config, dict):
             checkpoint_config = {}
-        checkpoint_architecture = checkpoint.get(
-            "network_architecture",
-            checkpoint_config.get("network_architecture"),
-        )
-        if checkpoint_architecture is None:
+        if "network_architecture" in checkpoint:
+            checkpoint_architecture = checkpoint["network_architecture"]
+        elif "network_architecture" in checkpoint_config:
+            checkpoint_architecture = checkpoint_config["network_architecture"]
+        else:
             if self.network_architecture != MONOLITHIC_ARCHITECTURE:
                 raise ValueError(
                     "Чекпоинт не содержит метаданные архитектуры и несовместим с card_context_v1"
                 )
             return
+        if not isinstance(checkpoint_architecture, str):
+            raise ValueError("Чекпоинт имеет некорректное значение архитектуры сети")
         if checkpoint_architecture != self.network_architecture:
             raise ValueError("Чекпоинт имеет несовместимую архитектуру сети")
         if checkpoint_architecture == CARD_CONTEXT_ARCHITECTURE:

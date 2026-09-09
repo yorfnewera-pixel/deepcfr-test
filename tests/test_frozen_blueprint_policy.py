@@ -125,3 +125,13 @@ def test_frozen_policy_rejects_wrong_card_feature_metadata(tmp_path):
 
     with pytest.raises(ValueError, match="размер card-признаков"):
         FrozenBlueprintPolicy.from_checkpoint(checkpoint, num_players=2)
+
+
+def test_frozen_policy_rejects_explicit_null_architecture_metadata(tmp_path):
+    checkpoint = tmp_path / "null-architecture.pt"
+    payload = DeepCFRAgent(player_id=0, num_players=2).build_light_checkpoint()
+    payload["network_architecture"] = None
+    torch.save(payload, checkpoint)
+
+    with pytest.raises(ValueError, match="некорректное значение архитектуры"):
+        FrozenBlueprintPolicy.from_checkpoint(checkpoint, num_players=2)

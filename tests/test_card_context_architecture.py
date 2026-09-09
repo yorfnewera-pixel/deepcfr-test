@@ -136,6 +136,26 @@ def test_sixmax_rejects_card_context_heads_up_teacher_before_legacy_projection(t
         student.load_teacher_strategy_checkpoint(checkpoint_path)
 
 
+def test_monolithic_agent_rejects_explicit_null_architecture_metadata(tmp_path):
+    checkpoint_path = tmp_path / "null-architecture.pt"
+    source = DeepCFRAgent(
+        player_id=0,
+        num_players=2,
+        network_architecture=MONOLITHIC_ARCHITECTURE,
+    )
+    payload = source._build_checkpoint()
+    payload["network_architecture"] = None
+    torch.save(payload, checkpoint_path)
+    target = DeepCFRAgent(
+        player_id=0,
+        num_players=2,
+        network_architecture=MONOLITHIC_ARCHITECTURE,
+    )
+
+    with pytest.raises(ValueError, match="некорректное значение архитектуры"):
+        target.load_model(str(checkpoint_path))
+
+
 def test_config_rejects_unsupported_network_architecture(tmp_path):
     config_path = tmp_path / "config.yaml"
     config_path.write_text(
