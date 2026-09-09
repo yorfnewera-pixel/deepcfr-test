@@ -54,6 +54,12 @@ _DEFAULTS = {
     "training_preload_to_device": False,
     "num_trainable_players": 1,
     "teacher_strategy_checkpoint": None,
+    "teacher_transfer_enabled": False,
+    "teacher_transfer_mode": "card_encoder_warmstart",
+    "teacher_transfer_checkpoint": None,
+    "teacher_transfer_freeze_card_encoder": False,
+    "teacher_transfer_auxiliary_enabled": False,
+    "teacher_transfer_auxiliary_weight": 0.0,
     "strategy_distillation_lambda": 0.0,
     "strategy_distillation_temperature": 1.0,
     "strategy_distillation_anneal_iterations": 0,
@@ -117,6 +123,31 @@ def load_config(path=None):
                     "hu_current_policy_self_play несовместим с teacher_strategy_checkpoint "
                     "и внешним opponent pool: "
                     + ", ".join(sorted(forbidden_sources))
+                )
+        if _config["teacher_transfer_mode"] != "card_encoder_warmstart":
+            raise ValueError(
+                "teacher_transfer_mode поддерживает только card_encoder_warmstart"
+            )
+        if bool(_config["teacher_transfer_auxiliary_enabled"]) or float(
+            _config["teacher_transfer_auxiliary_weight"]
+        ) != 0.0:
+            raise ValueError("Stage B auxiliary transfer пока не реализован")
+        if bool(_config["teacher_transfer_enabled"]):
+            if not isinstance(_config["teacher_transfer_checkpoint"], str) or not _config[
+                "teacher_transfer_checkpoint"
+            ].strip():
+                raise ValueError(
+                    "teacher_transfer_checkpoint обязателен при teacher_transfer_enabled"
+                )
+            if bool(_config["hu_current_policy_self_play"]):
+                raise ValueError(
+                    "teacher_transfer_enabled несовместим с hu_current_policy_self_play"
+                )
+            if int(_config["num_players"]) != 6:
+                raise ValueError("teacher_transfer_enabled поддержан только для six-max")
+            if _config["teacher_strategy_checkpoint"]:
+                raise ValueError(
+                    "teacher_transfer_enabled несовместим с teacher_strategy_checkpoint"
                 )
         if _config["encoding_version"] not in (
             LEGACY_ENCODING_VERSION,

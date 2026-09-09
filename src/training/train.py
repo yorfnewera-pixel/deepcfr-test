@@ -67,6 +67,66 @@ _HU_RUNTIME_CONFIG_ALLOWLIST = frozenset({
 })
 
 
+def _teacher_transfer_provenance_payload(provenance: object) -> dict[str, object]:
+    """Сериализует provenance Stage A без ссылок на изменяемые объекты teacher-а."""
+    return {
+        "mode": str(provenance.mode),
+        "copied_blocks": list(provenance.copied_blocks),
+        "source_path": str(provenance.source_path),
+        "checksum_sha256": str(provenance.checksum_sha256),
+        "source_architecture": str(provenance.source_architecture),
+        "source_encoding_version": str(provenance.source_encoding_version),
+        "teacher_num_players": int(provenance.teacher_num_players),
+        "freeze": bool(provenance.freeze),
+    }
+
+
+def _teacher_transfer_configuration(
+    *,
+    enabled: bool | None = None,
+    mode: str | None = None,
+    checkpoint: str | Path | None = None,
+    freeze: bool | None = None,
+) -> dict[str, object]:
+    """Возвращает единственный поддержанный Stage A контракт warm-start."""
+    return {
+        "enabled": bool(cfg_get("teacher_transfer_enabled", False))
+        if enabled is None
+        else bool(enabled),
+        "mode": str(cfg_get("teacher_transfer_mode", "card_encoder_warmstart"))
+        if mode is None
+        else str(mode),
+        "checkpoint": cfg_get("teacher_transfer_checkpoint", None)
+        if checkpoint is None
+        else checkpoint,
+        "freeze": bool(cfg_get("teacher_transfer_freeze_card_encoder", False))
+        if freeze is None
+        else bool(freeze),
+    }
+
+
+def _validate_teacher_transfer_runtime(
+    configuration: dict[str, object],
+    *,
+    num_players: int,
+    hu_current_policy_self_play: bool,
+    teacher_strategy_checkpoint: str | Path | None,
+) -> None:
+    if not configuration["enabled"]:
+        return
+    if configuration["mode"] != "card_encoder_warmstart":
+        raise ValueError("teacher_transfer_mode поддерживает только card_encoder_warmstart")
+    checkpoint = configuration["checkpoint"]
+    if not isinstance(checkpoint, (str, Path)) or not str(checkpoint).strip():
+        raise ValueError("teacher_transfer_checkpoint обязателен при teacher_transfer_enabled")
+    if hu_current_policy_self_play:
+        raise ValueError("teacher_transfer_enabled несовместим с hu_current_policy_self_play")
+    if int(num_players) != 6:
+        raise ValueError("teacher_transfer_enabled поддержан только для six-max")
+    if teacher_strategy_checkpoint:
+        raise ValueError("teacher_transfer_enabled несовместим с teacher_strategy_checkpoint")
+
+
 def _checkpoint_iteration(path: Path, prefix: str = _HEAVY_CHECKPOINT_PREFIX) -> int | None:
     match = re.fullmatch(rf"{re.escape(prefix)}(\d+)\.pt", path.name)
     return int(match.group(1)) if match else None
@@ -1348,6 +1408,10 @@ def train_self_play_multi(
     opponent_checkpoint_dir: str | Path | None = None,
     trainable_players: int | None = None,
     teacher_strategy_checkpoint: str | Path | None = None,
+    teacher_transfer_enabled: bool | None = None,
+    teacher_transfer_mode: str | None = None,
+    teacher_transfer_checkpoint: str | Path | None = None,
+    teacher_transfer_freeze_card_encoder: bool | None = None,
     hu_current_policy_self_play: bool | None = None,
     **_unused_options,
 ) -> DeepCFRAgent:
@@ -1357,9 +1421,6 @@ def train_self_play_multi(
         np.random.seed(seed)
         torch.manual_seed(seed)
 
-    agent = DeepCFRAgent(player_id=0, num_players=num_players, device=device)
-    if trainable_players is not None:
-        agent.num_trainable_players = max(1, min(int(trainable_players), agent.num_players))
     if teacher_strategy_checkpoint is None:
         teacher_strategy_checkpoint = cfg_get("teacher_strategy_checkpoint", None)
     hu_current_policy_enabled = (
@@ -1367,6 +1428,30 @@ def train_self_play_multi(
         if hu_current_policy_self_play is None
         else bool(hu_current_policy_self_play)
     )
+    teacher_transfer = _teacher_transfer_configuration(
+        enabled=teacher_transfer_enabled,
+        mode=teacher_transfer_mode,
+        checkpoint=teacher_transfer_checkpoint,
+        freeze=teacher_transfer_freeze_card_encoder,
+    )
+    _validate_teacher_transfer_runtime(
+        teacher_transfer,
+        num_players=num_players,
+        hu_current_policy_self_play=hu_current_policy_enabled,
+        teacher_strategy_checkpoint=teacher_strategy_checkpoint,
+    )
+    agent = DeepCFRAgent(
+        player_id=0,
+        num_players=num_players,
+        device=device,
+        network_architecture=(
+            CARD_CONTEXT_ARCHITECTURE
+            if teacher_transfer["enabled"]
+            else None
+        ),
+    )
+    if trainable_players is not None:
+        agent.num_trainable_players = max(1, min(int(trainable_players), agent.num_players))
     if hu_current_policy_enabled:
         HuCurrentPolicySelfPlayCoordinator.validate_runtime_configuration(
             enabled=True,
@@ -1396,6 +1481,12 @@ def train_self_play_multi(
             opponent_state_cache[Path(initial_checkpoint).resolve()] = checkpoint["strategy_net"]
         if opponent_checkpoint_dir is None and not _heavy_checkpoints(save_dir):
             save_dir = Path(initial_checkpoint).parent
+    elif teacher_transfer["enabled"]:
+        provenance = agent.load_card_encoder_from_hu_checkpoint(
+            teacher_transfer["checkpoint"],
+            freeze=bool(teacher_transfer["freeze"]),
+        )
+        agent.teacher_transfer_provenance = _teacher_transfer_provenance_payload(provenance)
     opponent_checkpoint_dir = Path(opponent_checkpoint_dir) if opponent_checkpoint_dir is not None else Path(save_dir)
 
     checkpoint_every = int(cfg_get("checkpoint_save_every", 1000))

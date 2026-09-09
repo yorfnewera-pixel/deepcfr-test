@@ -4,6 +4,7 @@ import pytest
 import torch
 
 from src.core.deep_cfr import DeepCFRAgent
+from src.core.teacher_transfer import CardEncoderWarmstartProvenance
 from src.core.model import (
     CARD_CONTEXT_ARCHITECTURE,
     CARD_FEATURE_SIZE,
@@ -12,6 +13,14 @@ from src.core.model import (
 )
 from src.training import train as train_mod
 from src.utils import config as config_mod
+
+
+def _load_transfer_config(path, extra_lines):
+    path.write_text(
+        "\n".join(["num_actions: 6", *extra_lines]),
+        encoding="utf-8",
+    )
+    config_mod.load_config(path)
 
 
 class TinyAgent:
@@ -95,6 +104,134 @@ def test_light_checkpoint_contains_only_strategy_artifact(tmp_path):
 
     assert path.name == "light_checkpoint_iter_4.pt"
     assert torch.load(path, weights_only=False) == {"iteration": 4, "seed": 11, "strategy_net": {}}
+
+
+def test_disabled_transfer_preserves_legacy_monolithic_startup(tmp_path):
+    config_path = tmp_path / "config.yaml"
+    try:
+        _load_transfer_config(
+            config_path,
+            [
+                "num_players: 6",
+                "teacher_transfer_enabled: false",
+                "network_architecture: monolithic_v1",
+            ],
+        )
+
+        agent = train_mod.train_self_play_multi(num_iterations=0, save_dir=tmp_path)
+
+        assert agent.network_architecture == MONOLITHIC_ARCHITECTURE
+        assert agent.teacher_transfer_provenance is None
+    finally:
+        config_mod.load_config("config.yaml")
+
+
+def test_enabled_transfer_starts_card_context_and_persists_provenance(tmp_path, monkeypatch):
+    config_path = tmp_path / "config.yaml"
+    source_path = tmp_path / "teacher.pt"
+    source_path.touch()
+    calls = []
+    expected_provenance = {
+        "mode": "card_encoder_warmstart",
+        "copied_blocks": ["strategy_net.card_encoder"],
+        "source_path": str(source_path.resolve()),
+        "checksum_sha256": "a" * 64,
+        "source_architecture": CARD_CONTEXT_ARCHITECTURE,
+        "source_encoding_version": "history_summary_v3",
+        "teacher_num_players": 2,
+        "freeze": True,
+    }
+
+    def transfer(agent, path, freeze=False):
+        calls.append((agent.network_architecture, Path(path), freeze))
+        return CardEncoderWarmstartProvenance(
+            mode="card_encoder_warmstart",
+            copied_blocks=("strategy_net.card_encoder",),
+            source_path=source_path.resolve(),
+            checksum_sha256="a" * 64,
+            source_architecture=CARD_CONTEXT_ARCHITECTURE,
+            source_encoding_version="history_summary_v3",
+            teacher_num_players=2,
+            freeze=True,
+        )
+
+    try:
+        _load_transfer_config(
+            config_path,
+            [
+                "num_players: 6",
+                "network_architecture: monolithic_v1",
+                "hidden_size: 8",
+                "teacher_transfer_enabled: true",
+                "teacher_transfer_mode: card_encoder_warmstart",
+                f"teacher_transfer_checkpoint: {source_path}",
+                "teacher_transfer_freeze_card_encoder: true",
+            ],
+        )
+        monkeypatch.setattr(DeepCFRAgent, "load_card_encoder_from_hu_checkpoint", transfer)
+
+        agent = train_mod.train_self_play_multi(num_iterations=0, save_dir=tmp_path)
+        checkpoint = agent._build_checkpoint()
+
+        assert calls == [(CARD_CONTEXT_ARCHITECTURE, source_path, True)]
+        assert agent.network_architecture == CARD_CONTEXT_ARCHITECTURE
+        assert checkpoint["teacher_transfer_provenance"] == expected_provenance
+    finally:
+        config_mod.load_config("config.yaml")
+
+
+def test_enabled_transfer_resume_restores_provenance_without_retransfer(tmp_path, monkeypatch):
+    config_path = tmp_path / "config.yaml"
+    checkpoint_path = tmp_path / "six-max-full.pt"
+    source_path = tmp_path / "teacher.pt"
+    source_path.touch()
+    provenance = {
+        "mode": "card_encoder_warmstart",
+        "copied_blocks": ["strategy_net.card_encoder"],
+        "source_path": str(source_path.resolve()),
+        "checksum_sha256": "b" * 64,
+        "source_architecture": CARD_CONTEXT_ARCHITECTURE,
+        "source_encoding_version": "history_summary_v3",
+        "teacher_num_players": 2,
+        "freeze": False,
+    }
+    try:
+        _load_transfer_config(config_path, ["num_players: 6", "hidden_size: 8"])
+        source = DeepCFRAgent(
+            player_id=0,
+            num_players=6,
+            hidden_size=8,
+            network_architecture=CARD_CONTEXT_ARCHITECTURE,
+        )
+        source.teacher_transfer_provenance = provenance
+        torch.save(source._build_checkpoint(), checkpoint_path)
+        _load_transfer_config(
+            config_path,
+            [
+                "num_players: 6",
+                "network_architecture: monolithic_v1",
+                "hidden_size: 8",
+                "teacher_transfer_enabled: true",
+                "teacher_transfer_mode: card_encoder_warmstart",
+                f"teacher_transfer_checkpoint: {source_path}",
+            ],
+        )
+        monkeypatch.setattr(
+            DeepCFRAgent,
+            "load_card_encoder_from_hu_checkpoint",
+            lambda *_args, **_kwargs: pytest.fail("resume не должен повторно переносить веса"),
+        )
+
+        restored = train_mod.train_self_play_multi(
+            num_iterations=0,
+            save_dir=tmp_path,
+            initial_checkpoint=str(checkpoint_path),
+        )
+
+        assert restored.teacher_transfer_provenance == provenance
+        assert restored._build_checkpoint()["teacher_transfer_provenance"] == provenance
+    finally:
+        config_mod.load_config("config.yaml")
 
 
 def test_atomic_save_keeps_previous_file_after_failure(tmp_path, monkeypatch):

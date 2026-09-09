@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import math
 import time
+from copy import deepcopy
 from dataclasses import dataclass, field
 from numbers import Integral
 from pathlib import Path
@@ -208,6 +209,7 @@ class DeepCFRAgent:
         self.teacher_strategy_num_players: int | None = None
         self.teacher_strategy_use_multi_agent = False
         self.teacher_strategy_encoding_version: str | None = None
+        self.teacher_transfer_provenance: dict[str, Any] | None = None
         self.strategy_distillation_lambda = float(cfg_get("strategy_distillation_lambda", 0.0))
         self.strategy_distillation_temperature = max(
             float(cfg_get("strategy_distillation_temperature", 1.0)),
@@ -1735,6 +1737,10 @@ class DeepCFRAgent:
         if self.save_replay_buffers_in_checkpoint:
             checkpoint["advantage_buffer"] = self._buffer_payload(self.advantage_buffer)
             checkpoint["strategy_buffer"] = self._buffer_payload(self.strategy_buffer)
+        if self.teacher_transfer_provenance is not None:
+            checkpoint["teacher_transfer_provenance"] = deepcopy(
+                self.teacher_transfer_provenance
+            )
         if extra:
             checkpoint.update(extra)
         return checkpoint
@@ -1821,6 +1827,10 @@ class DeepCFRAgent:
             self._restore_buffer(self.advantage_buffer, checkpoint["advantage_buffer"])
         if "strategy_buffer" in checkpoint:
             self._restore_buffer(self.strategy_buffer, checkpoint["strategy_buffer"])
+        provenance = checkpoint.get("teacher_transfer_provenance")
+        if provenance is not None and not isinstance(provenance, dict):
+            raise ValueError("Чекпоинт имеет некорректный teacher_transfer_provenance")
+        self.teacher_transfer_provenance = deepcopy(provenance)
         self.iteration_count = int(checkpoint.get("iteration", 0))
         return checkpoint
 

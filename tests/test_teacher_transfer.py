@@ -8,6 +8,7 @@ import pytest
 import torch
 
 import src.core.teacher_transfer as transfer_mod
+from src.utils import config as config_mod
 from src.core.action_space import NUM_ACTIONS
 from src.core.buffers import AdvantageBuffer
 from src.core.deep_cfr import DeepCFRAgent
@@ -338,3 +339,61 @@ def test_transfer_can_freeze_copied_card_encoder(tmp_path):
 
     assert provenance.freeze is True
     assert all(not parameter.requires_grad for parameter in student.strategy_net.card_encoder.parameters())
+
+
+@pytest.mark.parametrize(
+    ("lines", "message"),
+    [
+        (
+            ["teacher_transfer_enabled: true", "teacher_transfer_mode: unsupported"],
+            "teacher_transfer_mode",
+        ),
+        (
+            ["teacher_transfer_enabled: true"],
+            "teacher_transfer_checkpoint",
+        ),
+        (
+            ["teacher_transfer_auxiliary_enabled: true"],
+            "Stage B",
+        ),
+        (
+            ["teacher_transfer_auxiliary_weight: 0.1"],
+            "Stage B",
+        ),
+        (
+            [
+                "teacher_transfer_enabled: true",
+                "teacher_transfer_checkpoint: hu.pt",
+                "teacher_strategy_checkpoint: policy.pt",
+            ],
+            "teacher_strategy_checkpoint",
+        ),
+        (
+            [
+                "teacher_transfer_enabled: true",
+                "teacher_transfer_checkpoint: hu.pt",
+                "num_players: 2",
+            ],
+            "six-max",
+        ),
+        (
+            [
+                "teacher_transfer_enabled: true",
+                "teacher_transfer_checkpoint: hu.pt",
+                "hu_current_policy_self_play: true",
+                "num_players: 2",
+                "num_trainable_players: 2",
+            ],
+            "hu_current_policy_self_play",
+        ),
+    ],
+)
+def test_transfer_configuration_rejects_incompatible_or_unimplemented_modes(tmp_path, lines, message):
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text("\n".join(["num_actions: 6", *lines]), encoding="utf-8")
+
+    try:
+        with pytest.raises(ValueError, match=message):
+            config_mod.load_config(config_path)
+    finally:
+        config_mod.load_config("config.yaml")
