@@ -9,4 +9,8 @@ sizing_buffer_targets_*.json
 __pycache__/
 *.pyc
 .worktrees/
+logs/
+.serena-runtime/logs/
+.serena/logs/
+.tmp_strategy_opponent_smoke/
 opencode.json

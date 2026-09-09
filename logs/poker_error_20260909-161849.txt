@@ -1,8 +1,0 @@
-=== POKER GAME ERROR LOG ===
-Timestamp: 2026-09-09 16:18:49
-Error: State status not OK (StateStatus.IllegalAction)
-
-Stack trace:
-No active exception.
-
-=== GAME STATE ===

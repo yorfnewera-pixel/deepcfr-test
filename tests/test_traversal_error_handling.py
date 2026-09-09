@@ -141,6 +141,13 @@ def test_non_ok_state_status_raises_traversal_failure(monkeypatch):
         lambda _action: type("InvalidState", (), {"status": pkrs.StateStatus.IllegalAction})()
     )
     _configure_single_legal_action(monkeypatch, agent)
+    logged = []
+    monkeypatch.setattr(
+        "src.core.deep_cfr.log_game_error",
+        lambda before_state, action, message: logged.append(
+            (before_state, action, message)
+        ),
+    )
 
     with pytest.raises(TraversalFailure, match="status") as error:
         agent.cfr_traverse_multi(
@@ -154,6 +161,7 @@ def test_non_ok_state_status_raises_traversal_failure(monkeypatch):
     assert diagnostic["traversal_index"] == 4
     assert diagnostic["action"] == "slot 0: 'call'"
     assert diagnostic["status"] == "StateStatus.IllegalAction"
+    assert logged == [(state, "call", "State status not OK (StateStatus.IllegalAction)")]
 
 
 def test_missing_state_status_after_apply_action_raises_traversal_failure(monkeypatch):
