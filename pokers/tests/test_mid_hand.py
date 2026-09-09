@@ -1,4 +1,5 @@
 import pokers as pkrs
+import pytest
 
 
 def card(value):
@@ -31,6 +32,59 @@ def test_from_mid_hand_preserves_folded_players_and_turn_owner():
     assert pkrs.ActionEnum.Fold not in state.legal_actions
     assert state.action_history_complete is False
     assert state.action_history == []
+
+
+def test_mid_hand_can_copy_complete_public_history_from_live_state():
+    source = pkrs.State.from_seed(
+        n_players=2, button=0, sb=1.0, bb=2.0, stake=20.0, seed=7
+    ).apply_action(pkrs.Action(pkrs.ActionEnum.Call))
+    rebuilt = pkrs.State.from_mid_hand(
+        n_players=2,
+        button=source.button,
+        sb=source.sb,
+        bb=source.bb,
+        stake=20.0,
+        deck=list(source.deck),
+        hole_cards=[tuple(player.hand) for player in source.players_state],
+        public_cards=list(source.public_cards),
+        stage=source.stage,
+        pot=source.pot,
+        bet_chips=[player.bet_chips for player in source.players_state],
+        pot_chips=[player.pot_chips for player in source.players_state],
+        active=[player.active for player in source.players_state],
+        last_stage_action=[player.last_stage_action for player in source.players_state],
+        current_player=source.current_player,
+        last_raise_increment=source.last_raise_increment,
+    )
+
+    rebuilt.copy_public_history_from(source)
+
+    assert rebuilt.action_history_complete is True
+    assert len(rebuilt.action_history) == len(source.action_history) == 1
+    assert rebuilt.action_history[0].actor_id == source.action_history[0].actor_id
+
+
+def test_mid_hand_rejects_incomplete_public_history_copy():
+    source = pkrs.State.from_mid_hand(
+        n_players=2,
+        button=0,
+        sb=1.0,
+        bb=2.0,
+        stake=20.0,
+        deck=[card(value) for value in ("2c", "3d", "4h", "5s")],
+        hole_cards=[(card("Ac"), card("Kd")), (card("Qh"), card("Js"))],
+        public_cards=[],
+        stage=pkrs.Stage.Preflop,
+        pot=3.0,
+        bet_chips=[1.0, 2.0],
+        pot_chips=[0.0, 0.0],
+        active=[True, True],
+        last_stage_action=[None, None],
+    )
+    target = source.__copy__()
+
+    with pytest.raises(ValueError):
+        target.copy_public_history_from(source)
 
 
 def test_short_all_in_call_uses_remaining_stack_without_reopening_betting():

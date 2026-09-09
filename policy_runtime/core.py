@@ -12,6 +12,9 @@ import torch.nn as nn
 from typing import Protocol, runtime_checkable, Optional
 
 
+LEGACY_ENCODING_VERSION = "legacy_v2"
+HISTORY_SUMMARY_V3_ENCODING_VERSION = "history_summary_v3"
+CHECKPOINT_FORMAT_VERSION = 6
 INPUT_SIZE = 157
 NUM_ACTIONS = 6
 DEFAULT_HIDDEN = 256
@@ -38,6 +41,8 @@ class GameState(Protocol):
     from_action: Optional[object]
     players_state: list
     last_raise_increment: float
+    action_history_complete: bool
+    action_history: list
 
 
 class DictCard:
@@ -108,7 +113,8 @@ class DictPlayerState:
 class DictGameState:
     __slots__ = ('bb', 'pot', 'min_bet', 'button', 'current_player', 'stage',
                  'legal_actions', 'public_cards', 'from_action',
-                 'players_state', 'last_raise_increment')
+                 'players_state', 'last_raise_increment', 'action_history_complete',
+                 'action_history')
 
     def __init__(self, d):
         self.bb = float(d.get('bb', 2.0))
@@ -124,6 +130,8 @@ class DictGameState:
         self.from_action = DictFromAction(fa) if fa else None
         self.players_state = [DictPlayerState(p)
                               for p in d.get('players', [])]
+        self.action_history_complete = bool(d.get('action_history_complete', False))
+        self.action_history = list(d.get('action_history', []))
 
 
 def _build_suit_canonical_map(hand_cards, public_cards):
@@ -167,13 +175,7 @@ def encode_state(state: GameState, player_id: int = 0) -> np.ndarray:
     stage_enc[int(state.stage)] = 1
     encoded.append(stage_enc)
 
-    norm_unit = float(state.bb) * 100.0 if float(state.bb) > 0 else float(
-        state.players_state[player_id].stake
-        + state.players_state[player_id].bet_chips
-        + state.players_state[player_id].pot_chips
-    )
-    if norm_unit < 1.0:
-        norm_unit = 1.0
+    norm_unit = _normalization_unit(state, player_id)
 
     pot_enc = [float(state.pot) / norm_unit]
     encoded.append(pot_enc)
@@ -224,6 +226,83 @@ def encode_state_with_position(state: GameState, player_id: int = 0) -> np.ndarr
     one_hot = np.zeros(num_players, dtype=np.float32)
     one_hot[int(player_id)] = 1.0
     return np.concatenate([base, one_hot])
+
+
+def _normalization_unit(state: GameState, player_id: int) -> float:
+    norm_unit = float(state.bb) * 100.0
+    if norm_unit < 1.0:
+        player = state.players_state[player_id]
+        norm_unit = float(player.stake + player.bet_chips + player.pot_chips)
+    return max(norm_unit, 1.0)
+
+
+def _history_record_value(record, field: str):
+    if isinstance(record, dict):
+        return record[field]
+    return getattr(record, field)
+
+
+def _history_action_type(record) -> int:
+    action = _history_record_value(record, "requested_action")
+    if isinstance(action, dict):
+        return int(action["action"])
+    return int(action.action)
+
+
+def encode_state_history_summary_v3(state: GameState, player_id: int = 0) -> np.ndarray:
+    if not bool(getattr(state, "action_history_complete", False)):
+        raise ValueError("history_summary_v3 требует полной публичной истории")
+
+    num_players = len(state.players_state)
+    norm_unit = _normalization_unit(state, player_id)
+    last_actor = np.full(4, num_players, dtype=np.int64)
+    last_action = np.full(4, 4, dtype=np.int64)
+    raise_actors = np.zeros((4, num_players), dtype=np.float32)
+    raise_count = np.zeros(4, dtype=np.float32)
+    raise_amount_total = np.zeros(4, dtype=np.float32)
+    for record in state.action_history:
+        street = int(_history_record_value(record, "street"))
+        if street < 0 or street >= 4:
+            continue
+        actor = (int(_history_record_value(record, "actor_id")) - int(player_id)) % num_players
+        last_actor[street] = actor
+        last_action[street] = _history_action_type(record)
+        if bool(_history_record_value(record, "is_effective_raise")):
+            raise_actors[street, actor] = 1.0
+            raise_count[street] += 1.0
+            raise_amount_total[street] += float(_history_record_value(record, "applied_raise_increment")) / norm_unit
+
+    summary = []
+    for street in range(4):
+        actor_enc = np.zeros(num_players + 1, dtype=np.float32)
+        actor_enc[last_actor[street]] = 1.0
+        action_enc = np.zeros(5, dtype=np.float32)
+        action_enc[last_action[street]] = 1.0
+        summary.extend((actor_enc, action_enc, raise_actors[street]))
+        summary.append(np.asarray([raise_count[street] / max(num_players, 1)], dtype=np.float32))
+        summary.append(np.asarray([raise_amount_total[street]], dtype=np.float32))
+    return np.concatenate([encode_state(state, player_id), *summary]).astype(np.float32, copy=False)
+
+
+def encode_state_for_version(
+    state: GameState,
+    player_id: int,
+    encoding_version: str,
+) -> np.ndarray:
+    if encoding_version == LEGACY_ENCODING_VERSION:
+        return encode_state(state, player_id).astype(np.float32, copy=False)
+    if encoding_version == HISTORY_SUMMARY_V3_ENCODING_VERSION:
+        return encode_state_history_summary_v3(state, player_id)
+    raise ValueError(f"Неизвестная версия encoder: {encoding_version}")
+
+
+def encoder_input_size(num_players: int, encoding_version: str, use_multi_agent: bool) -> int:
+    base_size = 121 + 6 * int(num_players)
+    if encoding_version == HISTORY_SUMMARY_V3_ENCODING_VERSION:
+        base_size += 4 * (2 * int(num_players) + 8)
+    elif encoding_version != LEGACY_ENCODING_VERSION:
+        raise ValueError(f"Неизвестная версия encoder: {encoding_version}")
+    return base_size + (int(num_players) if use_multi_agent else 0)
 
 
 class PokerNetwork(nn.Module):
@@ -291,8 +370,8 @@ class PolicyRuntimeAgent:
                 f"strategy_net не найден в чекпоинте {path}. "
                 f"Доступные ключи: {list(checkpoint.keys())}")
 
-        if checkpoint.get('checkpoint_format_version') != 5:
-            raise ValueError("Нужен checkpoint формата six_fixed_v2; старые sizing/Q веса несовместимы")
+        if checkpoint.get('checkpoint_format_version') != CHECKPOINT_FORMAT_VERSION:
+            raise ValueError("Нужен checkpoint формата history_summary_v3")
         if checkpoint.get('action_space_version') != 'six_fixed_v2':
             raise ValueError("Checkpoint имеет другое пространство действий")
 
@@ -305,8 +384,17 @@ class PolicyRuntimeAgent:
 
         self.hidden_size = strategy_sd['base.0.weight'].shape[0]
         self.input_size = strategy_sd['base.0.weight'].shape[1]
+        self.num_players = int(checkpoint.get('num_players', 6))
         self.use_multi_agent = bool(checkpoint.get('use_multi_agent_advantage',
-            self.input_size != INPUT_SIZE))
+            checkpoint.get('config', {}).get('use_multi_agent_advantage', False)))
+        self.encoding_version = checkpoint.get(
+            'encoding_version', checkpoint.get('config', {}).get('encoding_version'))
+        if not isinstance(self.encoding_version, str):
+            raise ValueError("Checkpoint не содержит версию encoder")
+        expected_input_size = encoder_input_size(
+            self.num_players, self.encoding_version, self.use_multi_agent)
+        if self.input_size != expected_input_size or int(checkpoint.get('encoder_input_size', -1)) != expected_input_size:
+            raise ValueError("Checkpoint имеет несовместимый размер входа encoder")
 
         self.iteration = int(checkpoint.get('iteration', 0))
 
@@ -332,7 +420,11 @@ class PolicyRuntimeAgent:
     def validate(self) -> list[str]:
         errors = []
 
-        expected_size = INPUT_SIZE + 6 if self.use_multi_agent else INPUT_SIZE
+        expected_size = encoder_input_size(
+            self.num_players,
+            self.encoding_version,
+            self.use_multi_agent,
+        )
         if self.input_size != expected_size:
             errors.append(
                 f"input_size={self.input_size}, ожидалось {expected_size}. "
@@ -387,8 +479,11 @@ class PolicyRuntimeAgent:
         if not legal_action_types:
             raise ValueError("В текущем состоянии нет допустимых action-слотов")
 
-        encode_fn = encode_state_with_position if self.use_multi_agent else encode_state
-        state_vec = encode_fn(state, player_id)
+        state_vec = encode_state_for_version(state, player_id, self.encoding_version)
+        if self.use_multi_agent:
+            one_hot = np.zeros(len(state.players_state), dtype=np.float32)
+            one_hot[int(player_id)] = 1.0
+            state_vec = np.concatenate([state_vec, one_hot], dtype=np.float32)
         state_tensor = torch.FloatTensor(state_vec).unsqueeze(0).to(self.device)
         mask_tensor = torch.FloatTensor(legal_mask).unsqueeze(0).to(self.device)
 
@@ -434,6 +529,8 @@ class PolicyRuntimeAgent:
     def export_spec(self, path: Optional[str] = None) -> dict:
         spec = {
             "input_size": self.input_size,
+            "num_players": self.num_players,
+            "encoding_version": self.encoding_version,
             "num_actions": NUM_ACTIONS,
             "hidden_size": self.hidden_size,
             "action_labels": ["fold", "check", "call", "raise_0.5pot", "raise_1pot", "all_in"],

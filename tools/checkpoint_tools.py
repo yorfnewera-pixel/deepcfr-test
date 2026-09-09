@@ -15,7 +15,8 @@ from policy_runtime.adapters.pokers import action_to_pokers, wrap_state
 from policy_runtime.core import PolicyRuntimeAgent
 from src.agents.random_agent import RandomAgent
 from src.core.action_space import ACTION_LABELS, ACTION_SPACE_VERSION, NUM_ACTIONS
-from src.core.deep_cfr import DeepCFRAgent
+from src.core.deep_cfr import CHECKPOINT_FORMAT_VERSION, DeepCFRAgent
+from src.core.model import encoder_input_size
 from src.evaluation import FrozenBlueprintPolicy, evaluate_paired
 
 
@@ -35,12 +36,25 @@ def run_weight_sanity(checkpoint_path: str | Path) -> dict:
     """Проверяет контракт checkpoint и отсутствие NaN/Inf в обязательных сетях."""
     payload = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
     errors: list[str] = []
-    if payload.get("checkpoint_format_version") != 5:
-        errors.append("требуется checkpoint_format_version=5")
+    if payload.get("checkpoint_format_version") != CHECKPOINT_FORMAT_VERSION:
+        errors.append(f"требуется checkpoint_format_version={CHECKPOINT_FORMAT_VERSION}")
     if payload.get("action_space_version") != ACTION_SPACE_VERSION:
         errors.append(f"требуется action_space_version={ACTION_SPACE_VERSION}")
     if int(payload.get("num_actions", -1)) != NUM_ACTIONS:
         errors.append(f"требуется num_actions={NUM_ACTIONS}")
+    encoding_version = payload.get("encoding_version")
+    use_multi_agent = bool(payload.get("config", {}).get("use_multi_agent_advantage", False))
+    try:
+        expected_input_size = encoder_input_size(
+            int(payload.get("num_players", -1)),
+            encoding_version,
+            use_multi_agent,
+        )
+    except (TypeError, ValueError):
+        errors.append("checkpoint содержит неизвестную версию encoder")
+    else:
+        if int(payload.get("encoder_input_size", -1)) != expected_input_size:
+            errors.append(f"требуется encoder_input_size={expected_input_size}")
     network_keys = ("strategy_net",)
     if payload.get("checkpoint_kind") != "strategy_only":
         network_keys = ("advantage_net", "advantage_target_net", "strategy_net")
@@ -52,7 +66,13 @@ def run_weight_sanity(checkpoint_path: str | Path) -> dict:
     return {"ok": not errors, "errors": errors, "iteration": payload.get("iteration")}
 
 
-def _play_game(agent: PolicyRuntimeAgent, seed: int, player_id: int = 0, num_players: int = 6) -> float:
+def _play_game(
+    agent: PolicyRuntimeAgent,
+    seed: int,
+    player_id: int = 0,
+    num_players: int | None = None,
+) -> float:
+    num_players = int(agent.num_players if num_players is None else num_players)
     state = pkrs.State.from_seed(
         n_players=num_players, button=seed % num_players, sb=1.0, bb=2.0, stake=200.0, seed=seed
     )
@@ -113,7 +133,7 @@ def evaluate_paired_checkpoints(
         candidate,
         num_deals=int(games),
         seed=int(seed),
-        num_players=6,
+        num_players=baseline.num_players,
         rotate_seats=True,
     )
     deal_differences = evaluation.differences.reshape(evaluation.deals, evaluation.seats).mean(axis=1)
@@ -139,7 +159,13 @@ def _engine_action_label(action: pkrs.Action) -> str:
     return _OPPONENT_RESPONSE_LABELS[int(action.action)]
 
 
-def _profile_game(agent: PolicyRuntimeAgent, seed: int, player_id: int = 0, num_players: int = 6) -> dict:
+def _profile_game(
+    agent: PolicyRuntimeAgent,
+    seed: int,
+    player_id: int = 0,
+    num_players: int | None = None,
+) -> dict:
+    num_players = int(agent.num_players if num_players is None else num_players)
     state = pkrs.State.from_seed(
         n_players=num_players, button=seed % num_players, sb=1.0, bb=2.0, stake=200.0, seed=seed
     )
@@ -266,10 +292,12 @@ def probe_flop_probabilities(
         raise ValueError("games должен быть положительным")
     baseline = FrozenBlueprintPolicy.from_checkpoint(opponent_path, device="cpu")
     candidate = FrozenBlueprintPolicy.from_checkpoint(checkpoint_path, device="cpu")
+    if baseline.num_players != candidate.num_players:
+        raise ValueError("Checkpoint-ы используют разное число игроков")
     random_state = random.getstate()
     random.seed(seed)
     try:
-        states = _collect_random_flop_states(games, seed)
+        states = _collect_random_flop_states(games, seed, num_players=candidate.num_players)
     finally:
         random.setstate(random_state)
 

@@ -24,7 +24,15 @@ from src.core.action_space import (
 )
 from src.core.buffers import AdvantageBuffer, StrategyBuffer
 from src.core.checkpointing import _resolve_model_save_path
-from src.core.model import PokerNetwork, encode_state, encode_state_with_position
+from src.core.model import (
+    HISTORY_SUMMARY_V3_ENCODING_VERSION,
+    PokerNetwork,
+    encoder_input_size,
+    encode_state_for_version,
+    encode_state_with_position,
+    history_summary_size,
+    legacy_base_input_size,
+)
 from src.core.traversal_errors import TraversalFailure, TraversalFailureContext
 from src.utils.config import (
     cfg_clear_strategy_buffer_each_iteration,
@@ -35,7 +43,7 @@ from src.utils.logging import log_game_error
 from src.utils.traversal_profiler import TRAVERSAL_PROFILER, profile_section
 
 
-CHECKPOINT_FORMAT_VERSION = 5
+CHECKPOINT_FORMAT_VERSION = 6
 
 
 @dataclass
@@ -69,11 +77,14 @@ class DeepCFRAgent:
             )
 
         self.use_multi_agent = bool(cfg_get("use_multi_agent_advantage", False))
-        base_input_size = (
-            52 + 52 + 5 + 1 + self.num_players + self.num_players
-            + self.num_players * 4 + 1 + 1 + 4 + 5
+        self.encoding_version = str(
+            cfg_get("encoding_version", HISTORY_SUMMARY_V3_ENCODING_VERSION)
         )
-        self.input_size = base_input_size + (self.num_players if self.use_multi_agent else 0)
+        self.input_size = encoder_input_size(
+            self.num_players,
+            self.encoding_version,
+            self.use_multi_agent,
+        )
         hidden_size = int(cfg_get("hidden_size", 256))
 
         self.advantage_net = PokerNetwork(self.input_size, hidden_size, NUM_ACTIONS).to(self.device)
@@ -97,6 +108,7 @@ class DeepCFRAgent:
         self.teacher_strategy_input_size: int | None = None
         self.teacher_strategy_num_players: int | None = None
         self.teacher_strategy_use_multi_agent = False
+        self.teacher_strategy_encoding_version: str | None = None
         self.strategy_distillation_lambda = float(cfg_get("strategy_distillation_lambda", 0.0))
         self.strategy_distillation_temperature = max(
             float(cfg_get("strategy_distillation_temperature", 1.0)),
@@ -152,12 +164,12 @@ class DeepCFRAgent:
         self.reset_traversal_stats()
 
     @staticmethod
-    def _network_input_size(num_players, use_multi_agent=False):
-        base_size = (
-            52 + 52 + 5 + 1 + int(num_players) + int(num_players)
-            + int(num_players) * 4 + 1 + 1 + 4 + 5
-        )
-        return base_size + (int(num_players) if use_multi_agent else 0)
+    def _network_input_size(
+        num_players,
+        use_multi_agent=False,
+        encoding_version=HISTORY_SUMMARY_V3_ENCODING_VERSION,
+    ):
+        return encoder_input_size(num_players, encoding_version, use_multi_agent)
 
     @staticmethod
     def _network_hidden_size_from_state(state_dict):
@@ -166,11 +178,22 @@ class DeepCFRAgent:
             raise ValueError("Teacher strategy state_dict не содержит base.0.weight")
         return int(weight.shape[0])
 
-    def set_teacher_strategy_network(self, state_dict, num_players=None, use_multi_agent=None):
+    def set_teacher_strategy_network(
+        self,
+        state_dict,
+        num_players=None,
+        use_multi_agent=None,
+        encoding_version=None,
+    ):
         """Подключает замороженную strategy-сеть teacher-а для мягкой дистилляции."""
         teacher_num_players = int(num_players if num_players is not None else self.num_players)
         teacher_use_multi_agent = bool(self.use_multi_agent if use_multi_agent is None else use_multi_agent)
-        teacher_input_size = self._network_input_size(teacher_num_players, teacher_use_multi_agent)
+        teacher_encoding_version = str(encoding_version or self.encoding_version)
+        teacher_input_size = self._network_input_size(
+            teacher_num_players,
+            teacher_use_multi_agent,
+            teacher_encoding_version,
+        )
         teacher = PokerNetwork(
             teacher_input_size,
             self._network_hidden_size_from_state(state_dict),
@@ -185,24 +208,45 @@ class DeepCFRAgent:
         self.teacher_strategy_input_size = teacher_input_size
         self.teacher_strategy_num_players = teacher_num_players
         self.teacher_strategy_use_multi_agent = teacher_use_multi_agent
+        self.teacher_strategy_encoding_version = teacher_encoding_version
 
     def load_teacher_strategy_checkpoint(self, path):
         checkpoint = torch.load(path, map_location=self.device, weights_only=False)
+        if checkpoint.get("checkpoint_format_version") != CHECKPOINT_FORMAT_VERSION:
+            raise ValueError("Teacher checkpoint имеет несовместимую версию формата")
         if checkpoint.get("action_space_version") != ACTION_SPACE_VERSION:
             raise ValueError("Teacher checkpoint имеет другое пространство действий")
         if int(checkpoint.get("num_actions", -1)) != NUM_ACTIONS:
             raise ValueError("Teacher checkpoint имеет другое число действий")
         teacher_num_players = int(checkpoint.get("num_players", self.num_players))
         teacher_use_multi_agent = bool(checkpoint.get("config", {}).get("use_multi_agent_advantage", False))
+        teacher_encoding_version = checkpoint.get(
+            "encoding_version",
+            checkpoint.get("config", {}).get("encoding_version"),
+        )
+        if teacher_encoding_version != self.encoding_version:
+            raise ValueError("Teacher checkpoint имеет несовместимую версию encoder")
         if teacher_num_players not in (self.num_players, 2):
             raise ValueError("Teacher checkpoint поддержан только для того же стола или HU projection")
+        if teacher_num_players == self.num_players and teacher_use_multi_agent != self.use_multi_agent:
+            raise ValueError("Teacher checkpoint имеет несовместимый multi-agent режим")
+        teacher_input_size = self._network_input_size(
+            teacher_num_players,
+            teacher_use_multi_agent,
+            teacher_encoding_version,
+        )
+        if int(checkpoint.get("encoder_input_size", -1)) != teacher_input_size:
+            raise ValueError("Teacher checkpoint имеет несовместимый размер входа encoder")
         strategy_state = checkpoint.get("strategy_net")
         if not isinstance(strategy_state, dict):
             raise ValueError("В teacher checkpoint нет strategy_net")
+        if "base.0.weight" not in strategy_state or int(strategy_state["base.0.weight"].shape[1]) != teacher_input_size:
+            raise ValueError("Teacher checkpoint имеет несовместимый размер входа encoder в strategy_net")
         self.set_teacher_strategy_network(
             strategy_state,
             num_players=teacher_num_players,
             use_multi_agent=teacher_use_multi_agent,
+            encoding_version=teacher_encoding_version,
         )
         return checkpoint
 
@@ -232,6 +276,7 @@ class DeepCFRAgent:
         if (
             self.teacher_strategy_num_players == self.num_players
             and self.teacher_strategy_use_multi_agent == self.use_multi_agent
+            and self.teacher_strategy_encoding_version == self.encoding_version
         ):
             return state_t
         if self.teacher_strategy_num_players != 2:
@@ -268,6 +313,36 @@ class DeepCFRAgent:
             opponent_block,
             tail_features,
         ]
+        if self.encoding_version == HISTORY_SUMMARY_V3_ENCODING_VERSION:
+            source_history_start = legacy_base_input_size(self.num_players)
+            source_block_size = 2 * self.num_players + 8
+            source_history = state_t[:, source_history_start:source_history_start + history_summary_size(self.num_players)]
+            source_history = source_history.reshape(state_t.shape[0], 4, source_block_size)
+            projected_history = []
+            for street_history in source_history.unbind(dim=1):
+                last_actor = street_history[:, :self.num_players + 1]
+                action = street_history[:, self.num_players + 1:self.num_players + 6]
+                raise_actors = street_history[:, self.num_players + 6:self.num_players * 2 + 6]
+                scalars = street_history[:, self.num_players * 2 + 6:]
+                projected_last_actor = torch.stack(
+                    (
+                        last_actor[:, 0],
+                        last_actor[:, 1:self.num_players].sum(dim=1).clamp(max=1.0),
+                        last_actor[:, self.num_players],
+                    ),
+                    dim=1,
+                )
+                projected_raise_actors = torch.stack(
+                    (
+                        raise_actors[:, 0],
+                        raise_actors[:, 1:].amax(dim=1),
+                    ),
+                    dim=1,
+                )
+                projected_history.append(
+                    torch.cat((projected_last_actor, action, projected_raise_actors, scalars), dim=1)
+                )
+            projected.extend(projected_history)
         if self.teacher_strategy_use_multi_agent:
             teacher_position = torch.zeros((state_t.shape[0], 2), dtype=state_t.dtype, device=state_t.device)
             teacher_position[:, 0] = 1.0
@@ -316,8 +391,8 @@ class DeepCFRAgent:
 
     def _encode_state(self, state, player_id):
         if self.use_multi_agent:
-            return encode_state_with_position(state, player_id)
-        return encode_state(state, player_id)
+            return encode_state_with_position(state, player_id, self.encoding_version)
+        return encode_state_for_version(state, player_id, self.encoding_version)
 
     @staticmethod
     def _regret_matching(advantages, mask):
@@ -1456,6 +1531,8 @@ class DeepCFRAgent:
             "iteration": int(self.iteration_count), "seed": seed,
             "num_players": self.num_players, "num_actions": NUM_ACTIONS,
             "use_multi_agent_advantage": self.use_multi_agent,
+            "encoding_version": self.encoding_version,
+            "encoder_input_size": self.input_size,
             "advantage_net": self.advantage_net.state_dict(),
             "advantage_target_net": self.advantage_target_net.state_dict(),
             "strategy_net": self.strategy_net.state_dict(),
@@ -1465,6 +1542,8 @@ class DeepCFRAgent:
                 "num_actions": NUM_ACTIONS, "action_space_version": ACTION_SPACE_VERSION,
                 "hidden_size": self.advantage_net.base[0].out_features,
                 "num_players": self.num_players, "use_multi_agent_advantage": self.use_multi_agent,
+                "encoding_version": self.encoding_version,
+                "encoder_input_size": self.input_size,
                 "advantage_accumulation": self.advantage_accumulation,
                 "advantage_train_steps": self.advantage_train_steps,
                 "strategy_train_steps": self.strategy_train_steps,
@@ -1494,6 +1573,8 @@ class DeepCFRAgent:
             "seed": seed,
             "num_players": self.num_players,
             "num_actions": NUM_ACTIONS,
+            "encoding_version": self.encoding_version,
+            "encoder_input_size": self.input_size,
             "strategy_net": self.strategy_net.state_dict(),
             "config": {
                 "num_actions": NUM_ACTIONS,
@@ -1501,6 +1582,8 @@ class DeepCFRAgent:
                 "hidden_size": self.strategy_net.base[0].out_features,
                 "num_players": self.num_players,
                 "use_multi_agent_advantage": self.use_multi_agent,
+                "encoding_version": self.encoding_version,
+                "encoder_input_size": self.input_size,
             },
         }
 
@@ -1509,11 +1592,29 @@ class DeepCFRAgent:
         if checkpoint.get("checkpoint_format_version") != CHECKPOINT_FORMAT_VERSION:
             raise ValueError(
                 "Чекпоинт несовместим: требуется новый запуск обучения с форматом "
-                f"{CHECKPOINT_FORMAT_VERSION} ({ACTION_SPACE_VERSION}); старый raise-слот "
-                "нельзя корректно разложить на три действия."
+                f"{CHECKPOINT_FORMAT_VERSION} ({ACTION_SPACE_VERSION}); старый encoder "
+                "не переносится на history_summary_v3."
             )
         if checkpoint.get("action_space_version") != ACTION_SPACE_VERSION or int(checkpoint.get("num_actions", -1)) != NUM_ACTIONS:
             raise ValueError("Чекпоинт имеет другое пространство действий")
+        if int(checkpoint.get("num_players", -1)) != self.num_players:
+            raise ValueError("Чекпоинт имеет другое число игроков")
+        checkpoint_use_multi_agent = bool(
+            checkpoint.get(
+                "use_multi_agent_advantage",
+                checkpoint.get("config", {}).get("use_multi_agent_advantage", False),
+            )
+        )
+        if checkpoint_use_multi_agent != self.use_multi_agent:
+            raise ValueError("Чекпоинт имеет другой multi-agent режим")
+        checkpoint_encoding_version = checkpoint.get(
+            "encoding_version",
+            checkpoint.get("config", {}).get("encoding_version"),
+        )
+        if checkpoint_encoding_version != self.encoding_version:
+            raise ValueError("Чекпоинт имеет несовместимую версию encoder")
+        if int(checkpoint.get("encoder_input_size", -1)) != self.input_size:
+            raise ValueError("Чекпоинт имеет несовместимый размер входа encoder")
         for key in ("advantage_net", "advantage_target_net", "strategy_net"):
             if key not in checkpoint:
                 raise ValueError(f"В checkpoint отсутствует обязательный ключ {key}")

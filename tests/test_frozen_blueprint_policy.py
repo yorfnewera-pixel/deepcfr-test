@@ -1,5 +1,6 @@
 import numpy as np
 import pokers as pkrs
+import pytest
 import torch
 
 from src.core.action_space import NUM_ACTIONS, legal_action_mask
@@ -61,3 +62,15 @@ def test_identical_frozen_policy_has_zero_paired_difference(tmp_path):
     candidate = FrozenBlueprintPolicy.from_checkpoint(checkpoint, num_players=2)
     result = evaluate_paired(baseline, candidate, num_deals=2, seed=107, num_players=2)
     assert np.array_equal(result.differences, np.zeros(result.samples))
+
+
+def test_light_checkpoint_rejects_layer_width_inconsistent_with_encoder_metadata(tmp_path):
+    checkpoint = tmp_path / "inconsistent_light.pt"
+    sixmax = DeepCFRAgent(player_id=0, num_players=6)
+    heads_up = DeepCFRAgent(player_id=0, num_players=2)
+    payload = sixmax.build_light_checkpoint()
+    payload["strategy_net"] = heads_up.strategy_net.state_dict()
+    torch.save(payload, checkpoint)
+
+    with pytest.raises(ValueError, match="размер входа encoder"):
+        FrozenBlueprintPolicy.from_checkpoint(checkpoint)

@@ -3,7 +3,13 @@ import pokers as pkrs
 import pytest
 
 from src.core.action_space import ActionSlot, legal_action_mask, resolve_action
-from src.core.model import encode_state
+from src.core.model import (
+    encoder_input_size,
+    encode_state,
+    encode_state_history_summary_v3,
+    history_summary_size,
+    legacy_base_input_size,
+)
 
 
 def _initial_hu_state() -> pkrs.State:
@@ -104,10 +110,6 @@ def test_current_encoder_reproduces_documented_hu_aliases(state_factory) -> None
     _assert_current_alias(first, second)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="history_summary_v3 ещё не реализован: разные observable betting lines сливаются в один tensor",
-)
 @pytest.mark.parametrize(
     "state_factory",
     (_flop_raise_vs_turn_raise, _turn_aggressor_player_zero_vs_one),
@@ -116,4 +118,40 @@ def test_current_encoder_reproduces_documented_hu_aliases(state_factory) -> None
 def test_history_summary_must_separate_documented_hu_aliases(state_factory) -> None:
     first, second = state_factory()
 
-    assert not np.array_equal(encode_state(first, player_id=0), encode_state(second, player_id=0))
+    first_encoding = encode_state_history_summary_v3(first, player_id=0)
+    second_encoding = encode_state_history_summary_v3(second, player_id=0)
+
+    assert first_encoding.shape == (181,)
+    assert second_encoding.shape == (181,)
+    assert not np.array_equal(first_encoding, second_encoding)
+
+
+def test_history_summary_rejects_incomplete_public_history() -> None:
+    state = pkrs.State.from_mid_hand(
+        n_players=2,
+        button=0,
+        sb=1.0,
+        bb=2.0,
+        stake=20.0,
+        deck=[],
+        hole_cards=[(pkrs.Card.from_string("cA"), pkrs.Card.from_string("dK")),
+                    (pkrs.Card.from_string("hQ"), pkrs.Card.from_string("sJ"))],
+        public_cards=[],
+        stage=pkrs.Stage.Preflop,
+        pot=3.0,
+        bet_chips=[1.0, 2.0],
+        pot_chips=[0.0, 0.0],
+        active=[True, True],
+        last_stage_action=[None, None],
+    )
+
+    with pytest.raises(ValueError, match="полной публичной истории"):
+        encode_state_history_summary_v3(state, player_id=0)
+
+
+def test_encoder_input_size_contracts_are_explicit() -> None:
+    assert legacy_base_input_size(2) == 133
+    assert history_summary_size(2) == 48
+    assert encoder_input_size(2, "legacy_v2") == 133
+    assert encoder_input_size(2, "history_summary_v3") == 181
+    assert encoder_input_size(6, "history_summary_v3", use_multi_agent=True) == 243

@@ -9,6 +9,27 @@ from src.core.action_space import NUM_ACTIONS
 
 VERBOSE = False
 
+LEGACY_ENCODING_VERSION = "legacy_v2"
+HISTORY_SUMMARY_V3_ENCODING_VERSION = "history_summary_v3"
+
+
+def legacy_base_input_size(num_players):
+    return 121 + 6 * int(num_players)
+
+
+def history_summary_size(num_players):
+    return 4 * (2 * int(num_players) + 8)
+
+
+def encoder_input_size(num_players, encoding_version=LEGACY_ENCODING_VERSION, use_multi_agent=False):
+    if encoding_version == LEGACY_ENCODING_VERSION:
+        size = legacy_base_input_size(num_players)
+    elif encoding_version == HISTORY_SUMMARY_V3_ENCODING_VERSION:
+        size = legacy_base_input_size(num_players) + history_summary_size(num_players)
+    else:
+        raise ValueError(f"Неизвестная версия encoder: {encoding_version}")
+    return size + (int(num_players) if use_multi_agent else 0)
+
 
 def set_verbose(verbose_mode):
     global VERBOSE
@@ -50,6 +71,14 @@ def _build_suit_canonical_map(hand_cards, public_cards):
     return suit_to_canonical
 
 
+def _normalization_unit(state, player_id):
+    player_state = state.players_state[player_id]
+    norm_unit = float(getattr(state, "bb", 0.0)) * 100.0
+    if norm_unit < 1.0:
+        norm_unit = float(player_state.stake + player_state.bet_chips + player_state.pot_chips)
+    return max(norm_unit, 1.0)
+
+
 def encode_state(state, player_id=0):
     """Кодирует игровое состояние; четыре engine-действия остаются входным признаком."""
     encoded = []
@@ -76,10 +105,7 @@ def encode_state(state, player_id=0):
     encoded.append(stage_enc)
 
     player_state = state.players_state[player_id]
-    norm_unit = float(getattr(state, "bb", 0.0)) * 100.0
-    if norm_unit < 1.0:
-        norm_unit = float(player_state.stake + player_state.bet_chips + player_state.pot_chips)
-    norm_unit = max(norm_unit, 1.0)
+    norm_unit = _normalization_unit(state, player_id)
 
     encoded.append(np.asarray([state.pot / norm_unit], dtype=np.float32))
 
@@ -123,8 +149,63 @@ def encode_state(state, player_id=0):
     return np.concatenate(encoded, dtype=np.float32)
 
 
-def encode_state_with_position(state, player_id=0):
+def _history_summary_v3(state, player_id, norm_unit):
+    if not bool(getattr(state, "action_history_complete", False)):
+        raise ValueError("history_summary_v3 требует полной публичной истории")
+
+    num_players = len(state.players_state)
+    streets = 4
+    last_actor = np.full(streets, num_players, dtype=np.int64)
+    last_action = np.full(streets, 4, dtype=np.int64)
+    raise_actors = np.zeros((streets, num_players), dtype=np.float32)
+    raise_count = np.zeros(streets, dtype=np.float32)
+    raise_amount_total = np.zeros(streets, dtype=np.float32)
+
+    for record in state.action_history:
+        street = int(record.street)
+        if street >= streets:
+            continue
+        last_actor[street] = (int(record.actor_id) - int(player_id)) % num_players
+        last_action[street] = int(record.requested_action.action)
+        if bool(record.is_effective_raise):
+            actor = (int(record.actor_id) - int(player_id)) % num_players
+            raise_actors[street, actor] = 1.0
+            raise_count[street] += 1.0
+            raise_amount_total[street] += float(record.applied_raise_increment) / norm_unit
+
+    summary = []
+    for street in range(streets):
+        actor_enc = np.zeros(num_players + 1, dtype=np.float32)
+        actor_enc[last_actor[street]] = 1.0
+        action_enc = np.zeros(5, dtype=np.float32)
+        action_enc[last_action[street]] = 1.0
+        summary.extend((actor_enc, action_enc, raise_actors[street]))
+        summary.append(np.asarray([raise_count[street] / max(num_players, 1)], dtype=np.float32))
+        summary.append(np.asarray([raise_amount_total[street]], dtype=np.float32))
+    return np.concatenate(summary, dtype=np.float32)
+
+
+def encode_state_history_summary_v3(state, player_id=0):
+    """Кодирует legacy infoset с actor-aware summary полной public history."""
     base = encode_state(state, player_id)
+    norm_unit = _normalization_unit(state, player_id)
+    return np.concatenate([base, _history_summary_v3(state, player_id, norm_unit)], dtype=np.float32)
+
+
+def encode_state_for_version(state, player_id=0, encoding_version=LEGACY_ENCODING_VERSION):
+    if encoding_version == LEGACY_ENCODING_VERSION:
+        return encode_state(state, player_id)
+    if encoding_version == HISTORY_SUMMARY_V3_ENCODING_VERSION:
+        return encode_state_history_summary_v3(state, player_id)
+    raise ValueError(f"Неизвестная версия encoder: {encoding_version}")
+
+
+def encode_state_with_position(
+    state,
+    player_id=0,
+    encoding_version=LEGACY_ENCODING_VERSION,
+):
+    base = encode_state_for_version(state, player_id, encoding_version)
     one_hot = np.zeros(len(state.players_state), dtype=np.float32)
     one_hot[int(player_id)] = 1.0
     return np.concatenate([base, one_hot], dtype=np.float32)

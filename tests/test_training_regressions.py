@@ -7,7 +7,7 @@ from types import SimpleNamespace
 from pathlib import Path
 
 from src.core.action_space import ACTION_SPACE_VERSION, NUM_ACTIONS
-from src.core.deep_cfr import DeepCFRAgent
+from src.core.deep_cfr import CHECKPOINT_FORMAT_VERSION, DeepCFRAgent
 from src.core.traversal_errors import TraversalFailure, TraversalFailureContext
 from src.agents.random_agent import RandomAgent
 from src.training.train import (
@@ -1035,6 +1035,56 @@ def test_agent_policy_and_checkpoint_use_six_fixed_actions(tmp_path):
     assert payload["num_actions"] == NUM_ACTIONS
     assert "advantage_optimizer" in payload
     assert "strategy_optimizer" in payload
+
+
+def test_history_summary_v3_agent_persists_encoder_contract(tmp_path, monkeypatch):
+    import src.core.deep_cfr as deep_cfr_module
+
+    original_cfg_get = deep_cfr_module.cfg_get
+
+    def cfg_get_v3(key, default=None):
+        if key == "encoding_version":
+            return "history_summary_v3"
+        return original_cfg_get(key, default)
+
+    monkeypatch.setattr(deep_cfr_module, "cfg_get", cfg_get_v3)
+    agent = DeepCFRAgent(player_id=0, num_players=2, device="cpu")
+    state = pkrs.State.from_seed(
+        n_players=2, button=0, sb=1.0, bb=2.0, stake=200.0, seed=11
+    )
+
+    assert agent.input_size == 181
+    assert agent._encode_state(state, int(state.current_player)).shape == (181,)
+
+    checkpoint = agent._build_checkpoint()
+
+    assert checkpoint["checkpoint_format_version"] == CHECKPOINT_FORMAT_VERSION
+    assert checkpoint["encoding_version"] == "history_summary_v3"
+    assert checkpoint["encoder_input_size"] == 181
+    assert checkpoint["config"]["encoding_version"] == "history_summary_v3"
+
+
+def test_checkpoint_rejects_different_player_count_before_loading_weights(tmp_path):
+    agent = DeepCFRAgent(player_id=0, num_players=2, device="cpu")
+    payload = agent._build_checkpoint()
+    payload["num_players"] = 6
+    checkpoint = tmp_path / "wrong_player_count.pt"
+    torch.save(payload, checkpoint)
+
+    with pytest.raises(ValueError, match="число игроков"):
+        agent._load_checkpoint(checkpoint)
+
+
+def test_teacher_checkpoint_rejects_wrong_declared_encoder_input_size(tmp_path):
+    teacher = DeepCFRAgent(player_id=0, num_players=2, device="cpu")
+    payload = teacher.build_light_checkpoint()
+    payload["encoder_input_size"] = 0
+    checkpoint = tmp_path / "wrong_teacher_input.pt"
+    torch.save(payload, checkpoint)
+    student = DeepCFRAgent(player_id=0, num_players=6, device="cpu")
+
+    with pytest.raises(ValueError, match="размер входа encoder"):
+        student.load_teacher_strategy_checkpoint(checkpoint)
 
 
 def test_advantage_training_steps_override_epoch_budget():

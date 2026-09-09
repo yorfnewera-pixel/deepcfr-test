@@ -102,6 +102,8 @@ def materialize_particle_state(
         verbose=bool(state.verbose),
     )
     rebuilt.from_action = state.from_action
+    if state.action_history_complete:
+        rebuilt.copy_public_history_from(state)
     return rebuilt
 
 

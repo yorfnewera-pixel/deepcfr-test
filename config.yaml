@@ -2,6 +2,8 @@
 num_actions: 6
 num_players: 6
 num_trainable_players: 1
+# Public history summary, несовместим с legacy_v2 чекпоинтами.
+encoding_version: history_summary_v3
 
 hidden_size: 256
 advantage_lr: 1.0e-4

@@ -11,7 +11,12 @@ import torch
 
 from src.core.action_space import ACTION_SPACE_VERSION, NUM_ACTIONS, legal_action_mask, resolve_action
 from src.core.deep_cfr import CHECKPOINT_FORMAT_VERSION, DeepCFRAgent
-from src.core.model import PokerNetwork, encode_state, encode_state_with_position
+from src.core.model import (
+    PokerNetwork,
+    encoder_input_size,
+    encode_state_for_version,
+    encode_state_with_position,
+)
 
 
 class FrozenBlueprintPolicy:
@@ -23,6 +28,7 @@ class FrozenBlueprintPolicy:
         *,
         num_players: int,
         use_multi_agent: bool,
+        encoding_version: str,
         device: str,
         agent: DeepCFRAgent | None = None,
     ):
@@ -30,6 +36,7 @@ class FrozenBlueprintPolicy:
         self.strategy_net = strategy_net
         self.num_players = int(num_players)
         self.use_multi_agent = bool(use_multi_agent)
+        self.encoding_version = str(encoding_version)
         self.device = torch.device(device)
         self.strategy_net.eval()
         for parameter in self.strategy_net.parameters():
@@ -46,10 +53,12 @@ class FrozenBlueprintPolicy:
             strategy_net = PokerNetwork(input_size, hidden_size, NUM_ACTIONS).to(device)
             strategy_net.load_state_dict(state_dict, strict=True)
             use_multi_agent = bool(checkpoint.get("config", {}).get("use_multi_agent_advantage", False))
+            encoding_version = str(checkpoint["encoding_version"])
             return cls(
                 strategy_net,
                 num_players=num_players,
                 use_multi_agent=use_multi_agent,
+                encoding_version=encoding_version,
                 device=device,
             )
 
@@ -59,6 +68,7 @@ class FrozenBlueprintPolicy:
             agent.strategy_net,
             num_players=agent.num_players,
             use_multi_agent=agent.use_multi_agent,
+            encoding_version=agent.encoding_version,
             device=device,
             agent=agent,
         )
@@ -73,14 +83,27 @@ class FrozenBlueprintPolicy:
             raise ValueError("Light checkpoint имеет неверное число действий")
         if int(checkpoint.get("num_players", -1)) != int(num_players):
             raise ValueError("Число игроков не совпадает с light checkpoint")
+        encoding_version = checkpoint.get("encoding_version")
+        if not isinstance(encoding_version, str):
+            raise ValueError("В light checkpoint отсутствует версия encoder")
+        expected_input_size = encoder_input_size(
+            num_players,
+            encoding_version,
+            bool(checkpoint.get("config", {}).get("use_multi_agent_advantage", False)),
+        )
+        if int(checkpoint.get("encoder_input_size", -1)) != expected_input_size:
+            raise ValueError("Light checkpoint имеет неверный размер входа encoder")
         state_dict = checkpoint.get("strategy_net")
         if not isinstance(state_dict, dict) or "base.0.weight" not in state_dict:
             raise ValueError("В light checkpoint отсутствуют веса strategy_net")
+        actual_input_size = int(state_dict["base.0.weight"].shape[1])
+        if actual_input_size != expected_input_size:
+            raise ValueError("Light checkpoint имеет неверный размер входа encoder в strategy_net")
 
     def _encode_state(self, state: pkrs.State, player_id: int) -> np.ndarray:
         if self.use_multi_agent:
-            return encode_state_with_position(state, player_id)
-        return encode_state(state, player_id)
+            return encode_state_with_position(state, player_id, self.encoding_version)
+        return encode_state_for_version(state, player_id, self.encoding_version)
 
     def probabilities(self, state: pkrs.State, player_id: int | None = None) -> np.ndarray:
         """Возвращает маскированное распределение по шести слотам."""

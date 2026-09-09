@@ -1,6 +1,6 @@
 // game_logic.rs
 use itertools::Itertools;
-use pyo3::exceptions::PyOSError;
+use pyo3::exceptions::{PyOSError, PyValueError};
 use pyo3::prelude::*;
 use rand::{seq::SliceRandom, SeedableRng};
 use strum::IntoEnumIterator;
@@ -41,6 +41,18 @@ impl State {
     /// `memo` is accepted for compatibility with `copy.deepcopy`.
     pub fn __deepcopy__(&self, _memo: &PyAny) -> State {
         self.clone()
+    }
+
+    /// Переносит полную public history при реконструкции скрытых карт состояния.
+    pub fn copy_public_history_from(&mut self, source: &State) -> PyResult<()> {
+        if !source.action_history_complete {
+            return Err(PyValueError::new_err(
+                "Нельзя копировать неполную публичную историю",
+            ));
+        }
+        self.action_history = source.action_history.clone();
+        self.action_history_complete = true;
+        Ok(())
     }
 
     #[staticmethod]

@@ -83,6 +83,23 @@ def test_materialized_particle_uses_particle_cards_and_not_source_deck():
     assert [card_key(card) for card in rebuilt.deck] == [card_key(card) for card in rebuilt_from_reordered.deck]
 
 
+def test_materialized_complete_state_preserves_public_history():
+    source = pkrs.State.from_seed(
+        n_players=6, button=0, sb=1.0, bb=2.0, stake=200.0, seed=107
+    ).apply_action(pkrs.Action(pkrs.ActionEnum.Call))
+    particle = _particle(source, 211)
+
+    rebuilt = materialize_particle_state(
+        source,
+        hero_id=0,
+        particle=particle,
+        rng=np.random.default_rng(313),
+    )
+
+    assert rebuilt.action_history_complete is True
+    assert len(rebuilt.action_history) == len(source.action_history)
+
+
 def test_lockstep_rollouts_complete_for_each_root_action_and_are_reproducible():
     state = build_constructed_spot(pkrs.Stage.Turn)
     particles = (_particle(state, 107), _particle(state, 211))

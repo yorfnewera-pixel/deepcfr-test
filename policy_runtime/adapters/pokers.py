@@ -22,7 +22,7 @@ class PokersGameState:
     __slots__ = (
         "bb", "pot", "min_bet", "button", "current_player", "stage",
         "legal_actions", "public_cards", "from_action", "players_state",
-        "last_raise_increment",
+        "last_raise_increment", "action_history_complete", "action_history",
     )
 
     def __init__(self, state, player_id=0, bb=2.0):
@@ -36,6 +36,8 @@ class PokersGameState:
         self.public_cards = list(state.public_cards)
         self.from_action = getattr(state, "from_action", None)
         self.players_state = [PokersPlayerState(ps) for ps in state.players_state]
+        self.action_history_complete = bool(getattr(state, "action_history_complete", False))
+        self.action_history = list(getattr(state, "action_history", []))
         if getattr(state, "last_raise_increment", 0):
             self.last_raise_increment = float(state.last_raise_increment)
         elif self.from_action is not None and int(self.from_action.action.action) == 3:

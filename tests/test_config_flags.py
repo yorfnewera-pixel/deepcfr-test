@@ -123,3 +123,17 @@ def test_training_validate_state_invariants_rejects_enabled_mode(tmp_path):
             config_mod.load_config(config_path)
     finally:
         config_mod.load_config("config.yaml")
+
+
+def test_encoding_version_rejects_unknown_value(tmp_path):
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(
+        "num_actions: 6\nencoding_version: unsupported_encoder\n",
+        encoding="utf-8",
+    )
+
+    try:
+        with pytest.raises(ValueError, match="encoding_version"):
+            config_mod.load_config(config_path)
+    finally:
+        config_mod.load_config("config.yaml")

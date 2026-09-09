@@ -7,6 +7,10 @@ from copy import deepcopy
 import yaml
 
 from src.core.action_space import NUM_ACTIONS
+from src.core.model import (
+    HISTORY_SUMMARY_V3_ENCODING_VERSION,
+    LEGACY_ENCODING_VERSION,
+)
 
 
 _DEFAULTS = {
@@ -17,6 +21,7 @@ _DEFAULTS = {
     "hidden_size": 256,
     "num_actions": NUM_ACTIONS,
     "num_players": 6,
+    "encoding_version": "history_summary_v3",
     "use_multi_agent_advantage": False,
     "advantage_memory_size": 300000,
     "strategy_memory_size": 300000,
@@ -86,6 +91,11 @@ def load_config(path=None):
         _config = _deep_merge(_DEFAULTS, loaded)
         if int(_config["num_actions"]) != NUM_ACTIONS:
             raise ValueError(f"num_actions должен быть равен {NUM_ACTIONS}")
+        if _config["encoding_version"] not in (
+            LEGACY_ENCODING_VERSION,
+            HISTORY_SUMMARY_V3_ENCODING_VERSION,
+        ):
+            raise ValueError("encoding_version имеет неподдерживаемое значение")
         training_error_mode = _config["training_error_mode"]
         if not isinstance(training_error_mode, str) or training_error_mode not in (
             "strict",
