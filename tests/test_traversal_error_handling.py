@@ -111,6 +111,27 @@ def test_successful_root_traversal_commits_collected_samples_once(monkeypatch):
     assert len(agent.strategy_buffer) == 1
 
 
+def test_oversized_iteration_does_not_mutate_full_reservoir(monkeypatch):
+    agent = _agent_with_small_reservoir()
+    advantage_before = _buffer_snapshot(agent.advantage_buffer)
+    strategy_before = _buffer_snapshot(agent.strategy_buffer)
+
+    def _record_oversized_iteration(_state, iteration, _traversing_player, _depth):
+        encoded, regrets, strategy, mask = _sample(agent)
+        agent._record_advantage_sample(encoded, regrets, mask, iteration)
+        agent._record_strategy_sample(encoded, strategy, mask, iteration)
+        return 1.5
+
+    monkeypatch.setattr(agent, "_cfr_traverse_multi", _record_oversized_iteration)
+    monkeypatch.setattr(np.random, "randint", lambda *_args, **_kwargs: 0)
+
+    with pytest.raises(TraversalFailure):
+        agent.cfr_traverse_multi(_state(), iteration=10**400, traversing_player=0)
+
+    assert _buffer_snapshot(agent.advantage_buffer) == advantage_before
+    assert _buffer_snapshot(agent.strategy_buffer) == strategy_before
+
+
 @pytest.mark.parametrize(
     ("values", "mask"),
     [

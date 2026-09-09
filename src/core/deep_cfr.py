@@ -487,6 +487,12 @@ class DeepCFRAgent:
             self._raise_invalid_training_sample(iteration, "Неизвестный тип training sample")
         if not isinstance(iteration, Integral) or isinstance(iteration, bool) or iteration < 1:
             self._raise_invalid_training_sample(iteration, "Iteration должен быть целым числом не меньше 1")
+        try:
+            iteration_value = float(iteration)
+        except (OverflowError, ValueError):
+            self._raise_invalid_training_sample(iteration, "Iteration не преобразуется в конечное число")
+        if not math.isfinite(iteration_value):
+            self._raise_invalid_training_sample(iteration, "Iteration не преобразуется в конечное число")
         for name, value, shape in (
             ("state", state, (self.input_size,)),
             ("values", values, (NUM_ACTIONS,)),
