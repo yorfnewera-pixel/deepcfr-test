@@ -55,6 +55,15 @@ class _RecordingCoordinator:
         assert new_initial_state(0, 0) == (0, 6)
 
 
+class _ResumeCoordinator:
+    def __init__(self, events):
+        self.events = events
+        self.training_losses = ([0.0, 0.0], [0.0])
+
+    def run_iteration(self, *, iteration, traversals_per_player, **_kwargs):
+        self.events.append(("run", iteration, traversals_per_player))
+
+
 def _cfg(key, default=None):
     values = {
         "checkpoint_save_every": 1000,
@@ -83,6 +92,7 @@ def test_hu_training_uses_coordinator_without_opponent_pool(monkeypatch, tmp_pat
         "_create_hu_current_policy_coordinator",
         lambda _agent: _RecordingCoordinator(events),
     )
+    monkeypatch.setattr(train_mod, "_save_hu_checkpoint", lambda _agent, path, seed=None: path)
     monkeypatch.setattr(train_mod, "_new_hand", lambda _players, seed: (seed % 2, seed))
     monkeypatch.setattr(
         train_mod,
@@ -178,3 +188,53 @@ def test_hu_failure_handler_ispolzuet_skip_limit_i_diagnostics(monkeypatch):
         handler(error)
 
     assert [context.reason for context in diagnostics] == ["ошибка HU", "ошибка HU"]
+
+
+def test_hu_resume_continues_from_next_iteration_and_writes_periodic_and_final_checkpoint(monkeypatch, tmp_path):
+    events = []
+    saved_paths = []
+    agent = _HuAgent()
+    monkeypatch.setattr(train_mod, "DeepCFRAgent", lambda **_kwargs: agent)
+    monkeypatch.setattr(
+        train_mod,
+        "cfg_get",
+        lambda key, default=None: 1 if key == "checkpoint_save_every" else _cfg(key, default),
+    )
+    monkeypatch.setattr(train_mod, "_create_writer", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        train_mod,
+        "_create_hu_current_policy_coordinator",
+        lambda _agent: _ResumeCoordinator(events),
+    )
+    monkeypatch.setattr(
+        train_mod,
+        "_prepare_hu_current_policy_iteration",
+        lambda _agent: events.append("prepare"),
+    )
+
+    def load_checkpoint(loaded_agent, path):
+        assert str(path).endswith("resume.pt")
+        events.append("load")
+        loaded_agent.iteration_count = 4
+        return {"seed": 9}
+
+    monkeypatch.setattr(train_mod, "_load_hu_checkpoint", load_checkpoint)
+    monkeypatch.setattr(
+        train_mod,
+        "_save_hu_checkpoint",
+        lambda _agent, path, seed=None: saved_paths.append((path.name, seed)) or path,
+    )
+
+    train_mod.train_self_play_multi(
+        num_iterations=1,
+        traversals_per_iteration=3,
+        evaluate_every=0,
+        save_dir=tmp_path,
+        num_players=2,
+        trainable_players=2,
+        initial_checkpoint=tmp_path / "resume.pt",
+        hu_current_policy_self_play=True,
+    )
+
+    assert events == ["load", "prepare", ("run", 5, 3)]
+    assert saved_paths == [("hu_checkpoint_iter_5.pt", 9), ("hu_checkpoint_final.pt", 9)]

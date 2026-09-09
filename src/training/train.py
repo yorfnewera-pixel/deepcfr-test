@@ -17,9 +17,9 @@ import pokers as pkrs
 import torch
 
 from src.agents.random_agent import RandomAgent
-from src.core.action_space import ACTION_SPACE_VERSION
+from src.core.action_space import ACTION_LABELS, ACTION_SPACE_VERSION, NUM_ACTIONS
 from src.core.buffers import AdvantageBuffer
-from src.core.deep_cfr import DeepCFRAgent
+from src.core.deep_cfr import CHECKPOINT_FORMAT_VERSION, DeepCFRAgent
 from src.core.hu_self_play import (
     HuCurrentPolicySelfPlayCoordinator,
     HuStrategyBuffer,
@@ -38,6 +38,15 @@ _HEAVY_CHECKPOINT_PREFIX = "multi_checkpoint_iter_"
 _LIGHT_CHECKPOINT_PREFIX = "light_checkpoint_iter_"
 _OPPONENT_RECENT_CHECKPOINTS = 11
 _OPPONENT_HISTORICAL_CHECKPOINTS = 2
+_HU_CHECKPOINT_KIND = "hu_current_policy_self_play"
+_HU_CHECKPOINT_VERSION = 1
+_HU_UPDATE_ORDER = [
+    "traverse_p0",
+    "traverse_p1",
+    "train_advantage_p0",
+    "train_advantage_p1",
+    "train_strategy",
+]
 
 
 def _checkpoint_iteration(path: Path, prefix: str = _HEAVY_CHECKPOINT_PREFIX) -> int | None:
@@ -342,6 +351,282 @@ def _atomic_torch_save(payload: dict[str, Any], path: str | Path) -> None:
         os.replace(temporary, target)
     finally:
         temporary.unlink(missing_ok=True)
+
+
+def _network_architecture(network: PokerNetwork) -> dict[str, int]:
+    """Возвращает минимальный контракт формы сети для строгого HU resume."""
+    return {
+        "input_size": int(network.base[0].in_features),
+        "hidden_size": int(network.base[0].out_features),
+        "num_actions": int(network.action_head.out_features),
+    }
+
+
+def _capture_rng_state() -> dict[str, Any]:
+    """Сохраняет все генераторы, влияющие на HU traversal и reservoir."""
+    state: dict[str, Any] = {
+        "python": random.getstate(),
+        "numpy": np.random.get_state(),
+        "torch_cpu": torch.get_rng_state(),
+    }
+    if torch.cuda.is_available():
+        state["torch_cuda"] = torch.cuda.get_rng_state_all()
+    return state
+
+
+def _restore_rng_state(payload: dict[str, Any]) -> None:
+    """Восстанавливает генераторы только из полного HU checkpoint."""
+    required = ("python", "numpy", "torch_cpu")
+    if not isinstance(payload, dict) or any(key not in payload for key in required):
+        raise ValueError("В HU checkpoint отсутствует полное состояние RNG")
+    random.setstate(payload["python"])
+    np.random.set_state(payload["numpy"])
+    torch.set_rng_state(payload["torch_cpu"])
+    cuda_state = payload.get("torch_cuda")
+    if cuda_state is not None and torch.cuda.is_available():
+        torch.cuda.set_rng_state_all(cuda_state)
+
+
+def _advantage_buffer_payload(buffer: AdvantageBuffer) -> dict[str, Any]:
+    count = len(buffer)
+    return {
+        "capacity": int(buffer.capacity),
+        "state_dim": int(buffer._states.shape[1]),
+        "cur_id": int(buffer._cur_id),
+        "count": int(count),
+        "eviction_count": int(buffer.eviction_count),
+        "skip_count": int(buffer.skip_count),
+        "states": buffer._states[:count].copy(),
+        "regrets": buffer._regrets[:count].copy(),
+        "masks": buffer._masks[:count].copy(),
+        "iterations": buffer._iterations[:count].copy(),
+    }
+
+
+def _strategy_buffer_payload(buffer: HuStrategyBuffer) -> dict[str, Any]:
+    count = len(buffer)
+    return {
+        "capacity": int(buffer.capacity),
+        "state_dim": int(buffer.state_dim),
+        "cur_id": int(buffer._cur_id),
+        "count": int(count),
+        "eviction_count": int(buffer.eviction_count),
+        "skip_count": int(buffer.skip_count),
+        "states": buffer._states[:count].copy(),
+        "actor_ids": buffer._actor_ids[:count].copy(),
+        "policies": buffer._policies[:count].copy(),
+        "masks": buffer._masks[:count].copy(),
+        "iterations": buffer._iterations[:count].copy(),
+    }
+
+
+def _buffer_count(payload: dict[str, Any], capacity: int) -> tuple[int, int]:
+    if not isinstance(payload, dict) or int(payload.get("capacity", -1)) != int(capacity):
+        raise ValueError("HU checkpoint имеет несовместимую ёмкость replay-буфера")
+    count = int(payload.get("count", -1))
+    cur_id = int(payload.get("cur_id", -1))
+    if count < 0 or count > capacity or cur_id < count:
+        raise ValueError("HU checkpoint имеет некорректное состояние replay-буфера")
+    return count, cur_id
+
+
+def _restore_advantage_buffer(buffer: AdvantageBuffer, payload: dict[str, Any]) -> None:
+    count, cur_id = _buffer_count(payload, buffer.capacity)
+    state_dim = int(buffer._states.shape[1])
+    if int(payload.get("state_dim", -1)) != state_dim:
+        raise ValueError("HU checkpoint имеет несовместимый размер advantage-буфера")
+    fields = {
+        "states": (count, state_dim),
+        "regrets": (count, NUM_ACTIONS),
+        "masks": (count, NUM_ACTIONS),
+        "iterations": (count,),
+    }
+    arrays = {name: np.asarray(payload.get(name)) for name in fields}
+    if any(arrays[name].shape != shape for name, shape in fields.items()):
+        raise ValueError("HU checkpoint имеет повреждённый advantage-буфер")
+    buffer._states[:count] = arrays["states"]
+    buffer._regrets[:count] = arrays["regrets"]
+    buffer._masks[:count] = arrays["masks"]
+    buffer._iterations[:count] = arrays["iterations"]
+    buffer._cur_id = cur_id
+    buffer._size = count
+    buffer.eviction_count = int(payload.get("eviction_count", 0))
+    buffer.skip_count = int(payload.get("skip_count", 0))
+
+
+def _restore_strategy_buffer(buffer: HuStrategyBuffer, payload: dict[str, Any]) -> None:
+    count, cur_id = _buffer_count(payload, buffer.capacity)
+    if int(payload.get("state_dim", -1)) != int(buffer.state_dim):
+        raise ValueError("HU checkpoint имеет несовместимый размер strategy-буфера")
+    fields = {
+        "states": (count, buffer.state_dim),
+        "actor_ids": (count,),
+        "policies": (count, NUM_ACTIONS),
+        "masks": (count, NUM_ACTIONS),
+        "iterations": (count,),
+    }
+    arrays = {name: np.asarray(payload.get(name)) for name in fields}
+    if any(arrays[name].shape != shape for name, shape in fields.items()):
+        raise ValueError("HU checkpoint имеет повреждённый strategy-буфер")
+    if not np.all(np.isin(arrays["actor_ids"], (0, 1))):
+        raise ValueError("HU checkpoint содержит недопустимый actor_id strategy-буфера")
+    buffer._states[:count] = arrays["states"]
+    buffer._actor_ids[:count] = arrays["actor_ids"]
+    buffer._policies[:count] = arrays["policies"]
+    buffer._masks[:count] = arrays["masks"]
+    buffer._iterations[:count] = arrays["iterations"]
+    buffer._cur_id = cur_id
+    buffer.eviction_count = int(payload.get("eviction_count", 0))
+    buffer.skip_count = int(payload.get("skip_count", 0))
+
+
+def _build_hu_checkpoint(agent: DeepCFRAgent, seed: int | None = None) -> dict[str, Any]:
+    """Строит полный checkpoint только на границе завершённой HU-итерации."""
+    if not bool(getattr(agent, "hu_current_policy_self_play", False)):
+        raise ValueError("Полный HU checkpoint доступен только в hu_current_policy_self_play")
+    advantage_nets = tuple(agent.hu_advantage_nets)
+    advantage_targets = tuple(agent.hu_advantage_target_nets)
+    advantage_optimizers = tuple(agent.hu_advantage_optimizers)
+    advantage_buffers = tuple(agent.hu_advantage_buffers)
+    if not all(len(items) == 2 for items in (advantage_nets, advantage_targets, advantage_optimizers, advantage_buffers)):
+        raise ValueError("HU checkpoint требует две независимые advantage-ноги")
+    mode = {
+        "hu_current_policy_self_play": True,
+        "num_players": int(agent.num_players),
+        "num_trainable_players": int(agent.num_trainable_players),
+        "use_multi_agent_advantage": bool(agent.use_multi_agent),
+        "encoding_version": str(agent.encoding_version),
+        "encoder_input_size": int(agent.input_size),
+    }
+    return {
+        "checkpoint_format_version": CHECKPOINT_FORMAT_VERSION,
+        "checkpoint_kind": _HU_CHECKPOINT_KIND,
+        "hu_checkpoint_version": _HU_CHECKPOINT_VERSION,
+        "action_space_version": ACTION_SPACE_VERSION,
+        "action_labels": list(ACTION_LABELS),
+        "num_actions": NUM_ACTIONS,
+        "iteration": int(agent.iteration_count),
+        "seed": seed,
+        "mode": mode,
+        "config": dict(mode),
+        "architecture": {
+            "advantage": [_network_architecture(network) for network in advantage_nets],
+            "advantage_target": [_network_architecture(network) for network in advantage_targets],
+            "strategy": _network_architecture(agent.strategy_net),
+        },
+        "update_order": list(_HU_UPDATE_ORDER),
+        "advantage_legs": [
+            {
+                "network": network.state_dict(),
+                "target_network": target.state_dict(),
+                "optimizer": optimizer.state_dict(),
+                "buffer": _advantage_buffer_payload(buffer),
+            }
+            for network, target, optimizer, buffer in zip(
+                advantage_nets,
+                advantage_targets,
+                advantage_optimizers,
+                advantage_buffers,
+                strict=True,
+            )
+        ],
+        "strategy": {
+            "network": agent.strategy_net.state_dict(),
+            "optimizer": agent.strategy_optimizer.state_dict(),
+            "buffer": _strategy_buffer_payload(agent.hu_strategy_buffer),
+        },
+        "rng": _capture_rng_state(),
+    }
+
+
+def _validate_hu_checkpoint(agent: DeepCFRAgent, checkpoint: object) -> dict[str, Any]:
+    if not isinstance(checkpoint, dict) or checkpoint.get("checkpoint_kind") != _HU_CHECKPOINT_KIND:
+        raise ValueError("Для HU resume требуется полный HU checkpoint")
+    if int(checkpoint.get("hu_checkpoint_version", -1)) != _HU_CHECKPOINT_VERSION:
+        raise ValueError("HU checkpoint имеет несовместимую версию")
+    if checkpoint.get("checkpoint_format_version") != CHECKPOINT_FORMAT_VERSION:
+        raise ValueError("HU checkpoint имеет несовместимый общий формат")
+    if checkpoint.get("action_space_version") != ACTION_SPACE_VERSION or int(checkpoint.get("num_actions", -1)) != NUM_ACTIONS:
+        raise ValueError("HU checkpoint имеет другое пространство действий")
+    mode = checkpoint.get("mode")
+    expected_mode = {
+        "hu_current_policy_self_play": True,
+        "num_players": int(agent.num_players),
+        "num_trainable_players": int(agent.num_trainable_players),
+        "use_multi_agent_advantage": bool(agent.use_multi_agent),
+        "encoding_version": str(agent.encoding_version),
+        "encoder_input_size": int(agent.input_size),
+    }
+    if not isinstance(mode, dict) or any(mode.get(key) != value for key, value in expected_mode.items()):
+        raise ValueError("HU checkpoint имеет несовместимый режим или encoder")
+    config = checkpoint.get("config")
+    if not isinstance(config, dict) or any(config.get(key) != value for key, value in expected_mode.items()):
+        raise ValueError("HU checkpoint имеет несовместимую конфигурацию")
+    if int(agent.num_players) != 2 or int(agent.num_trainable_players) != 2:
+        raise ValueError("HU resume требует ровно двух игроков и двух trainable players")
+    if checkpoint.get("update_order") != _HU_UPDATE_ORDER:
+        raise ValueError("HU checkpoint имеет неизвестный порядок обновления")
+    advantage_legs = checkpoint.get("advantage_legs")
+    strategy = checkpoint.get("strategy")
+    if not isinstance(advantage_legs, list) or len(advantage_legs) != 2 or not isinstance(strategy, dict):
+        raise ValueError("HU checkpoint не содержит полный набор training state")
+    architecture = checkpoint.get("architecture")
+    if not isinstance(architecture, dict):
+        raise ValueError("HU checkpoint не содержит описание архитектуры")
+    expected_architecture = {
+        "advantage": [_network_architecture(network) for network in agent.hu_advantage_nets],
+        "advantage_target": [_network_architecture(network) for network in agent.hu_advantage_target_nets],
+        "strategy": _network_architecture(agent.strategy_net),
+    }
+    if architecture != expected_architecture:
+        raise ValueError("HU checkpoint имеет несовместимую архитектуру")
+    for leg in advantage_legs:
+        if not isinstance(leg, dict) or any(key not in leg for key in ("network", "target_network", "optimizer", "buffer")):
+            raise ValueError("HU checkpoint содержит неполную advantage-ногу")
+    if any(key not in strategy for key in ("network", "optimizer", "buffer")):
+        raise ValueError("HU checkpoint содержит неполное strategy-состояние")
+    if not isinstance(checkpoint.get("rng"), dict):
+        raise ValueError("HU checkpoint не содержит состояние RNG")
+    return checkpoint
+
+
+def _load_hu_checkpoint(agent: DeepCFRAgent, path: str | Path) -> dict[str, Any]:
+    """Строго восстанавливает HU training state до следующей итерации."""
+    checkpoint = _validate_hu_checkpoint(
+        agent,
+        torch.load(path, map_location="cpu", weights_only=False),
+    )
+    for leg, network, target, optimizer, buffer in zip(
+        checkpoint["advantage_legs"],
+        agent.hu_advantage_nets,
+        agent.hu_advantage_target_nets,
+        agent.hu_advantage_optimizers,
+        agent.hu_advantage_buffers,
+        strict=True,
+    ):
+        try:
+            network.load_state_dict(leg["network"], strict=True)
+            target.load_state_dict(leg["target_network"], strict=True)
+            optimizer.load_state_dict(leg["optimizer"])
+        except (RuntimeError, ValueError, KeyError) as error:
+            raise ValueError("HU checkpoint содержит несовместимые веса или optimizer") from error
+        _restore_advantage_buffer(buffer, leg["buffer"])
+    try:
+        agent.strategy_net.load_state_dict(checkpoint["strategy"]["network"], strict=True)
+        agent.strategy_optimizer.load_state_dict(checkpoint["strategy"]["optimizer"])
+    except (RuntimeError, ValueError, KeyError) as error:
+        raise ValueError("HU checkpoint содержит несовместимые strategy веса или optimizer") from error
+    _restore_strategy_buffer(agent.hu_strategy_buffer, checkpoint["strategy"]["buffer"])
+    agent.iteration_count = int(checkpoint.get("iteration", 0))
+    _restore_rng_state(checkpoint["rng"])
+    return checkpoint
+
+
+def _save_hu_checkpoint(agent: DeepCFRAgent, path: str | Path, seed: int | None = None) -> Path:
+    """Атомарно записывает полный HU checkpoint после завершённой итерации."""
+    target = Path(path)
+    _atomic_torch_save(_build_hu_checkpoint(agent, seed=seed), target)
+    return target
 
 
 def _save_iteration_checkpoint(
@@ -767,11 +1052,18 @@ def _train_hu_current_policy_self_play(
     num_players: int,
     seed: int | None,
     log_dir: str | Path | None,
+    initial_checkpoint: str | Path | None = None,
 ) -> DeepCFRAgent:
     """Выполняет HU current-policy self-play без внешних opponent/checkpoint policy."""
-    del save_dir
     coordinator = _create_hu_current_policy_coordinator(agent)
+    if initial_checkpoint is not None:
+        checkpoint = _load_hu_checkpoint(agent, initial_checkpoint)
+        checkpoint_seed = checkpoint.get("seed")
+        if seed is not None and checkpoint_seed != seed:
+            raise ValueError("HU resume требует тот же seed, что и в checkpoint")
+        seed = checkpoint_seed
     start_iteration = agent.iteration_count + 1
+    completed_iteration: int | None = None
     writer = _create_writer(log_dir)
     try:
         print(
@@ -824,7 +1116,13 @@ def _train_hu_current_policy_self_play(
                     f"raise_freq={evaluation['raise_frequency']:.3f}, игр={int(evaluation['games'])}"
                 )
             if _checkpoint_save_due(iteration, int(cfg_get("checkpoint_save_every", 1000))):
-                print("  HU checkpoint отключён: сохранение двух advantage-ног будет добавлено отдельно.")
+                checkpoint_path = _save_hu_checkpoint(
+                    agent,
+                    Path(save_dir) / f"hu_checkpoint_iter_{iteration}.pt",
+                    seed=seed,
+                )
+                print(f"  HU checkpoint: {checkpoint_path}")
+            completed_iteration = iteration
             iteration_elapsed = time.perf_counter() - iteration_started
             if writer is not None:
                 writer.add_scalar("Time/Iteration", iteration_elapsed, iteration)
@@ -835,6 +1133,13 @@ def _train_hu_current_policy_self_play(
         if writer is not None:
             writer.flush()
             writer.close()
+    if completed_iteration is not None:
+        final_checkpoint = _save_hu_checkpoint(
+            agent,
+            Path(save_dir) / "hu_checkpoint_final.pt",
+            seed=seed,
+        )
+        print(f"Финальный HU checkpoint: {final_checkpoint}")
     return agent
 
 
@@ -879,8 +1184,6 @@ def train_self_play_multi(
             opponent_checkpoint_dir=opponent_checkpoint_dir,
             teacher_strategy_checkpoint=teacher_strategy_checkpoint,
         )
-        if initial_checkpoint is not None:
-            raise ValueError("HU current-policy self-play пока не поддерживает resume из checkpoint")
         return _train_hu_current_policy_self_play(
             agent=agent,
             num_iterations=num_iterations,
@@ -891,6 +1194,7 @@ def train_self_play_multi(
             num_players=num_players,
             seed=seed,
             log_dir=log_dir,
+            initial_checkpoint=initial_checkpoint,
         )
     if teacher_strategy_checkpoint:
         agent.load_teacher_strategy_checkpoint(teacher_strategy_checkpoint)
