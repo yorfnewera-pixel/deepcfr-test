@@ -6,7 +6,7 @@ import time
 from dataclasses import dataclass, field
 from numbers import Integral
 from pathlib import Path
-from typing import Any
+from typing import Any, NoReturn
 
 import numpy as np
 import torch
@@ -32,7 +32,7 @@ from src.utils.config import (
     cfg_reservoir_flag,
 )
 from src.utils.logging import log_game_error
-from src.utils.settings import STRICT_CHECKING
+from src.utils import settings
 from src.utils.traversal_profiler import TRAVERSAL_PROFILER, profile_section
 
 
@@ -611,13 +611,66 @@ class DeepCFRAgent:
             self._active_traversal_collector = None
             self._traversal_random_agent = None
 
+    def _raise_traversal_failure(
+        self,
+        iteration,
+        traversing_player,
+        acting_player,
+        depth,
+        reason,
+        action_description=None,
+        cause=None,
+    ) -> NoReturn:
+        context = TraversalFailureContext(
+            iteration=iteration,
+            traversal_index=None,
+            traversing_player=traversing_player,
+            acting_player=acting_player,
+            depth=depth,
+            reason=reason,
+            action_trace=() if action_description is None else (action_description,),
+        )
+        error = TraversalFailure(context, cause)
+        if cause is None:
+            raise error
+        raise error from cause
+
+    def _validate_transition(
+        self,
+        state,
+        next_state,
+        action,
+        action_description,
+        iteration,
+        traversing_player,
+        acting_player,
+        depth,
+    ) -> None:
+        if next_state.status == pkrs.StateStatus.Ok:
+            return
+        log_game_error(state, action, f"State status not OK ({next_state.status})")
+        self._raise_traversal_failure(
+            iteration,
+            traversing_player,
+            acting_player,
+            depth,
+            f"Недопустимый status состояния после действия {action_description}: {next_state.status}",
+            action_description,
+        )
+
     def _cfr_traverse_multi(self, state, iteration, traversing_player, depth):
         self.traversal_nodes += 1
         self.traversal_max_depth_observed = max(self.traversal_max_depth_observed, depth)
         self.depth_histogram[depth] = self.depth_histogram.get(depth, 0) + 1
         if depth > 200:
             self.traversal_max_depth_hits += 1
-            return 0.0
+            self._raise_traversal_failure(
+                iteration,
+                traversing_player,
+                None,
+                depth,
+                f"Превышена допустимая глубина обхода: depth={depth}",
+            )
         if state.final_state:
             self.traversal_terminal_nodes += 1
             return float(state.players_state[traversing_player].reward)
@@ -626,27 +679,89 @@ class DeepCFRAgent:
         external_policy = self._opponent_policy_agents.get(current_player)
         if external_policy is not None:
             try:
-                next_state = state.apply_action(external_policy.choose_action(state))
-            except Exception:
-                if STRICT_CHECKING:
-                    raise
-                return 0.0
-            return self._cfr_traverse_multi(next_state, iteration, traversing_player, depth + 1) if next_state.status == pkrs.StateStatus.Ok else 0.0
+                action = external_policy.choose_action(state)
+            except (AttributeError, TypeError, ValueError, RuntimeError) as error:
+                self._raise_traversal_failure(
+                    iteration,
+                    traversing_player,
+                    current_player,
+                    depth,
+                    "Не удалось выбрать действие внешней policy",
+                    "external_policy",
+                    error,
+                )
+            try:
+                next_state = state.apply_action(action)
+            except (AttributeError, TypeError, ValueError, RuntimeError) as error:
+                self._raise_traversal_failure(
+                    iteration,
+                    traversing_player,
+                    current_player,
+                    depth,
+                    "Ошибка apply_action для действия внешней policy",
+                    f"external_policy: {action!r}",
+                    error,
+                )
+            self._validate_transition(
+                state,
+                next_state,
+                action,
+                f"external_policy: {action!r}",
+                iteration,
+                traversing_player,
+                current_player,
+                depth,
+            )
+            return self._cfr_traverse_multi(next_state, iteration, traversing_player, depth + 1)
         if self._is_random_opponent_turn(
             self._traversal_random_agent, current_player, traversing_player
         ):
             try:
-                next_state = state.apply_action(self._traversal_random_agent.choose_action(state))
-            except Exception:
-                if STRICT_CHECKING:
-                    raise
-                return 0.0
-            return self._cfr_traverse_multi(next_state, iteration, traversing_player, depth + 1) if next_state.status == pkrs.StateStatus.Ok else 0.0
+                action = self._traversal_random_agent.choose_action(state)
+            except (AttributeError, TypeError, ValueError, RuntimeError) as error:
+                self._raise_traversal_failure(
+                    iteration,
+                    traversing_player,
+                    current_player,
+                    depth,
+                    "Не удалось выбрать действие случайного оппонента",
+                    "random_agent",
+                    error,
+                )
+            try:
+                next_state = state.apply_action(action)
+            except (AttributeError, TypeError, ValueError, RuntimeError) as error:
+                self._raise_traversal_failure(
+                    iteration,
+                    traversing_player,
+                    current_player,
+                    depth,
+                    "Ошибка apply_action для действия случайного оппонента",
+                    f"random_agent: {action!r}",
+                    error,
+                )
+            self._validate_transition(
+                state,
+                next_state,
+                action,
+                f"random_agent: {action!r}",
+                iteration,
+                traversing_player,
+                current_player,
+                depth,
+            )
+            return self._cfr_traverse_multi(next_state, iteration, traversing_player, depth + 1)
 
         legal_mask = self.get_legal_action_mask(state)
         legal_slots = np.flatnonzero(legal_mask).astype(int).tolist()
         if not legal_slots:
-            return 0.0
+            self._raise_traversal_failure(
+                iteration,
+                traversing_player,
+                current_player,
+                depth,
+                "У нетерминального состояния отсутствуют допустимые действия",
+            )
 
         if current_player == traversing_player:
             self.traversal_traversing_decision_nodes += 1
@@ -659,21 +774,42 @@ class DeepCFRAgent:
             for slot in legal_slots:
                 try:
                     action = self.action_type_to_pokers_action(slot, state)
+                except (AttributeError, TypeError, ValueError, RuntimeError) as error:
+                    self._raise_traversal_failure(
+                        iteration,
+                        traversing_player,
+                        current_player,
+                        depth,
+                        f"Не удалось преобразовать действие slot {slot}",
+                        f"slot {slot}",
+                        error,
+                    )
+                try:
                     with profile_section(TRAVERSAL_PROFILER, "clone_state"):
                         next_state = state.apply_action(action)
-                    if next_state.status != pkrs.StateStatus.Ok:
-                        log_game_error(state, action, f"State status not OK ({next_state.status})")
-                        if STRICT_CHECKING:
-                            raise ValueError(f"Недопустимое действие слота {slot}: {next_state.status}")
-                        continue
-                    action_values[slot] = self._cfr_traverse_multi(next_state, iteration, traversing_player, depth + 1)
-                    applied_slots.append(slot)
-                except Exception:
-                    if STRICT_CHECKING:
-                        raise
+                except (AttributeError, TypeError, ValueError, RuntimeError) as error:
+                    self._raise_traversal_failure(
+                        iteration,
+                        traversing_player,
+                        current_player,
+                        depth,
+                        f"Ошибка apply_action для slot {slot}",
+                        f"slot {slot}: {action!r}",
+                        error,
+                    )
+                self._validate_transition(
+                    state,
+                    next_state,
+                    action,
+                    f"slot {slot}: {action!r}",
+                    iteration,
+                    traversing_player,
+                    current_player,
+                    depth,
+                )
+                action_values[slot] = self._cfr_traverse_multi(next_state, iteration, traversing_player, depth + 1)
+                applied_slots.append(slot)
             self._record_child_fanout("traverser", len(applied_slots))
-            if not applied_slots:
-                return 0.0
             applied_mask = np.zeros(NUM_ACTIONS, dtype=np.float32)
             applied_mask[applied_slots] = 1.0
             strategy = self._regret_matching(advantages, applied_mask)
@@ -687,7 +823,7 @@ class DeepCFRAgent:
             return ev
 
         self.traversal_opponent_decision_nodes += 1
-        mask = self.get_legal_action_mask(state)
+        mask = legal_mask
         encoded = self._encode_state(state, current_player)
         state_t = torch.from_numpy(encoded).float().unsqueeze(0).to(self.device)
         strategy_net = self._opponent_strategy_nets.get(current_player)
@@ -699,9 +835,6 @@ class DeepCFRAgent:
             with torch.inference_mode():
                 advantages = opponent_net(state_t)[0].cpu().numpy()
             strategy = self._regret_matching(advantages, mask)
-        legal_slots = np.flatnonzero(mask).astype(int).tolist()
-        if not legal_slots:
-            return 0.0
         weights = strategy[legal_slots]
         slot = int(np.random.choice(legal_slots, p=weights / weights.sum()))
         self.action_decision_count += 1
@@ -709,18 +842,40 @@ class DeepCFRAgent:
             self.action_raise_count += 1
         try:
             action = self.action_type_to_pokers_action(slot, state)
+        except (AttributeError, TypeError, ValueError, RuntimeError) as error:
+            self._raise_traversal_failure(
+                iteration,
+                traversing_player,
+                current_player,
+                depth,
+                f"Не удалось преобразовать действие slot {slot} оппонента",
+                f"slot {slot}",
+                error,
+            )
+        try:
             next_state = state.apply_action(action)
-            if next_state.status != pkrs.StateStatus.Ok:
-                log_game_error(state, action, f"State status not OK ({next_state.status})")
-                if STRICT_CHECKING:
-                    raise ValueError(f"Недопустимое действие противника {slot}: {next_state.status}")
-                return 0.0
-            self._record_child_fanout("opponent", 1)
-            return self._cfr_traverse_multi(next_state, iteration, traversing_player, depth + 1)
-        except Exception:
-            if STRICT_CHECKING:
-                raise
-            return 0.0
+        except (AttributeError, TypeError, ValueError, RuntimeError) as error:
+            self._raise_traversal_failure(
+                iteration,
+                traversing_player,
+                current_player,
+                depth,
+                f"Ошибка apply_action для slot {slot} оппонента",
+                f"slot {slot}: {action!r}",
+                error,
+            )
+        self._validate_transition(
+            state,
+            next_state,
+            action,
+            f"slot {slot}: {action!r}",
+            iteration,
+            traversing_player,
+            current_player,
+            depth,
+        )
+        self._record_child_fanout("opponent", 1)
+        return self._cfr_traverse_multi(next_state, iteration, traversing_player, depth + 1)
 
     def train_advantage_network(self, *args, **kwargs):
         return self.train_advantage_network_multi(*args, **kwargs)

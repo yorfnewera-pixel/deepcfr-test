@@ -6,6 +6,34 @@ from src.core.action_space import NUM_ACTIONS
 from src.core.buffers import StrategyBuffer
 from src.core.deep_cfr import DeepCFRAgent
 from src.core.traversal_errors import TraversalFailure, TraversalFailureContext
+from src.utils import settings
+
+
+class _TerminalState:
+    final_state = True
+    status = pkrs.StateStatus.Ok
+
+    def __init__(self, reward=0.0):
+        self.players_state = [type("PlayerState", (), {"reward": reward})() for _ in range(2)]
+
+
+class _NonterminalState:
+    final_state = False
+    current_player = 0
+
+    def __init__(self, apply_action):
+        self._apply_action = apply_action
+
+    def apply_action(self, action):
+        return self._apply_action(action)
+
+
+@pytest.fixture(autouse=True)
+def _restore_strict_checking():
+    original = settings.is_strict_checking()
+    settings.set_strict_checking(False)
+    yield
+    settings.set_strict_checking(original)
 
 
 def _state():
@@ -35,6 +63,130 @@ def _agent_with_small_reservoir():
         agent.advantage_buffer.add(state, values, mask, 1)
         agent.strategy_buffer.add(state, policy, mask, 1)
     return agent
+
+
+def _agent_and_nonterminal_state(apply_action):
+    agent = DeepCFRAgent(player_id=0, num_players=2, memory_size=2, device="cpu")
+    return agent, _NonterminalState(apply_action)
+
+
+def _configure_single_legal_action(monkeypatch, agent):
+    monkeypatch.setattr(
+        agent,
+        "get_legal_action_mask",
+        lambda _state: np.array([1, 0, 0, 0, 0, 0], dtype=np.float32),
+    )
+    monkeypatch.setattr(agent, "action_type_to_pokers_action", lambda _slot, _state: "call")
+    monkeypatch.setattr(
+        agent,
+        "_encode_state",
+        lambda _state, _player: np.zeros(agent.input_size, dtype=np.float32),
+    )
+
+
+def test_apply_action_failure_raises_when_strict_mode_changes_after_import(monkeypatch):
+    agent, state = _agent_and_nonterminal_state(
+        lambda _action: (_ for _ in ()).throw(RuntimeError("engine failure"))
+    )
+    _configure_single_legal_action(monkeypatch, agent)
+
+    settings.set_strict_checking(True)
+
+    with pytest.raises(TraversalFailure, match="apply_action") as error:
+        agent.cfr_traverse_multi(state, iteration=1, traversing_player=0)
+
+    assert isinstance(error.value.__cause__, RuntimeError)
+
+
+def test_apply_action_failure_is_not_silenced_when_strict_mode_is_disabled(monkeypatch):
+    agent, state = _agent_and_nonterminal_state(
+        lambda _action: (_ for _ in ()).throw(RuntimeError("engine failure"))
+    )
+    _configure_single_legal_action(monkeypatch, agent)
+
+    settings.set_strict_checking(False)
+
+    with pytest.raises(TraversalFailure, match="apply_action"):
+        agent.cfr_traverse_multi(state, iteration=1, traversing_player=0)
+
+
+def test_depth_limit_is_failure_not_zero_reward():
+    agent, state = _agent_and_nonterminal_state(lambda _action: _TerminalState())
+
+    with pytest.raises(TraversalFailure, match="depth"):
+        agent.cfr_traverse_multi(state, iteration=1, traversing_player=0, depth=201)
+
+
+def test_real_terminal_zero_reward_is_returned():
+    agent = DeepCFRAgent(player_id=0, num_players=2, memory_size=2, device="cpu")
+    state = pkrs.State.from_seed(
+        n_players=2,
+        button=0,
+        sb=1.0,
+        bb=2.0,
+        stake=2.0,
+        seed=2,
+    ).apply_action(pkrs.Action(pkrs.ActionEnum.Call, 0.0))
+
+    assert state.final_state
+    assert state.players_state[0].reward == 0.0
+    assert agent.cfr_traverse_multi(state, iteration=1, traversing_player=0) == 0.0
+
+
+def test_non_ok_state_status_raises_traversal_failure(monkeypatch):
+    agent, state = _agent_and_nonterminal_state(
+        lambda _action: type("InvalidState", (), {"status": pkrs.StateStatus.IllegalAction})()
+    )
+    _configure_single_legal_action(monkeypatch, agent)
+
+    with pytest.raises(TraversalFailure, match="status"):
+        agent.cfr_traverse_multi(state, iteration=1, traversing_player=0)
+
+
+def test_empty_legal_slots_on_nonterminal_state_raise_traversal_failure(monkeypatch):
+    agent, state = _agent_and_nonterminal_state(lambda _action: _TerminalState())
+    monkeypatch.setattr(
+        agent,
+        "get_legal_action_mask",
+        lambda _state: np.zeros(NUM_ACTIONS, dtype=np.float32),
+    )
+
+    with pytest.raises(TraversalFailure, match="допустим"):
+        agent.cfr_traverse_multi(state, iteration=1, traversing_player=0)
+
+
+def test_late_failed_traverser_action_discards_collector_without_subset_sample(monkeypatch):
+    actions = []
+
+    def _apply_action(action):
+        actions.append(action)
+        if action == "late_failure":
+            raise RuntimeError("late engine failure")
+        return _TerminalState(0.0)
+
+    agent, state = _agent_and_nonterminal_state(_apply_action)
+    monkeypatch.setattr(
+        agent,
+        "get_legal_action_mask",
+        lambda _state: np.array([1, 1, 0, 0, 0, 0], dtype=np.float32),
+    )
+    monkeypatch.setattr(
+        agent,
+        "action_type_to_pokers_action",
+        lambda slot, _state: "valid" if slot == 0 else "late_failure",
+    )
+    monkeypatch.setattr(
+        agent,
+        "_encode_state",
+        lambda _state, _player: np.zeros(agent.input_size, dtype=np.float32),
+    )
+
+    with pytest.raises(TraversalFailure, match="slot 1"):
+        agent.cfr_traverse_multi(state, iteration=1, traversing_player=0)
+
+    assert actions == ["valid", "late_failure"]
+    assert len(agent.advantage_buffer) == 0
+    assert len(agent.strategy_buffer) == 0
 
 
 def _buffer_snapshot(buffer):
