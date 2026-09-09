@@ -14,6 +14,10 @@ from src.core.model import PokerNetwork
 from src.training import train as train_mod
 
 
+class _UnsupportedPayload:
+    pass
+
+
 def _network_with_optimizer(input_size: int):
     network = PokerNetwork(input_size, hidden_size=8)
     optimizer = torch.optim.AdamW(network.parameters(), lr=1e-3)
@@ -54,6 +58,25 @@ def _hu_runtime(iteration: int = 7):
         strategy_net=strategy_net,
         strategy_optimizer=strategy_optimizer,
         hu_strategy_buffer=strategy_buffer,
+        advantage_accumulation="dcfr_plus",
+        discount_alpha=2.0,
+        discount_gamma=1.0,
+        advantage_regret_norm="none",
+        advantage_regret_clip=None,
+        advantage_reward_scale=1.0,
+        advantage_loss="mse",
+        advantage_huber_delta=1.0,
+        advantage_batch_size=4,
+        strategy_batch_size=4,
+        advantage_epochs=1,
+        strategy_epochs=1,
+        advantage_train_steps=None,
+        strategy_train_steps=None,
+        advantage_buffer_reservoir=False,
+        clear_strategy_buffer_each_iteration=False,
+        strategy_distillation_lambda=0.0,
+        strategy_distillation_temperature=1.0,
+        strategy_distillation_anneal_iterations=0,
     )
     return agent
 
@@ -84,6 +107,7 @@ def test_hu_full_checkpoint_round_trip_restores_all_training_state_and_rng(tmp_p
     assert restored.iteration_count == 7
     checkpoint = train_mod._build_hu_checkpoint(source, seed=91)
     assert checkpoint["config"]["hu_current_policy_self_play"] is True
+    assert checkpoint["hu_checkpoint_version"] == 2
     assert checkpoint["update_order"] == [
         "traverse_p0", "traverse_p1", "train_advantage_p0", "train_advantage_p1", "train_strategy"
     ]
@@ -116,3 +140,53 @@ def test_hu_resume_rejects_legacy_or_incompatible_checkpoint(tmp_path, payload, 
 
     with pytest.raises(ValueError, match=message):
         train_mod._load_hu_checkpoint(_hu_runtime(), path)
+
+
+def test_hu_resume_loads_only_weights_only_checkpoint_and_rejects_unsupported_payload(tmp_path, monkeypatch):
+    source = _hu_runtime()
+    valid_path = tmp_path / "valid.pt"
+    train_mod._save_hu_checkpoint(source, valid_path)
+    original_load = train_mod.torch.load
+    options = []
+
+    def safe_load(*args, **kwargs):
+        options.append(kwargs.get("weights_only"))
+        return original_load(*args, **kwargs)
+
+    monkeypatch.setattr(train_mod.torch, "load", safe_load)
+    train_mod._load_hu_checkpoint(_hu_runtime(), valid_path)
+    assert options == [True]
+
+    unsafe_path = tmp_path / "unsafe.pt"
+    torch.save({"checkpoint_kind": "hu_current_policy_self_play", "payload": _UnsupportedPayload()}, unsafe_path)
+    with pytest.raises(ValueError, match="безопасно"):
+        train_mod._load_hu_checkpoint(_hu_runtime(), unsafe_path)
+
+
+@pytest.mark.parametrize(
+    "mutate, message",
+    [
+        (lambda checkpoint: checkpoint["config"].__setitem__("discount_alpha", 9.0), "конфигурацию"),
+        (lambda checkpoint: checkpoint.pop("iteration"), "iteration"),
+        (lambda checkpoint: checkpoint.__setitem__("iteration", -1), "iteration"),
+        (lambda checkpoint: checkpoint.__setitem__("iteration", "seven"), "iteration"),
+        (lambda checkpoint: checkpoint.__setitem__("action_labels", ["bad"] * 6), "action_labels"),
+    ],
+)
+def test_hu_resume_rejects_config_and_schema_contract_mismatches(tmp_path, mutate, message):
+    path = tmp_path / "broken.pt"
+    checkpoint = train_mod._build_hu_checkpoint(_hu_runtime())
+    mutate(checkpoint)
+    torch.save(checkpoint, path)
+
+    with pytest.raises(ValueError, match=message):
+        train_mod._load_hu_checkpoint(_hu_runtime(), path)
+
+
+def test_hu_resume_allows_explicit_runtime_only_configuration(tmp_path):
+    path = tmp_path / "runtime-only.pt"
+    checkpoint = train_mod._build_hu_checkpoint(_hu_runtime())
+    checkpoint["config"]["save_dir"] = "another-machine-output"
+    torch.save(checkpoint, path)
+
+    assert train_mod._load_hu_checkpoint(_hu_runtime(), path)["iteration"] == 7

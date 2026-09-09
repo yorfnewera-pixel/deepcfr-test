@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import pickle
 import random
 import re
 import tempfile
@@ -39,7 +40,7 @@ _LIGHT_CHECKPOINT_PREFIX = "light_checkpoint_iter_"
 _OPPONENT_RECENT_CHECKPOINTS = 11
 _OPPONENT_HISTORICAL_CHECKPOINTS = 2
 _HU_CHECKPOINT_KIND = "hu_current_policy_self_play"
-_HU_CHECKPOINT_VERSION = 1
+_HU_CHECKPOINT_VERSION = 2
 _HU_UPDATE_ORDER = [
     "traverse_p0",
     "traverse_p1",
@@ -47,6 +48,18 @@ _HU_UPDATE_ORDER = [
     "train_advantage_p1",
     "train_strategy",
 ]
+_HU_RUNTIME_CONFIG_ALLOWLIST = frozenset({
+    "save_dir",
+    "log_dir",
+    "evaluate_every",
+    "evaluation_games",
+    "checkpoint_save_every",
+    "checkpoint_keep_every",
+    "process_priority",
+    "training_torch_threads",
+    "training_preload_to_device",
+    "traversal_single_thread",
+})
 
 
 def _checkpoint_iteration(path: Path, prefix: str = _HEAVY_CHECKPOINT_PREFIX) -> int | None:
@@ -364,9 +377,16 @@ def _network_architecture(network: PokerNetwork) -> dict[str, int]:
 
 def _capture_rng_state() -> dict[str, Any]:
     """Сохраняет все генераторы, влияющие на HU traversal и reservoir."""
+    numpy_algorithm, numpy_state, numpy_position, numpy_has_gauss, numpy_cached_gaussian = np.random.get_state()
     state: dict[str, Any] = {
         "python": random.getstate(),
-        "numpy": np.random.get_state(),
+        "numpy": {
+            "algorithm": str(numpy_algorithm),
+            "state": torch.from_numpy(numpy_state.copy()),
+            "position": int(numpy_position),
+            "has_gauss": int(numpy_has_gauss),
+            "cached_gaussian": float(numpy_cached_gaussian),
+        },
         "torch_cpu": torch.get_rng_state(),
     }
     if torch.cuda.is_available():
@@ -380,7 +400,20 @@ def _restore_rng_state(payload: dict[str, Any]) -> None:
     if not isinstance(payload, dict) or any(key not in payload for key in required):
         raise ValueError("В HU checkpoint отсутствует полное состояние RNG")
     random.setstate(payload["python"])
-    np.random.set_state(payload["numpy"])
+    numpy_payload = payload["numpy"]
+    numpy_keys = ("algorithm", "state", "position", "has_gauss", "cached_gaussian")
+    if not isinstance(numpy_payload, dict) or any(key not in numpy_payload for key in numpy_keys):
+        raise ValueError("В HU checkpoint отсутствует корректное NumPy RNG состояние")
+    numpy_state = numpy_payload["state"]
+    if not isinstance(numpy_state, torch.Tensor) or numpy_state.dtype != torch.uint32:
+        raise ValueError("В HU checkpoint повреждено NumPy RNG состояние")
+    np.random.set_state((
+        str(numpy_payload["algorithm"]),
+        numpy_state.detach().cpu().numpy(),
+        int(numpy_payload["position"]),
+        int(numpy_payload["has_gauss"]),
+        float(numpy_payload["cached_gaussian"]),
+    ))
     torch.set_rng_state(payload["torch_cpu"])
     cuda_state = payload.get("torch_cuda")
     if cuda_state is not None and torch.cuda.is_available():
@@ -396,10 +429,10 @@ def _advantage_buffer_payload(buffer: AdvantageBuffer) -> dict[str, Any]:
         "count": int(count),
         "eviction_count": int(buffer.eviction_count),
         "skip_count": int(buffer.skip_count),
-        "states": buffer._states[:count].copy(),
-        "regrets": buffer._regrets[:count].copy(),
-        "masks": buffer._masks[:count].copy(),
-        "iterations": buffer._iterations[:count].copy(),
+        "states": torch.from_numpy(buffer._states[:count].copy()),
+        "regrets": torch.from_numpy(buffer._regrets[:count].copy()),
+        "masks": torch.from_numpy(buffer._masks[:count].copy()),
+        "iterations": torch.from_numpy(buffer._iterations[:count].copy()),
     }
 
 
@@ -412,11 +445,11 @@ def _strategy_buffer_payload(buffer: HuStrategyBuffer) -> dict[str, Any]:
         "count": int(count),
         "eviction_count": int(buffer.eviction_count),
         "skip_count": int(buffer.skip_count),
-        "states": buffer._states[:count].copy(),
-        "actor_ids": buffer._actor_ids[:count].copy(),
-        "policies": buffer._policies[:count].copy(),
-        "masks": buffer._masks[:count].copy(),
-        "iterations": buffer._iterations[:count].copy(),
+        "states": torch.from_numpy(buffer._states[:count].copy()),
+        "actor_ids": torch.from_numpy(buffer._actor_ids[:count].copy()),
+        "policies": torch.from_numpy(buffer._policies[:count].copy()),
+        "masks": torch.from_numpy(buffer._masks[:count].copy()),
+        "iterations": torch.from_numpy(buffer._iterations[:count].copy()),
     }
 
 
@@ -430,6 +463,13 @@ def _buffer_count(payload: dict[str, Any], capacity: int) -> tuple[int, int]:
     return count, cur_id
 
 
+def _checkpoint_array(payload: dict[str, Any], key: str) -> np.ndarray:
+    value = payload.get(key)
+    if not isinstance(value, torch.Tensor):
+        raise ValueError("HU checkpoint содержит небезопасный или поврежденный replay-буфер")
+    return value.detach().cpu().numpy()
+
+
 def _restore_advantage_buffer(buffer: AdvantageBuffer, payload: dict[str, Any]) -> None:
     count, cur_id = _buffer_count(payload, buffer.capacity)
     state_dim = int(buffer._states.shape[1])
@@ -441,7 +481,7 @@ def _restore_advantage_buffer(buffer: AdvantageBuffer, payload: dict[str, Any]) 
         "masks": (count, NUM_ACTIONS),
         "iterations": (count,),
     }
-    arrays = {name: np.asarray(payload.get(name)) for name in fields}
+    arrays = {name: _checkpoint_array(payload, name) for name in fields}
     if any(arrays[name].shape != shape for name, shape in fields.items()):
         raise ValueError("HU checkpoint имеет повреждённый advantage-буфер")
     buffer._states[:count] = arrays["states"]
@@ -465,7 +505,7 @@ def _restore_strategy_buffer(buffer: HuStrategyBuffer, payload: dict[str, Any]) 
         "masks": (count, NUM_ACTIONS),
         "iterations": (count,),
     }
-    arrays = {name: np.asarray(payload.get(name)) for name in fields}
+    arrays = {name: _checkpoint_array(payload, name) for name in fields}
     if any(arrays[name].shape != shape for name, shape in fields.items()):
         raise ValueError("HU checkpoint имеет повреждённый strategy-буфер")
     if not np.all(np.isin(arrays["actor_ids"], (0, 1))):
@@ -478,6 +518,51 @@ def _restore_strategy_buffer(buffer: HuStrategyBuffer, payload: dict[str, Any]) 
     buffer._cur_id = cur_id
     buffer.eviction_count = int(payload.get("eviction_count", 0))
     buffer.skip_count = int(payload.get("skip_count", 0))
+
+
+def _optimizer_configuration(optimizer: torch.optim.Optimizer) -> list[dict[str, Any]]:
+    """Фиксирует гиперпараметры optimizer, исключая внутренние ссылки на параметры."""
+    return [
+        {key: value for key, value in group.items() if key != "params"}
+        for group in optimizer.param_groups
+    ]
+
+
+def _hu_trajectory_configuration(agent: DeepCFRAgent) -> dict[str, Any]:
+    """Возвращает все параметры, меняющие траекторию HU обучения."""
+    return {
+        "advantage_accumulation": str(agent.advantage_accumulation),
+        "discount_alpha": float(agent.discount_alpha),
+        "discount_gamma": float(agent.discount_gamma),
+        "advantage_regret_norm": str(agent.advantage_regret_norm),
+        "advantage_regret_clip": agent.advantage_regret_clip,
+        "advantage_reward_scale": float(agent.advantage_reward_scale),
+        "advantage_loss": str(agent.advantage_loss),
+        "advantage_huber_delta": float(agent.advantage_huber_delta),
+        "advantage_batch_size": int(agent.advantage_batch_size),
+        "strategy_batch_size": int(agent.strategy_batch_size),
+        "advantage_epochs": int(agent.advantage_epochs),
+        "strategy_epochs": int(agent.strategy_epochs),
+        "advantage_train_steps": agent.advantage_train_steps,
+        "strategy_train_steps": agent.strategy_train_steps,
+        "advantage_buffer_reservoir": bool(agent.advantage_buffer_reservoir),
+        "clear_strategy_buffer_each_iteration": bool(agent.clear_strategy_buffer_each_iteration),
+        "hu_strategy_buffer_reservoir": True,
+        "strategy_distillation_lambda": float(agent.strategy_distillation_lambda),
+        "strategy_distillation_temperature": float(agent.strategy_distillation_temperature),
+        "strategy_distillation_anneal_iterations": int(agent.strategy_distillation_anneal_iterations),
+        "advantage_optimizers": [
+            _optimizer_configuration(optimizer)
+            for optimizer in agent.hu_advantage_optimizers
+        ],
+        "strategy_optimizer": _optimizer_configuration(agent.strategy_optimizer),
+        "advantage_buffer_capacities": [
+            int(buffer.capacity) for buffer in agent.hu_advantage_buffers
+        ],
+        "strategy_buffer_capacity": int(agent.hu_strategy_buffer.capacity),
+        "training_error_mode": cfg_training_error_mode(),
+        "training_max_failed_traversals_per_iteration": cfg_training_max_failed_traversals_per_iteration(),
+    }
 
 
 def _build_hu_checkpoint(agent: DeepCFRAgent, seed: int | None = None) -> dict[str, Any]:
@@ -508,7 +593,7 @@ def _build_hu_checkpoint(agent: DeepCFRAgent, seed: int | None = None) -> dict[s
         "iteration": int(agent.iteration_count),
         "seed": seed,
         "mode": mode,
-        "config": dict(mode),
+        "config": {**mode, **_hu_trajectory_configuration(agent)},
         "architecture": {
             "advantage": [_network_architecture(network) for network in advantage_nets],
             "advantage_target": [_network_architecture(network) for network in advantage_targets],
@@ -542,12 +627,17 @@ def _build_hu_checkpoint(agent: DeepCFRAgent, seed: int | None = None) -> dict[s
 def _validate_hu_checkpoint(agent: DeepCFRAgent, checkpoint: object) -> dict[str, Any]:
     if not isinstance(checkpoint, dict) or checkpoint.get("checkpoint_kind") != _HU_CHECKPOINT_KIND:
         raise ValueError("Для HU resume требуется полный HU checkpoint")
-    if int(checkpoint.get("hu_checkpoint_version", -1)) != _HU_CHECKPOINT_VERSION:
+    if checkpoint.get("hu_checkpoint_version") != _HU_CHECKPOINT_VERSION:
         raise ValueError("HU checkpoint имеет несовместимую версию")
     if checkpoint.get("checkpoint_format_version") != CHECKPOINT_FORMAT_VERSION:
         raise ValueError("HU checkpoint имеет несовместимый общий формат")
-    if checkpoint.get("action_space_version") != ACTION_SPACE_VERSION or int(checkpoint.get("num_actions", -1)) != NUM_ACTIONS:
+    if checkpoint.get("action_space_version") != ACTION_SPACE_VERSION or checkpoint.get("num_actions") != NUM_ACTIONS:
         raise ValueError("HU checkpoint имеет другое пространство действий")
+    if checkpoint.get("action_labels") != list(ACTION_LABELS):
+        raise ValueError("HU checkpoint имеет несовместимый action_labels контракт")
+    iteration = checkpoint.get("iteration")
+    if isinstance(iteration, bool) or not isinstance(iteration, int) or iteration < 0:
+        raise ValueError("HU checkpoint имеет некорректный iteration")
     mode = checkpoint.get("mode")
     expected_mode = {
         "hu_current_policy_self_play": True,
@@ -560,8 +650,18 @@ def _validate_hu_checkpoint(agent: DeepCFRAgent, checkpoint: object) -> dict[str
     if not isinstance(mode, dict) or any(mode.get(key) != value for key, value in expected_mode.items()):
         raise ValueError("HU checkpoint имеет несовместимый режим или encoder")
     config = checkpoint.get("config")
-    if not isinstance(config, dict) or any(config.get(key) != value for key, value in expected_mode.items()):
-        raise ValueError("HU checkpoint имеет несовместимую конфигурацию")
+    expected_config = {**expected_mode, **_hu_trajectory_configuration(agent)}
+    if not isinstance(config, dict):
+        raise ValueError("HU checkpoint не содержит полную конфигурацию")
+    unsupported_config_keys = set(config) - set(expected_config) - _HU_RUNTIME_CONFIG_ALLOWLIST
+    if unsupported_config_keys:
+        raise ValueError(
+            "HU checkpoint содержит неподдерживаемую конфигурацию: "
+            + ", ".join(sorted(unsupported_config_keys))
+        )
+    for key, expected_value in expected_config.items():
+        if config.get(key) != expected_value:
+            raise ValueError(f"HU checkpoint имеет несовместимую конфигурацию: {key}")
     if int(agent.num_players) != 2 or int(agent.num_trainable_players) != 2:
         raise ValueError("HU resume требует ровно двух игроков и двух trainable players")
     if checkpoint.get("update_order") != _HU_UPDATE_ORDER:
@@ -592,10 +692,11 @@ def _validate_hu_checkpoint(agent: DeepCFRAgent, checkpoint: object) -> dict[str
 
 def _load_hu_checkpoint(agent: DeepCFRAgent, path: str | Path) -> dict[str, Any]:
     """Строго восстанавливает HU training state до следующей итерации."""
-    checkpoint = _validate_hu_checkpoint(
-        agent,
-        torch.load(path, map_location="cpu", weights_only=False),
-    )
+    try:
+        payload = torch.load(path, map_location="cpu", weights_only=True)
+    except (pickle.UnpicklingError, RuntimeError, ValueError) as error:
+        raise ValueError("HU checkpoint не удалось безопасно прочитать") from error
+    checkpoint = _validate_hu_checkpoint(agent, payload)
     for leg, network, target, optimizer, buffer in zip(
         checkpoint["advantage_legs"],
         agent.hu_advantage_nets,
@@ -617,7 +718,7 @@ def _load_hu_checkpoint(agent: DeepCFRAgent, path: str | Path) -> dict[str, Any]
     except (RuntimeError, ValueError, KeyError) as error:
         raise ValueError("HU checkpoint содержит несовместимые strategy веса или optimizer") from error
     _restore_strategy_buffer(agent.hu_strategy_buffer, checkpoint["strategy"]["buffer"])
-    agent.iteration_count = int(checkpoint.get("iteration", 0))
+    agent.iteration_count = checkpoint["iteration"]
     _restore_rng_state(checkpoint["rng"])
     return checkpoint
 
