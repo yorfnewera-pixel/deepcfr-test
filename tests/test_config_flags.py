@@ -137,3 +137,17 @@ def test_encoding_version_rejects_unknown_value(tmp_path):
             config_mod.load_config(config_path)
     finally:
         config_mod.load_config("config.yaml")
+
+
+def test_hu_current_policy_self_play_trebuet_rovno_dvuh_igrokov(tmp_path):
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(
+        "num_actions: 6\nhu_current_policy_self_play: true\nnum_players: 6\nnum_trainable_players: 2\n",
+        encoding="utf-8",
+    )
+
+    try:
+        with pytest.raises(ValueError, match="hu_current_policy_self_play"):
+            config_mod.load_config(config_path)
+    finally:
+        config_mod.load_config("config.yaml")

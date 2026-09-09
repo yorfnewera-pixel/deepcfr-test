@@ -2,6 +2,8 @@
 num_actions: 6
 num_players: 6
 num_trainable_players: 1
+# Отдельный HU self-play включается только с num_players == num_trainable_players == 2.
+hu_current_policy_self_play: false
 # Public history summary, несовместим с legacy_v2 чекпоинтами.
 encoding_version: history_summary_v3
 

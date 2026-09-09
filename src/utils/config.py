@@ -21,6 +21,7 @@ _DEFAULTS = {
     "hidden_size": 256,
     "num_actions": NUM_ACTIONS,
     "num_players": 6,
+    "hu_current_policy_self_play": False,
     "encoding_version": "history_summary_v3",
     "use_multi_agent_advantage": False,
     "advantage_memory_size": 300000,
@@ -91,6 +92,13 @@ def load_config(path=None):
         _config = _deep_merge(_DEFAULTS, loaded)
         if int(_config["num_actions"]) != NUM_ACTIONS:
             raise ValueError(f"num_actions должен быть равен {NUM_ACTIONS}")
+        if bool(_config["hu_current_policy_self_play"]) and (
+            int(_config["num_players"]) != 2
+            or int(_config["num_trainable_players"]) != 2
+        ):
+            raise ValueError(
+                "hu_current_policy_self_play требует num_players == num_trainable_players == 2"
+            )
         if _config["encoding_version"] not in (
             LEGACY_ENCODING_VERSION,
             HISTORY_SUMMARY_V3_ENCODING_VERSION,
