@@ -269,10 +269,25 @@ class DeepCFRAgent:
         if int(checkpoint.get("num_actions", -1)) != NUM_ACTIONS:
             raise ValueError("Teacher checkpoint имеет другое число действий")
         teacher_num_players = int(checkpoint.get("num_players", self.num_players))
-        teacher_use_multi_agent = bool(checkpoint.get("config", {}).get("use_multi_agent_advantage", False))
+        checkpoint_config = checkpoint.get("config", {})
+        if not isinstance(checkpoint_config, dict):
+            checkpoint_config = {}
+        teacher_architecture = checkpoint.get(
+            "network_architecture",
+            checkpoint_config.get("network_architecture"),
+        )
+        if (
+            teacher_num_players == 2
+            and self.num_players != 2
+            and teacher_architecture == CARD_CONTEXT_ARCHITECTURE
+        ):
+            raise ValueError(
+                "HU projection teacher checkpoint с card_context_v1 не поддерживается"
+            )
+        teacher_use_multi_agent = bool(checkpoint_config.get("use_multi_agent_advantage", False))
         teacher_encoding_version = checkpoint.get(
             "encoding_version",
-            checkpoint.get("config", {}).get("encoding_version"),
+            checkpoint_config.get("encoding_version"),
         )
         if teacher_encoding_version != self.encoding_version:
             raise ValueError("Teacher checkpoint имеет несовместимую версию encoder")

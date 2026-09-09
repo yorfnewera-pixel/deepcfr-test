@@ -5,6 +5,7 @@ import torch
 
 from src.core.action_space import NUM_ACTIONS, legal_action_mask
 from src.core.deep_cfr import DeepCFRAgent
+from src.core.model import CARD_CONTEXT_ARCHITECTURE, CARD_FEATURE_SIZE
 from src.evaluation.blueprint_policy import FrozenBlueprintPolicy
 from src.evaluation.paired_harness import evaluate_paired
 
@@ -74,3 +75,53 @@ def test_light_checkpoint_rejects_layer_width_inconsistent_with_encoder_metadata
 
     with pytest.raises(ValueError, match="размер входа encoder"):
         FrozenBlueprintPolicy.from_checkpoint(checkpoint)
+
+
+def test_frozen_policy_loads_card_context_checkpoint_with_legal_policy(tmp_path):
+    checkpoint = tmp_path / "card-context.pt"
+    DeepCFRAgent(
+        player_id=0,
+        num_players=2,
+        network_architecture=CARD_CONTEXT_ARCHITECTURE,
+    ).save_model(str(checkpoint))
+
+    policy = FrozenBlueprintPolicy.from_checkpoint(checkpoint, num_players=2)
+    state = pkrs.State.from_seed(n_players=2, button=0, sb=1.0, bb=2.0, stake=200.0, seed=107)
+    probabilities = policy.probabilities(state)
+
+    assert policy.strategy_net.architecture == CARD_CONTEXT_ARCHITECTURE
+    assert probabilities.shape == (NUM_ACTIONS,)
+    assert np.isclose(probabilities.sum(), 1.0)
+    assert np.all(probabilities[legal_action_mask(state) == 0.0] == 0.0)
+
+
+def test_frozen_policy_rejects_card_context_weights_without_architecture_metadata(tmp_path):
+    checkpoint = tmp_path / "card-context-without-metadata.pt"
+    payload = DeepCFRAgent(
+        player_id=0,
+        num_players=2,
+        network_architecture=CARD_CONTEXT_ARCHITECTURE,
+    ).build_light_checkpoint()
+    payload.pop("network_architecture")
+    payload.pop("card_feature_size")
+    payload["config"].pop("network_architecture")
+    payload["config"].pop("card_feature_size")
+    torch.save(payload, checkpoint)
+
+    with pytest.raises(ValueError, match="метаданные архитектуры"):
+        FrozenBlueprintPolicy.from_checkpoint(checkpoint, num_players=2)
+
+
+def test_frozen_policy_rejects_wrong_card_feature_metadata(tmp_path):
+    checkpoint = tmp_path / "card-context-wrong-card-features.pt"
+    payload = DeepCFRAgent(
+        player_id=0,
+        num_players=2,
+        network_architecture=CARD_CONTEXT_ARCHITECTURE,
+    ).build_light_checkpoint()
+    payload["card_feature_size"] = CARD_FEATURE_SIZE + 1
+    payload["config"]["card_feature_size"] = CARD_FEATURE_SIZE + 1
+    torch.save(payload, checkpoint)
+
+    with pytest.raises(ValueError, match="размер card-признаков"):
+        FrozenBlueprintPolicy.from_checkpoint(checkpoint, num_players=2)

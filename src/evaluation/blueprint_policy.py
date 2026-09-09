@@ -12,6 +12,10 @@ import torch
 from src.core.action_space import ACTION_SPACE_VERSION, NUM_ACTIONS, legal_action_mask, resolve_action
 from src.core.deep_cfr import CHECKPOINT_FORMAT_VERSION, DeepCFRAgent
 from src.core.model import (
+    CARD_CONTEXT_ARCHITECTURE,
+    CARD_FEATURE_SIZE,
+    MONOLITHIC_ARCHITECTURE,
+    NETWORK_ARCHITECTURES,
     PokerNetwork,
     encoder_input_size,
     encode_state_for_version,
@@ -46,11 +50,17 @@ class FrozenBlueprintPolicy:
     def from_checkpoint(cls, path: str | Path, *, num_players: int = 6, device: str = "cpu"):
         checkpoint = torch.load(path, map_location=device, weights_only=False)
         if checkpoint.get("checkpoint_kind") == "strategy_only":
-            cls._validate_light_checkpoint(checkpoint, num_players)
+            architecture, input_size, hidden_size = cls._validate_light_checkpoint(
+                checkpoint,
+                num_players,
+            )
             state_dict = checkpoint["strategy_net"]
-            input_size = int(state_dict["base.0.weight"].shape[1])
-            hidden_size = int(state_dict["base.0.weight"].shape[0])
-            strategy_net = PokerNetwork(input_size, hidden_size, NUM_ACTIONS).to(device)
+            strategy_net = PokerNetwork(
+                input_size,
+                hidden_size,
+                NUM_ACTIONS,
+                architecture,
+            ).to(device)
             strategy_net.load_state_dict(state_dict, strict=True)
             use_multi_agent = bool(checkpoint.get("config", {}).get("use_multi_agent_advantage", False))
             encoding_version = str(checkpoint["encoding_version"])
@@ -62,7 +72,13 @@ class FrozenBlueprintPolicy:
                 device=device,
             )
 
-        agent = DeepCFRAgent(player_id=0, num_players=num_players, device=device)
+        architecture = cls._checkpoint_network_architecture(checkpoint)
+        agent = DeepCFRAgent(
+            player_id=0,
+            num_players=num_players,
+            device=device,
+            network_architecture=architecture,
+        )
         agent.load_model(str(path))
         return cls(
             agent.strategy_net,
@@ -74,7 +90,34 @@ class FrozenBlueprintPolicy:
         )
 
     @staticmethod
-    def _validate_light_checkpoint(checkpoint: dict, num_players: int) -> None:
+    def _checkpoint_network_architecture(checkpoint: dict) -> str:
+        checkpoint_config = checkpoint.get("config", {})
+        if not isinstance(checkpoint_config, dict):
+            checkpoint_config = {}
+        architecture = checkpoint.get(
+            "network_architecture",
+            checkpoint_config.get("network_architecture"),
+        )
+        if architecture is None:
+            state_dict = checkpoint.get("strategy_net")
+            if isinstance(state_dict, dict) and "card_encoder.0.weight" in state_dict:
+                raise ValueError(
+                    "Чекпоинт с card_context_v1 не содержит метаданные архитектуры"
+                )
+            return MONOLITHIC_ARCHITECTURE
+        if architecture not in NETWORK_ARCHITECTURES:
+            raise ValueError("Чекпоинт имеет неизвестную архитектуру сети")
+        if architecture == CARD_CONTEXT_ARCHITECTURE:
+            card_feature_size = checkpoint.get(
+                "card_feature_size",
+                checkpoint_config.get("card_feature_size"),
+            )
+            if card_feature_size != CARD_FEATURE_SIZE:
+                raise ValueError("Чекпоинт имеет несовместимый размер card-признаков")
+        return architecture
+
+    @classmethod
+    def _validate_light_checkpoint(cls, checkpoint: dict, num_players: int) -> tuple[str, int, int]:
         if checkpoint.get("checkpoint_format_version") != CHECKPOINT_FORMAT_VERSION:
             raise ValueError("Light checkpoint имеет несовместимую версию формата")
         if checkpoint.get("action_space_version") != ACTION_SPACE_VERSION:
@@ -94,11 +137,27 @@ class FrozenBlueprintPolicy:
         if int(checkpoint.get("encoder_input_size", -1)) != expected_input_size:
             raise ValueError("Light checkpoint имеет неверный размер входа encoder")
         state_dict = checkpoint.get("strategy_net")
-        if not isinstance(state_dict, dict) or "base.0.weight" not in state_dict:
+        if not isinstance(state_dict, dict):
             raise ValueError("В light checkpoint отсутствуют веса strategy_net")
-        actual_input_size = int(state_dict["base.0.weight"].shape[1])
+        architecture = cls._checkpoint_network_architecture(checkpoint)
+        if architecture == MONOLITHIC_ARCHITECTURE:
+            weight = state_dict.get("base.0.weight")
+            if weight is None:
+                raise ValueError("В light checkpoint отсутствуют веса strategy_net")
+            actual_input_size = int(weight.shape[1])
+            hidden_size = int(weight.shape[0])
+        else:
+            card_weight = state_dict.get("card_encoder.0.weight")
+            context_weight = state_dict.get("context_encoder.0.weight")
+            if card_weight is None or context_weight is None:
+                raise ValueError("В light checkpoint отсутствуют веса card_context_v1")
+            if int(card_weight.shape[1]) != CARD_FEATURE_SIZE:
+                raise ValueError("Light checkpoint имеет несовместимый размер card-признаков")
+            actual_input_size = int(card_weight.shape[1]) + int(context_weight.shape[1])
+            hidden_size = int(card_weight.shape[0])
         if actual_input_size != expected_input_size:
             raise ValueError("Light checkpoint имеет неверный размер входа encoder в strategy_net")
+        return architecture, actual_input_size, hidden_size
 
     def _encode_state(self, state: pkrs.State, player_id: int) -> np.ndarray:
         if self.use_multi_agent:

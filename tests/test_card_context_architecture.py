@@ -122,6 +122,20 @@ def test_legacy_checkpoint_without_metadata_is_supported_only_by_monolithic_agen
         config_mod.load_config("config.yaml")
 
 
+def test_sixmax_rejects_card_context_heads_up_teacher_before_legacy_projection(tmp_path):
+    checkpoint_path = tmp_path / "hu-card-context-teacher.pt"
+    teacher = DeepCFRAgent(
+        player_id=0,
+        num_players=2,
+        network_architecture=CARD_CONTEXT_ARCHITECTURE,
+    )
+    torch.save(teacher.build_light_checkpoint(), checkpoint_path)
+    student = DeepCFRAgent(player_id=0, num_players=6)
+
+    with pytest.raises(ValueError, match="HU projection.*card_context_v1"):
+        student.load_teacher_strategy_checkpoint(checkpoint_path)
+
+
 def test_config_rejects_unsupported_network_architecture(tmp_path):
     config_path = tmp_path / "config.yaml"
     config_path.write_text(
