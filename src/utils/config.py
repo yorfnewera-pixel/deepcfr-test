@@ -58,8 +58,8 @@ _DEFAULTS = {
     "teacher_transfer_mode": "card_encoder_warmstart",
     "teacher_transfer_checkpoint": None,
     "teacher_transfer_freeze_card_encoder": False,
-    "teacher_transfer_auxiliary_enabled": False,
-    "teacher_transfer_auxiliary_weight": 0.0,
+    "teacher_hu_aux_distillation_enabled": False,
+    "teacher_hu_aux_distillation_weight": 0.0,
     "strategy_distillation_lambda": 0.0,
     "strategy_distillation_temperature": 1.0,
     "strategy_distillation_anneal_iterations": 0,
@@ -128,9 +128,23 @@ def load_config(path=None):
             raise ValueError(
                 "teacher_transfer_mode поддерживает только card_encoder_warmstart"
             )
-        if bool(_config["teacher_transfer_auxiliary_enabled"]) or float(
-            _config["teacher_transfer_auxiliary_weight"]
-        ) != 0.0:
+        legacy_auxiliary_keys = {
+            "teacher_transfer_auxiliary_enabled",
+            "teacher_transfer_auxiliary_weight",
+        }
+        if legacy_auxiliary_keys.intersection(_raw_config):
+            raise ValueError(
+                "Устаревшие auxiliary-настройки teacher_transfer не поддерживаются; "
+                "используйте teacher_hu_aux_distillation_enabled и "
+                "teacher_hu_aux_distillation_weight"
+            )
+        try:
+            auxiliary_weight = float(_config["teacher_hu_aux_distillation_weight"])
+        except (TypeError, ValueError) as error:
+            raise ValueError(
+                "teacher_hu_aux_distillation_weight должен быть числом"
+            ) from error
+        if bool(_config["teacher_hu_aux_distillation_enabled"]) or auxiliary_weight != 0.0:
             raise ValueError("Stage B auxiliary transfer пока не реализован")
         if bool(_config["teacher_transfer_enabled"]):
             if not isinstance(_config["teacher_transfer_checkpoint"], str) or not _config[

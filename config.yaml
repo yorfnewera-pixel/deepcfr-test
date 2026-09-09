@@ -27,8 +27,8 @@ teacher_transfer_mode: card_encoder_warmstart
 teacher_transfer_checkpoint: null
 teacher_transfer_freeze_card_encoder: false
 # Stage B ещё не реализован и намеренно отвергается при включении.
-teacher_transfer_auxiliary_enabled: false
-teacher_transfer_auxiliary_weight: 0.0
+teacher_hu_aux_distillation_enabled: false
+teacher_hu_aux_distillation_weight: 0.0
 strategy_distillation_lambda: 0.0
 strategy_distillation_temperature: 1.0
 strategy_distillation_anneal_iterations: 0

@@ -87,6 +87,8 @@ def _teacher_transfer_configuration(
     mode: str | None = None,
     checkpoint: str | Path | None = None,
     freeze: bool | None = None,
+    auxiliary_enabled: bool | None = None,
+    auxiliary_weight: float | None = None,
 ) -> dict[str, object]:
     """Возвращает единственный поддержанный Stage A контракт warm-start."""
     return {
@@ -102,6 +104,12 @@ def _teacher_transfer_configuration(
         "freeze": bool(cfg_get("teacher_transfer_freeze_card_encoder", False))
         if freeze is None
         else bool(freeze),
+        "auxiliary_enabled": bool(cfg_get("teacher_hu_aux_distillation_enabled", False))
+        if auxiliary_enabled is None
+        else bool(auxiliary_enabled),
+        "auxiliary_weight": cfg_get("teacher_hu_aux_distillation_weight", 0.0)
+        if auxiliary_weight is None
+        else auxiliary_weight,
     }
 
 
@@ -112,6 +120,12 @@ def _validate_teacher_transfer_runtime(
     hu_current_policy_self_play: bool,
     teacher_strategy_checkpoint: str | Path | None,
 ) -> None:
+    try:
+        auxiliary_weight = float(configuration["auxiliary_weight"])
+    except (TypeError, ValueError) as error:
+        raise ValueError("teacher_hu_aux_distillation_weight должен быть числом") from error
+    if bool(configuration["auxiliary_enabled"]) or auxiliary_weight != 0.0:
+        raise ValueError("Stage B auxiliary transfer пока не реализован")
     if not configuration["enabled"]:
         return
     if configuration["mode"] != "card_encoder_warmstart":
@@ -1412,10 +1426,31 @@ def train_self_play_multi(
     teacher_transfer_mode: str | None = None,
     teacher_transfer_checkpoint: str | Path | None = None,
     teacher_transfer_freeze_card_encoder: bool | None = None,
+    teacher_hu_aux_distillation_enabled: bool | None = None,
+    teacher_hu_aux_distillation_weight: float | None = None,
+    teacher_transfer_auxiliary_enabled: bool | None = None,
+    teacher_transfer_auxiliary_weight: float | None = None,
     hu_current_policy_self_play: bool | None = None,
     **_unused_options,
 ) -> DeepCFRAgent:
     """Обучает один общий action-only агент external-sampling Deep CFR."""
+    if (
+        teacher_transfer_auxiliary_enabled is not None
+        or teacher_transfer_auxiliary_weight is not None
+    ):
+        raise ValueError(
+            "Устаревшие auxiliary-параметры teacher_transfer не поддерживаются; "
+            "используйте teacher_hu_aux_distillation_enabled и "
+            "teacher_hu_aux_distillation_weight"
+        )
+    unexpected_teacher_transfer_options = sorted(
+        key for key in _unused_options if key.startswith("teacher_")
+    )
+    if unexpected_teacher_transfer_options:
+        raise ValueError(
+            "Неизвестные teacher-параметры: "
+            + ", ".join(unexpected_teacher_transfer_options)
+        )
     if seed is not None:
         random.seed(seed)
         np.random.seed(seed)
@@ -1433,6 +1468,8 @@ def train_self_play_multi(
         mode=teacher_transfer_mode,
         checkpoint=teacher_transfer_checkpoint,
         freeze=teacher_transfer_freeze_card_encoder,
+        auxiliary_enabled=teacher_hu_aux_distillation_enabled,
+        auxiliary_weight=teacher_hu_aux_distillation_weight,
     )
     _validate_teacher_transfer_runtime(
         teacher_transfer,
@@ -1682,6 +1719,40 @@ def _parse_args() -> argparse.Namespace:
         default=cfg_get("teacher_strategy_checkpoint", None),
         help="Checkpoint strategy-сети teacher-а для policy distillation",
     )
+    parser.add_argument(
+        "--teacher-transfer-enabled",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Включить Stage A перенос card_encoder из HU checkpoint",
+    )
+    parser.add_argument(
+        "--teacher-transfer-mode",
+        default=None,
+        help="Режим Stage A teacher transfer",
+    )
+    parser.add_argument(
+        "--teacher-transfer-checkpoint",
+        default=None,
+        help="Путь к полному версионированному HU checkpoint для Stage A",
+    )
+    parser.add_argument(
+        "--teacher-transfer-freeze-card-encoder",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Заморозить перенесённый card_encoder",
+    )
+    parser.add_argument(
+        "--teacher-hu-aux-distillation-enabled",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Флаг Stage B; пока намеренно отклоняется",
+    )
+    parser.add_argument(
+        "--teacher-hu-aux-distillation-weight",
+        type=float,
+        default=None,
+        help="Вес Stage B; пока намеренно отклоняется",
+    )
     parser.add_argument("--evaluate-every", type=int, default=10)
     parser.add_argument("--evaluation-games", type=int, default=500)
     parser.add_argument("--num-players", type=int, default=int(cfg_get("num_players", 6)))
@@ -1714,6 +1785,12 @@ def main() -> None:
         opponent_checkpoint_dir=args.opponent_checkpoint_dir,
         trainable_players=args.trainable_players,
         teacher_strategy_checkpoint=args.teacher_strategy_checkpoint,
+        teacher_transfer_enabled=args.teacher_transfer_enabled,
+        teacher_transfer_mode=args.teacher_transfer_mode,
+        teacher_transfer_checkpoint=args.teacher_transfer_checkpoint,
+        teacher_transfer_freeze_card_encoder=args.teacher_transfer_freeze_card_encoder,
+        teacher_hu_aux_distillation_enabled=args.teacher_hu_aux_distillation_enabled,
+        teacher_hu_aux_distillation_weight=args.teacher_hu_aux_distillation_weight,
     )
 
 

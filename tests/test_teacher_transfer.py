@@ -353,12 +353,16 @@ def test_transfer_can_freeze_copied_card_encoder(tmp_path):
             "teacher_transfer_checkpoint",
         ),
         (
-            ["teacher_transfer_auxiliary_enabled: true"],
+            ["teacher_hu_aux_distillation_enabled: true"],
             "Stage B",
         ),
         (
-            ["teacher_transfer_auxiliary_weight: 0.1"],
+            ["teacher_hu_aux_distillation_weight: 0.1"],
             "Stage B",
+        ),
+        (
+            ["teacher_transfer_auxiliary_enabled: true"],
+            "teacher_hu_aux_distillation_enabled",
         ),
         (
             [
@@ -397,3 +401,34 @@ def test_transfer_configuration_rejects_incompatible_or_unimplemented_modes(tmp_
             config_mod.load_config(config_path)
     finally:
         config_mod.load_config("config.yaml")
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"teacher_hu_aux_distillation_enabled": True},
+        {"teacher_hu_aux_distillation_weight": 0.25},
+        {
+            "teacher_hu_aux_distillation_enabled": True,
+            "teacher_hu_aux_distillation_weight": 0.25,
+        },
+    ],
+)
+def test_programmatic_stage_b_options_fail_before_agent_creation(monkeypatch, kwargs):
+    monkeypatch.setattr(
+        train_mod,
+        "DeepCFRAgent",
+        lambda **_kwargs: pytest.fail("Stage B должен быть отклонён до создания agent"),
+    )
+
+    with pytest.raises(ValueError, match="Stage B"):
+        train_mod.train_self_play_multi(num_iterations=0, **kwargs)
+
+
+def test_programmatic_legacy_auxiliary_option_is_rejected_explicitly():
+    with pytest.raises(ValueError, match="teacher_hu_aux_distillation_enabled"):
+        train_mod.train_self_play_multi(
+            num_iterations=0,
+            teacher_transfer_auxiliary_enabled=True,
+            teacher_transfer_auxiliary_weight=0.25,
+        )

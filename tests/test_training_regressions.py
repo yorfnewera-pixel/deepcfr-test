@@ -102,6 +102,41 @@ def _add_traversal_recorders(agent):
     return agent
 
 
+def test_cli_forwards_teacher_transfer_and_stage_b_contract_flags(monkeypatch):
+    received = {}
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "train.py",
+            "--self-play-multi",
+            "--iterations", "1",
+            "--traversals", "1",
+            "--teacher-transfer-enabled",
+            "--teacher-transfer-mode", "card_encoder_warmstart",
+            "--teacher-transfer-checkpoint", "hu.pt",
+            "--teacher-transfer-freeze-card-encoder",
+            "--teacher-hu-aux-distillation-enabled",
+            "--teacher-hu-aux-distillation-weight", "0.25",
+        ],
+    )
+    monkeypatch.setattr(train_mod, "_apply_process_priority", lambda *_args: None)
+    monkeypatch.setattr(
+        train_mod,
+        "train_self_play_multi",
+        lambda **kwargs: received.update(kwargs),
+    )
+
+    train_mod.main()
+
+    assert received["teacher_transfer_enabled"] is True
+    assert received["teacher_transfer_mode"] == "card_encoder_warmstart"
+    assert received["teacher_transfer_checkpoint"] == "hu.pt"
+    assert received["teacher_transfer_freeze_card_encoder"] is True
+    assert received["teacher_hu_aux_distillation_enabled"] is True
+    assert received["teacher_hu_aux_distillation_weight"] == 0.25
+
+
 def test_skip_traversal_continues_after_one_failure(monkeypatch, tmp_path):
     agent = _fake_agent_with_traversal_outcomes([TraversalFailure(_traversal_failure_context()), None])
     _configure_training_error_mode(monkeypatch, "skip_traversal", limit=2)
