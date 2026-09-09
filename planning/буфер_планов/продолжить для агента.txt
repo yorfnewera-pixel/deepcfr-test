@@ -1,0 +1,67 @@
+Продолжай в C:\Users\Cassmall\Desktop\deepcfr-test, ветка main. Работать напрямую в этой копии разрешено пользователем. Общаться и писать комментарии на русском.
+
+Сначала прочитай:
+1. planning\буфер_планов\порядок выполнения.txt
+2. planning\буфер_планов\хедзап\план ученик учитель коррекция.txt
+3. docs\superpowers\specs\2026-09-09-card-context-v1-design.md
+4. docs\superpowers\plans\2026-09-09-card-context-v1.md
+5. .superpowers\sdd\teacher-transfer-stage-a\progress.md
+6. .superpowers\sdd\teacher-transfer-stage-a\task-1-report.md
+
+Не трогай и не добавляй в Git:
+planning\буфер_планов\порядок выполнения.txt
+Старый models\starting_opponent\mixed_checkpoint_iter_11200.pt намеренно удалён: это списанная ветка обучения, не восстанавливать.
+
+Что уже сделано и закоммичено:
+- history_summary_v3 и исправления traversal;
+- корректный HU current-policy self-play с двумя advantage-ветками, snapshots, actor-aware strategy и безопасным HU checkpoint/resume;
+- архитектура card_context_v1:
+  - первые 109 признаков: hero hand 52 + board 52 + street 5;
+  - context отдельно;
+  - monolithic_v1 по умолчанию и совместим со старыми checkpoint;
+  - normal/HU checkpoint, FrozenBlueprint и full-probe умеют architecture metadata;
+- коммиты архитектуры: b9923a6..478fa42;
+- Stage A teacher transfer, Task 1: fce7cc0, 5de1201, 396b534, 305cc05.
+
+Текущий Git status чистый, кроме пользовательского untracked файла порядка выполнения. Никаких процессов обучения не запущено.
+
+Текущая задача: Stage A teacher→six-max warm-start, только перенос policy card_encoder. Реальный HU checkpoint не найден и не используется: тесты строят временный настоящий HU checkpoint через train._build_hu_checkpoint.
+
+Task 1 почти готов:
+- src/core/teacher_transfer.py безопасно читает только versioned HU full checkpoint через weights_only=True;
+- принимается только HU 2-player, history_summary_v3, card_context_v1;
+- копируется только student.strategy_net.card_encoder;
+- context/action head/advantage/optimizer/buffer не копируются;
+- provenance содержит путь, SHA-256, режим и параметры;
+- нет aliasing, есть optional freeze.
+
+НО Task 1 ещё НЕ закрыт. Последнее scoped review нашло два P1 в src/core/teacher_transfer.py:
+1. _validate_optimizer_state принимает неполный непустой AdamW state. Допустимы только:
+   - state == {};
+   - либо полный набор expected parameter ids 0..5 для six параметров card_context сети.
+   Нужен RED-тест: {0: valid_state} обязан отклоняться до мутации student.
+2. CPU/CUDA RNG ByteTensor проверяется как «непустой», поэтому tensor длины 1 проходит. Нужна проверка канонической длины состояния генератора. Добавить RED-тесты для CPU/CUDA RNG length=1; они обязаны дать русский ValueError до мутации student.
+
+Это fix round 4: используй свежего сильного implementer, затем независимое scoped re-review. После него Task 1 можно закрыть.
+
+Минимальные проверки после Task 1:
+python -m pytest -q tests\test_teacher_transfer.py tests\test_hu_checkpoint_resume.py tests\test_card_context_architecture.py tests\test_training_regressions.py
+
+После Task 1 реализуй Task 2 — lifecycle/configuration:
+- добавить явные config flags:
+  teacher_transfer_enabled: false
+  teacher_transfer_checkpoint: null
+  teacher_transfer_mode: card_encoder_warmstart
+  teacher_transfer_freeze_card_encoder: false
+  teacher_hu_aux_distillation_enabled: false
+  teacher_hu_aux_distillation_weight: 0.0
+- Stage B пока не реализовывать: при включении выдавать ясную ошибку;
+- не включать Stage A неявно через старый teacher_strategy_checkpoint;
+- при новом six-max запуске с enabled создать student card_context_v1, проверить HU teacher и один раз применить warm-start;
+- сохранять provenance transfer в full checkpoint;
+- при resume не копировать teacher повторно поверх student;
+- тесты: disabled сохраняет legacy поведение, копируется только card_encoder, provenance сохраняется, resume не перезатирает веса, freeze работает, несовместимые флаги отклоняются.
+- Не реализовывать D2CFR, Stage B distillation, action/regret transfer или искусственную HU-проекцию.
+
+После каждой задачи: TDD RED→GREEN, отдельный commit, task review, исправить Important findings. Перед завершением запусти полный набор:
+python -m pytest -q --ignore=tests\test_legacy_checkpoint_detection.py --ignore=tests\test_legacy_starting_opponent.py
