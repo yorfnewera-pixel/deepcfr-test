@@ -56,7 +56,7 @@ class _Дерево:
         return float(state[1] if traverser == 0 else -state[1])
 
 
-def _координатор(sampler=None, train_advantage=None):
+def _координатор(sampler=None, train_advantage=None, normalize_regrets=None):
     advantages = [_ОднослойнаяСеть([1, 3, 0, 0, 0, 0]), _ОднослойнаяСеть([4, 2, 0, 0, 0, 0])]
     targets = [_ОднослойнаяСеть([0] * 6), _ОднослойнаяСеть([0] * 6)]
     optimizers = [torch.optim.SGD(network.parameters(), lr=0.1) for network in advantages]
@@ -75,6 +75,7 @@ def _координатор(sampler=None, train_advantage=None):
             encode=_Дерево().encode,
             apply=_Дерево().apply,
             terminal_value=_Дерево().terminal_value,
+            normalize_regrets=normalize_regrets,
         ),
         sampler=sampler,
         train_advantage=train_advantage,
@@ -173,6 +174,26 @@ def test_hu_traversals_marshrutiziruyut_regrety_i_strategy_mezhdu_igrokami():
     assert len(coordinator.advantage_buffers[0]) == 1
     assert len(coordinator.advantage_buffers[1]) == 1
     assert coordinator.strategy_buffer.actor_ids().tolist() == [1, 1, 0]
+
+
+def test_hu_normaliziruet_regrety_dlya_p0_i_p1_pered_zapisyu_v_advantage_buffer():
+    raw_regrets_by_actor = {}
+
+    def normalize_regrets(state, regrets, _mask):
+        actor_id = int(state[0])
+        raw_regrets_by_actor[actor_id] = regrets.copy()
+        return regrets / 200.0
+
+    coordinator = _координатор(normalize_regrets=normalize_regrets)
+    coordinator.begin_iteration()
+
+    coordinator.traverse((0, 0), traversing_player=0, iteration=7)
+    coordinator.traverse((0, 0), traversing_player=1, iteration=7)
+
+    for actor_id in (0, 1):
+        _, written_regrets, _, _ = coordinator.advantage_buffers[actor_id].sample()
+        assert actor_id in raw_regrets_by_actor
+        assert np.allclose(written_regrets[0], raw_regrets_by_actor[actor_id] / 200.0)
 
 
 def test_obshchiy_strategy_buffer_hranitt_actor_i_actor_conditioned_input():

@@ -29,6 +29,7 @@ class HuTraversalAdapter(Generic[StateT]):
     encode: Callable[[StateT, int], np.ndarray]
     apply: Callable[[StateT, int], StateT]
     terminal_value: Callable[[StateT, int], float]
+    normalize_regrets: Callable[[StateT, np.ndarray, np.ndarray], np.ndarray] | None = None
 
 
 class HuStrategyBuffer:
@@ -362,6 +363,13 @@ class HuCurrentPolicySelfPlayCoordinator(Generic[StateT]):
                 )
             expected_value = float(np.dot(policy, action_values))
             regrets = (action_values - expected_value) * mask
+            if self.adapter.normalize_regrets is not None:
+                regrets = np.asarray(
+                    self.adapter.normalize_regrets(state, regrets, mask),
+                    dtype=np.float32,
+                )
+            if regrets.shape != (NUM_ACTIONS,) or not np.all(np.isfinite(regrets)):
+                raise ValueError("HU normalizer вернул некорректные regrets")
             self._record_advantage(actor_id, encoded, regrets, mask, iteration)
             return expected_value
 

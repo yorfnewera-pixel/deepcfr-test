@@ -1,9 +1,14 @@
 """Регрессии подключения HU current-policy self-play к training loop."""
 from types import SimpleNamespace
 
+import numpy as np
+import pokers as pkrs
 import torch
 import pytest
 
+from src.core.action_space import ActionSlot, resolve_action
+from src.core.deep_cfr import DeepCFRAgent
+from src.core.model import MONOLITHIC_ARCHITECTURE
 from src.core.traversal_errors import TraversalFailure, TraversalFailureContext
 from src.training import train as train_mod
 
@@ -188,6 +193,50 @@ def test_hu_failure_handler_ispolzuet_skip_limit_i_diagnostics(monkeypatch):
         handler(error)
 
     assert [context.reason for context in diagnostics] == ["ошибка HU", "ошибка HU"]
+
+
+@pytest.mark.parametrize(
+    ("regret_norm", "regret_clip"),
+    (("none", None), ("pot_stack", 50.0)),
+)
+def test_hu_adapter_primenyaet_obshchuyu_normalizatsiyu_regretov_k_p0_i_p1(
+    regret_norm,
+    regret_clip,
+):
+    agent = DeepCFRAgent(
+        player_id=0,
+        num_players=2,
+        device="cpu",
+        hidden_size=8,
+        network_architecture=MONOLITHIC_ARCHITECTURE,
+    )
+    agent.advantage_regret_norm = regret_norm
+    agent.advantage_regret_clip = regret_clip
+    agent.advantage_reward_scale = 200.0
+    adapter = train_mod._create_hu_current_policy_coordinator(agent).adapter
+    root = pkrs.State.from_seed(
+        n_players=2,
+        button=0,
+        sb=1.0,
+        bb=2.0,
+        stake=200.0,
+        seed=17,
+    )
+    p0_state = root.apply_action(resolve_action(ActionSlot.CALL, root).action)
+    regrets = np.array([200.0, -100.0, 0.0, 0.0, 0.0, 0.0], dtype=np.float32)
+    mask = np.array([1.0, 1.0, 0.0, 0.0, 0.0, 0.0], dtype=np.float32)
+
+    assert {int(root.current_player), int(p0_state.current_player)} == {0, 1}
+    for state in (root, p0_state):
+        expected = regrets.copy()
+        if regret_norm == "pot_stack":
+            player = state.players_state[int(state.current_player)]
+            expected /= max(float(state.pot) + float(player.stake), 1.0)
+        if regret_clip is not None:
+            expected = np.clip(expected, -regret_clip, regret_clip)
+        expected /= 200.0
+
+        assert np.allclose(adapter.normalize_regrets(state, regrets, mask), expected)
 
 
 def test_hu_resume_continues_from_next_iteration_and_writes_periodic_and_final_checkpoint(monkeypatch, tmp_path):

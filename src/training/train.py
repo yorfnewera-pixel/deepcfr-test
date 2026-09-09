@@ -1268,6 +1268,11 @@ def _create_hu_current_policy_coordinator(
             encode=lambda state, player_id: agent._encode_state(state, player_id),
             apply=apply,
             terminal_value=lambda state, player_id: float(state.players_state[player_id].reward),
+            normalize_regrets=lambda state, regrets, mask: agent._normalise_regrets(
+                regrets,
+                state,
+                np.flatnonzero(mask).astype(int).tolist(),
+            ),
         ),
         train_advantage=train_advantage,
         train_strategy=train_strategy,
