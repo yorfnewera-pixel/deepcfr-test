@@ -29,6 +29,7 @@ from src.core.model import (
     CARD_FEATURE_SIZE,
     HISTORY_SUMMARY_V3_ENCODING_VERSION,
     MONOLITHIC_ARCHITECTURE,
+    NETWORK_ARCHITECTURES,
     PokerNetwork,
     encoder_input_size,
     encode_state_for_version,
@@ -49,6 +50,88 @@ from src.utils.traversal_profiler import TRAVERSAL_PROFILER, profile_section
 CHECKPOINT_FORMAT_VERSION = 6
 
 
+def full_checkpoint_network_spec(checkpoint: dict) -> tuple[str, int, int]:
+    """Возвращает и проверяет сетевой контракт полного checkpoint до загрузки весов."""
+    checkpoint_config = checkpoint.get("config", {})
+    if not isinstance(checkpoint_config, dict):
+        checkpoint_config = {}
+
+    if "network_architecture" in checkpoint:
+        architecture = checkpoint["network_architecture"]
+    elif "network_architecture" in checkpoint_config:
+        architecture = checkpoint_config["network_architecture"]
+    else:
+        strategy_state = checkpoint.get("strategy_net")
+        if isinstance(strategy_state, dict) and "card_encoder.0.weight" in strategy_state:
+            raise ValueError(
+                "Чекпоинт с card_context_v1 не содержит метаданные архитектуры"
+            )
+        architecture = MONOLITHIC_ARCHITECTURE
+    if not isinstance(architecture, str) or architecture not in NETWORK_ARCHITECTURES:
+        raise ValueError("Чекпоинт имеет некорректное значение архитектуры сети")
+
+    if architecture == CARD_CONTEXT_ARCHITECTURE:
+        card_feature_size = checkpoint.get(
+            "card_feature_size",
+            checkpoint_config.get("card_feature_size"),
+        )
+        if card_feature_size != CARD_FEATURE_SIZE:
+            raise ValueError("Чекпоинт имеет несовместимый размер card-признаков")
+
+    input_size = checkpoint.get("encoder_input_size")
+    if isinstance(input_size, bool) or not isinstance(input_size, int) or input_size <= 0:
+        raise ValueError("Чекпоинт имеет некорректный размер входа encoder")
+
+    hidden_size = checkpoint_config.get("hidden_size")
+    if hidden_size is None and architecture == MONOLITHIC_ARCHITECTURE:
+        strategy_state = checkpoint.get("strategy_net")
+        if isinstance(strategy_state, dict):
+            base_weight = strategy_state.get("base.0.weight")
+            if torch.is_tensor(base_weight) and base_weight.ndim == 2:
+                hidden_size = int(base_weight.shape[0])
+    if isinstance(hidden_size, bool) or not isinstance(hidden_size, int) or hidden_size <= 0:
+        raise ValueError("В checkpoint отсутствует корректный hidden_size сети")
+
+    if architecture == MONOLITHIC_ARCHITECTURE:
+        expected_shapes = {
+            "base.0.weight": (hidden_size, input_size),
+            "base.0.bias": (hidden_size,),
+            "base.2.weight": (hidden_size, hidden_size),
+            "base.2.bias": (hidden_size,),
+            "base.4.weight": (hidden_size, hidden_size),
+            "base.4.bias": (hidden_size,),
+            "action_head.weight": (NUM_ACTIONS, hidden_size),
+            "action_head.bias": (NUM_ACTIONS,),
+        }
+    else:
+        context_size = input_size - CARD_FEATURE_SIZE
+        if context_size < 0:
+            raise ValueError("Чекпоинт имеет несовместимый размер входа card_context_v1")
+        expected_shapes = {
+            "card_encoder.0.weight": (hidden_size, CARD_FEATURE_SIZE),
+            "card_encoder.0.bias": (hidden_size,),
+            "context_encoder.0.weight": (hidden_size, context_size),
+            "context_encoder.0.bias": (hidden_size,),
+            "action_head.weight": (NUM_ACTIONS, hidden_size * 2),
+            "action_head.bias": (NUM_ACTIONS,),
+        }
+
+    for network_key in ("advantage_net", "advantage_target_net", "strategy_net"):
+        state_dict = checkpoint.get(network_key)
+        if not isinstance(state_dict, dict):
+            raise ValueError(f"В checkpoint отсутствуют веса {network_key}")
+        if set(state_dict) != set(expected_shapes):
+            raise ValueError(f"{network_key} имеет несовместимый набор параметров")
+        for parameter_name, expected_shape in expected_shapes.items():
+            parameter = state_dict[parameter_name]
+            if not torch.is_tensor(parameter) or tuple(parameter.shape) != expected_shape:
+                raise ValueError(
+                    f"{network_key} имеет несовместимую форму параметра {parameter_name}"
+                )
+
+    return architecture, input_size, hidden_size
+
+
 @dataclass
 class _TraversalSampleCollector:
     """Накапливает samples до успешного завершения корневого traversal."""
@@ -65,7 +148,7 @@ class DeepCFRAgent:
     """Deep CFR без непрерывного sizing и Q-control-variate."""
 
     def __init__(self, player_id=0, num_players=None, memory_size=None,
-                 device="cpu", network_architecture=None, **_legacy_options):
+                 device="cpu", network_architecture=None, hidden_size=None, **_legacy_options):
         self.player_id = int(player_id)
         self.num_players = int(num_players or cfg_get("num_players", 6))
         configured_trainable_players = int(cfg_get("num_trainable_players", 1))
@@ -88,7 +171,9 @@ class DeepCFRAgent:
             self.encoding_version,
             self.use_multi_agent,
         )
-        hidden_size = int(cfg_get("hidden_size", 256))
+        hidden_size = int(
+            cfg_get("hidden_size", 256) if hidden_size is None else hidden_size
+        )
         self.network_architecture = str(
             network_architecture
             if network_architecture is not None
@@ -1704,10 +1789,19 @@ class DeepCFRAgent:
             raise ValueError("Чекпоинт имеет несовместимую версию encoder")
         if int(checkpoint.get("encoder_input_size", -1)) != self.input_size:
             raise ValueError("Чекпоинт имеет несовместимый размер входа encoder")
-        self._validate_checkpoint_network_metadata(checkpoint)
         for key in ("advantage_net", "advantage_target_net", "strategy_net"):
             if key not in checkpoint:
                 raise ValueError(f"В checkpoint отсутствует обязательный ключ {key}")
+        self._validate_checkpoint_network_metadata(checkpoint)
+        checkpoint_architecture, checkpoint_input_size, checkpoint_hidden_size = (
+            full_checkpoint_network_spec(checkpoint)
+        )
+        if checkpoint_architecture != self.network_architecture:
+            raise ValueError("Чекпоинт имеет несовместимую архитектуру сети")
+        if checkpoint_input_size != self.input_size:
+            raise ValueError("Чекпоинт имеет несовместимый размер входа encoder")
+        if checkpoint_hidden_size != self._network_hidden_size(self.strategy_net):
+            raise ValueError("Чекпоинт имеет несовместимый hidden_size сети")
         self.advantage_net.load_state_dict(checkpoint["advantage_net"], strict=True)
         self.advantage_target_net.load_state_dict(checkpoint["advantage_target_net"], strict=True)
         self.strategy_net.load_state_dict(checkpoint["strategy_net"], strict=True)

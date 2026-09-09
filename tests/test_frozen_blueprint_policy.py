@@ -8,6 +8,7 @@ from src.core.deep_cfr import DeepCFRAgent
 from src.core.model import CARD_CONTEXT_ARCHITECTURE, CARD_FEATURE_SIZE
 from src.evaluation.blueprint_policy import FrozenBlueprintPolicy
 from src.evaluation.paired_harness import evaluate_paired
+from src.utils import config as config_mod
 
 
 def test_frozen_policy_exposes_six_legal_probabilities(tmp_path):
@@ -93,6 +94,29 @@ def test_frozen_policy_loads_card_context_checkpoint_with_legal_policy(tmp_path)
     assert probabilities.shape == (NUM_ACTIONS,)
     assert np.isclose(probabilities.sum(), 1.0)
     assert np.all(probabilities[legal_action_mask(state) == 0.0] == 0.0)
+
+
+def test_frozen_policy_uses_declared_hidden_size_for_full_card_context_checkpoint(tmp_path):
+    checkpoint = tmp_path / "card-context-full.pt"
+    small_config = tmp_path / "small-config.yaml"
+    large_config = tmp_path / "large-config.yaml"
+    small_config.write_text("num_actions: 6\nhidden_size: 8\n", encoding="utf-8")
+    large_config.write_text("num_actions: 6\nhidden_size: 16\n", encoding="utf-8")
+
+    try:
+        config_mod.load_config(small_config)
+        DeepCFRAgent(
+            player_id=0,
+            num_players=2,
+            network_architecture=CARD_CONTEXT_ARCHITECTURE,
+        ).save_model(str(checkpoint))
+        config_mod.load_config(large_config)
+
+        policy = FrozenBlueprintPolicy.from_checkpoint(checkpoint, num_players=2)
+
+        assert policy.strategy_net.card_encoder[0].out_features == 8
+    finally:
+        config_mod.load_config("config.yaml")
 
 
 def test_frozen_policy_rejects_card_context_weights_without_architecture_metadata(tmp_path):

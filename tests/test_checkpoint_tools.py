@@ -3,6 +3,7 @@ import torch
 
 from src.core.deep_cfr import DeepCFRAgent
 from src.core.model import CARD_CONTEXT_ARCHITECTURE
+from src.utils import config as config_mod
 from tools import checkpoint_tools
 
 
@@ -117,3 +118,33 @@ def test_full_probe_loads_card_context_checkpoint(tmp_path):
 
     assert result["samples"] > 0
     assert result["strategy"]["mean_l1_distance"] == 0.0
+
+
+def test_full_probe_uses_declared_hidden_size_for_card_context_checkpoint(tmp_path):
+    checkpoint = tmp_path / "card-context-full.pt"
+    small_config = tmp_path / "small-config.yaml"
+    large_config = tmp_path / "large-config.yaml"
+    small_config.write_text("num_actions: 6\nhidden_size: 8\n", encoding="utf-8")
+    large_config.write_text("num_actions: 6\nhidden_size: 16\n", encoding="utf-8")
+
+    try:
+        config_mod.load_config(small_config)
+        agent = DeepCFRAgent(
+            player_id=0,
+            num_players=6,
+            network_architecture=CARD_CONTEXT_ARCHITECTURE,
+        )
+        torch.save(agent._build_checkpoint(), checkpoint)
+        config_mod.load_config(large_config)
+
+        result = checkpoint_tools.probe_full_checkpoints(
+            checkpoint,
+            checkpoint,
+            games=200,
+            seed=7,
+        )
+
+        assert result["samples"] > 0
+        assert result["strategy"]["mean_l1_distance"] == 0.0
+    finally:
+        config_mod.load_config("config.yaml")

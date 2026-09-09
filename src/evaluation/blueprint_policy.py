@@ -10,7 +10,11 @@ import pokers as pkrs
 import torch
 
 from src.core.action_space import ACTION_SPACE_VERSION, NUM_ACTIONS, legal_action_mask, resolve_action
-from src.core.deep_cfr import CHECKPOINT_FORMAT_VERSION, DeepCFRAgent
+from src.core.deep_cfr import (
+    CHECKPOINT_FORMAT_VERSION,
+    DeepCFRAgent,
+    full_checkpoint_network_spec,
+)
 from src.core.model import (
     CARD_CONTEXT_ARCHITECTURE,
     CARD_FEATURE_SIZE,
@@ -72,12 +76,13 @@ class FrozenBlueprintPolicy:
                 device=device,
             )
 
-        architecture = cls._checkpoint_network_architecture(checkpoint)
+        architecture, _, hidden_size = full_checkpoint_network_spec(checkpoint)
         agent = DeepCFRAgent(
             player_id=0,
             num_players=num_players,
             device=device,
             network_architecture=architecture,
+            hidden_size=hidden_size,
         )
         agent.load_model(str(path))
         return cls(
