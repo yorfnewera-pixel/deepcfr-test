@@ -137,6 +137,36 @@ def test_cli_forwards_teacher_transfer_and_stage_b_contract_flags(monkeypatch):
     assert received["teacher_hu_aux_distillation_weight"] == 0.25
 
 
+def test_cli_teacher_transfer_booleans_do_not_require_boolean_optional_action(monkeypatch):
+    received = {}
+    monkeypatch.delattr(train_mod.argparse, "BooleanOptionalAction", raising=False)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "train.py",
+            "--self-play-multi",
+            "--iterations", "1",
+            "--traversals", "1",
+            "--teacher-transfer-enabled",
+            "--no-teacher-transfer-freeze-card-encoder",
+            "--no-teacher-hu-aux-distillation-enabled",
+        ],
+    )
+    monkeypatch.setattr(train_mod, "_apply_process_priority", lambda *_args: None)
+    monkeypatch.setattr(
+        train_mod,
+        "train_self_play_multi",
+        lambda **kwargs: received.update(kwargs),
+    )
+
+    train_mod.main()
+
+    assert received["teacher_transfer_enabled"] is True
+    assert received["teacher_transfer_freeze_card_encoder"] is False
+    assert received["teacher_hu_aux_distillation_enabled"] is False
+
+
 def test_skip_traversal_continues_after_one_failure(monkeypatch, tmp_path):
     agent = _fake_agent_with_traversal_outcomes([TraversalFailure(_traversal_failure_context()), None])
     _configure_training_error_mode(monkeypatch, "skip_traversal", limit=2)

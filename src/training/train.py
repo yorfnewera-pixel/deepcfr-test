@@ -1696,6 +1696,32 @@ def train_with_mixed_checkpoints(*_args, **_kwargs):
     raise NotImplementedError("Смешивание старых sizing/Q checkpoint удалено; используйте six_fixed_v2.")
 
 
+def _add_optional_boolean_flag(
+    parser: argparse.ArgumentParser,
+    option: str,
+    destination: str,
+    help_text: str,
+) -> None:
+    """Добавляет Python-3.8-совместимую пару --flag/--no-flag с default None."""
+    if not option.startswith("--"):
+        raise ValueError("CLI boolean option должен начинаться с --")
+    flags = parser.add_mutually_exclusive_group()
+    flags.add_argument(
+        option,
+        dest=destination,
+        action="store_true",
+        default=None,
+        help=help_text,
+    )
+    flags.add_argument(
+        "--no-" + option[2:],
+        dest=destination,
+        action="store_false",
+        default=None,
+        help=f"Отключить: {help_text}",
+    )
+
+
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Action-only Deep CFR")
     parser.add_argument("--self-play-multi", action="store_true", help="Запустить self-play обучение")
@@ -1719,11 +1745,11 @@ def _parse_args() -> argparse.Namespace:
         default=cfg_get("teacher_strategy_checkpoint", None),
         help="Checkpoint strategy-сети teacher-а для policy distillation",
     )
-    parser.add_argument(
+    _add_optional_boolean_flag(
+        parser,
         "--teacher-transfer-enabled",
-        action=argparse.BooleanOptionalAction,
-        default=None,
-        help="Включить Stage A перенос card_encoder из HU checkpoint",
+        "teacher_transfer_enabled",
+        "Включить Stage A перенос card_encoder из HU checkpoint",
     )
     parser.add_argument(
         "--teacher-transfer-mode",
@@ -1735,17 +1761,17 @@ def _parse_args() -> argparse.Namespace:
         default=None,
         help="Путь к полному версионированному HU checkpoint для Stage A",
     )
-    parser.add_argument(
+    _add_optional_boolean_flag(
+        parser,
         "--teacher-transfer-freeze-card-encoder",
-        action=argparse.BooleanOptionalAction,
-        default=None,
-        help="Заморозить перенесённый card_encoder",
+        "teacher_transfer_freeze_card_encoder",
+        "Заморозить перенесённый card_encoder",
     )
-    parser.add_argument(
+    _add_optional_boolean_flag(
+        parser,
         "--teacher-hu-aux-distillation-enabled",
-        action=argparse.BooleanOptionalAction,
-        default=None,
-        help="Флаг Stage B; пока намеренно отклоняется",
+        "teacher_hu_aux_distillation_enabled",
+        "Флаг Stage B; пока намеренно отклоняется",
     )
     parser.add_argument(
         "--teacher-hu-aux-distillation-weight",
