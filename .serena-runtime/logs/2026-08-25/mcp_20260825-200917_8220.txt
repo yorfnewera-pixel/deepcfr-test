@@ -1,0 +1,31 @@
+INFO  2026-08-25 20:09:17,438 [MainThread] serena.cli:start_mcp_server:346 - Initializing Serena MCP server
+INFO  2026-08-25 20:09:17,438 [MainThread] serena.cli:start_mcp_server:347 - Storing logs in C:\Users\Cassmall\Desktop\deepcfr-test\.serena-runtime\logs\2026-08-25\mcp_20260825-200917_8220.txt
+INFO  2026-08-25 20:09:17,439 [MainThread] serena.cli:start_mcp_server:355 - Auto-detected project root: C:\Users\Cassmall\Desktop\deepcfr-test
+INFO  2026-08-25 20:09:17,440 [MainThread] serena.config.serena_config:from_config_file:842 - Serena configuration file not found at C:\Users\Cassmall\Desktop\deepcfr-test\.serena-runtime\serena_config.yml, autogenerating...
+INFO  2026-08-25 20:09:17,440 [MainThread] serena.config.serena_config:_generate_config_file:810 - Auto-generating Serena configuration file in C:\Users\Cassmall\Desktop\deepcfr-test\.serena-runtime\serena_config.yml
+INFO  2026-08-25 20:09:17,450 [MainThread] serena.config.serena_config:from_config_file:846 - Loading Serena configuration from C:\Users\Cassmall\Desktop\deepcfr-test\.serena-runtime\serena_config.yml
+ERROR 2026-08-25 20:09:17,536 [MainThread] serena.agent:show_fatal_exception_safe:49 - Fatal exception: 'languages'
+Traceback (most recent call last):
+  File "C:\Users\Cassmall\AppData\Roaming\uv\tools\serena-agent\Lib\site-packages\serena\mcp.py", line 321, in create_mcp_server
+    self.agent = self._create_serena_agent(config, mode_selection_def)
+                 ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Cassmall\AppData\Roaming\uv\tools\serena-agent\Lib\site-packages\serena\mcp.py", line 264, in _create_serena_agent
+    return SerenaAgent(
+        project=self.project, serena_config=serena_config, context=self.context, modes=modes, memory_log_handler=self.memory_log_handler
+    )
+  File "C:\Users\Cassmall\AppData\Roaming\uv\tools\serena-agent\Lib\site-packages\serena\agent.py", line 558, in __init__
+    self.serena_config.get_registered_project(project, autoregister=True) if project is not None else None
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Cassmall\AppData\Roaming\uv\tools\serena-agent\Lib\site-packages\serena\config\serena_config.py", line 1007, in get_registered_project
+    registered_project = RegisteredProject.from_project_root(project_root_or_name, serena_config=self)
+  File "C:\Users\Cassmall\AppData\Roaming\uv\tools\serena-agent\Lib\site-packages\serena\config\serena_config.py", line 663, in from_project_root
+    project_config = ProjectConfig.load(project_root, serena_config=serena_config)
+  File "C:\Users\Cassmall\AppData\Roaming\uv\tools\serena-agent\Lib\site-packages\serena\config\serena_config.py", line 575, in load
+    project_config = cls._from_dict(yaml_data, local_override_keys=local_override_keys)
+  File "C:\Users\Cassmall\AppData\Roaming\uv\tools\serena-agent\Lib\site-packages\serena\config\serena_config.py", line 450, in _from_dict
+    for language_str in data["languages"]:
+                        ~~~~^^^^^^^^^^^^^
+  File "C:\Users\Cassmall\AppData\Roaming\uv\tools\serena-agent\Lib\site-packages\ruamel\yaml\comments.py", line 853, in __getitem__
+    return ordereddict.__getitem__(self, key)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^
+KeyError: 'languages'

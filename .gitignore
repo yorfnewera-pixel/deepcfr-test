@@ -9,5 +9,4 @@ sizing_buffer_targets_*.json
 __pycache__/
 *.pyc
 .worktrees/
-logs/
 opencode.json
