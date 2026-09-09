@@ -737,6 +737,25 @@ def _prepare_hu_current_policy_iteration(agent: DeepCFRAgent) -> None:
     agent.reset_traversal_stats()
 
 
+def _create_hu_traversal_failure_handler(agent: DeepCFRAgent):
+    """Возвращает policy skip/strict, совпадающую с legacy training lifecycle."""
+    failed_traversals = 0
+
+    def handle(error: TraversalFailure) -> bool:
+        nonlocal failed_traversals
+        agent.record_traversal_failure(error)
+        if cfg_training_error_mode() != "skip_traversal":
+            return False
+        failed_traversals += 1
+        if failed_traversals >= cfg_training_max_failed_traversals_per_iteration():
+            raise RuntimeError(
+                "Превышен training_max_failed_traversals_per_iteration"
+            ) from error
+        return True
+
+    return handle
+
+
 def _train_hu_current_policy_self_play(
     *,
     agent: DeepCFRAgent,
@@ -759,10 +778,15 @@ def _train_hu_current_policy_self_play(
             "Старт HU current-policy self-play: "
             f"итераций={num_iterations}, обходов/итерацию={traversals_per_iteration}, device={agent.device}"
         )
+        print(
+            "Порядок фаз HU: обе traversal на frozen snapshots -> "
+            "обучение advantage P0/P1 -> обучение shared strategy."
+        )
         for iteration in range(start_iteration, start_iteration + int(num_iterations)):
             iteration_started = time.perf_counter()
             agent.iteration_count = iteration
             _prepare_hu_current_policy_iteration(agent)
+            handle_traversal_failure = _create_hu_traversal_failure_handler(agent)
             print(f"\nИтерация {iteration} (HU current-policy self-play):")
             traversal_started = time.perf_counter()
             coordinator.run_iteration(
@@ -778,6 +802,9 @@ def _train_hu_current_policy_self_play(
                 traversal_context=lambda: _traversal_thread_limit(
                     bool(cfg_get("traversal_single_thread", True))
                 ),
+                on_traversal_attempt=agent.record_traversal_attempt,
+                on_traversal_success=agent.record_traversal_success,
+                handle_traversal_failure=handle_traversal_failure,
             )
             traversal_elapsed = time.perf_counter() - traversal_started
             advantage_losses, strategy_losses = coordinator.training_losses

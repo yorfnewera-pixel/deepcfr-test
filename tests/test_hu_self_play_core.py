@@ -8,6 +8,7 @@ from src.core.hu_self_play import (
     HuStrategyBuffer,
     HuTraversalAdapter,
 )
+from src.core.traversal_errors import TraversalFailure
 
 
 class _ОднослойнаяСеть(torch.nn.Module):
@@ -271,3 +272,43 @@ def test_hu_zavershaet_obe_fazy_do_obucheniya_advantage_nog():
     )
 
     assert events == ["traverse_p0", "traverse_p1", "train_p0", "train_p1"]
+
+
+def test_hu_otkatyvaet_chastichnye_samples_pri_neustranimoy_oshibke_obhoda():
+    coordinator = _координатор(sampler=lambda _slots, _policy: 99)
+
+    with pytest.raises(TraversalFailure) as caught:
+        coordinator.run_iteration(
+            iteration=4,
+            traversals_per_player=1,
+            new_initial_state=lambda _player, _index: (0, 0),
+        )
+
+    assert caught.value.context.iteration == 4
+    assert caught.value.context.traversing_player == 0
+    assert caught.value.context.traversal_index == 0
+    assert caught.value.context.acting_player == 1
+    assert caught.value.context.depth == 1
+    assert caught.value.context.action_trace == ("P0:slot 0",)
+    assert len(coordinator.advantage_buffers[0]) == 0
+    assert len(coordinator.advantage_buffers[1]) == 0
+    assert len(coordinator.strategy_buffer) == 0
+
+
+def test_hu_udalyaet_samples_upavshego_traversal_no_prodolzhaet_iteratsiyu():
+    samples = iter([99, 0, 0])
+    failures = []
+    coordinator = _координатор(sampler=lambda _slots, _policy: next(samples))
+
+    coordinator.run_iteration(
+        iteration=5,
+        traversals_per_player=1,
+        new_initial_state=lambda _player, _index: (0, 0),
+        handle_traversal_failure=lambda error: failures.append(error) or True,
+    )
+
+    assert len(failures) == 1
+    assert failures[0].context.traversal_index == 0
+    assert len(coordinator.advantage_buffers[0]) == 0
+    assert len(coordinator.advantage_buffers[1]) == 1
+    assert coordinator.strategy_buffer.actor_ids().tolist() == [0]

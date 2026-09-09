@@ -2,7 +2,9 @@
 from types import SimpleNamespace
 
 import torch
+import pytest
 
+from src.core.traversal_errors import TraversalFailure, TraversalFailureContext
 from src.training import train as train_mod
 
 
@@ -17,6 +19,15 @@ class _HuAgent:
         self.optimizer = SimpleNamespace(param_groups=[{"lr": 1e-4}])
 
     def reset_traversal_stats(self):
+        pass
+
+    def record_traversal_attempt(self):
+        pass
+
+    def record_traversal_success(self):
+        pass
+
+    def record_traversal_failure(self, _error):
         pass
 
     def get_traversal_stats(self):
@@ -96,7 +107,9 @@ def test_hu_training_uses_coordinator_without_opponent_pool(monkeypatch, tmp_pat
 
     assert result is agent
     assert events == ["prepare", ("run", 1, 3)]
-    assert "HU current-policy self-play" in capsys.readouterr().out
+    output = capsys.readouterr().out
+    assert "HU current-policy self-play" in output
+    assert "обе traversal на frozen snapshots -> обучение advantage P0/P1 -> обучение shared strategy" in output
 
 
 def test_legacy_training_does_not_use_hu_coordinator(monkeypatch, tmp_path):
@@ -139,3 +152,29 @@ def test_legacy_training_does_not_use_hu_coordinator(monkeypatch, tmp_path):
     )
 
     assert calls == ["opponent_pool", "legacy_prepare", "legacy_traverse"]
+
+
+def test_hu_failure_handler_ispolzuet_skip_limit_i_diagnostics(monkeypatch):
+    diagnostics = []
+    agent = _HuAgent()
+    agent.record_traversal_failure = lambda error: diagnostics.append(error.context)
+    monkeypatch.setattr(
+        train_mod,
+        "cfg_training_error_mode",
+        lambda: "skip_traversal",
+    )
+    monkeypatch.setattr(
+        train_mod,
+        "cfg_training_max_failed_traversals_per_iteration",
+        lambda: 2,
+    )
+    handler = train_mod._create_hu_traversal_failure_handler(agent)
+    error = TraversalFailure(
+        TraversalFailureContext(1, 0, 0, 1, 3, "ошибка HU", ("slot 1",))
+    )
+
+    assert handler(error) is True
+    with pytest.raises(RuntimeError, match="training_max_failed_traversals_per_iteration"):
+        handler(error)
+
+    assert [context.reason for context in diagnostics] == ["ошибка HU", "ошибка HU"]

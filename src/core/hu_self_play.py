@@ -13,6 +13,7 @@ from torch.optim import Optimizer
 
 from src.core.action_space import NUM_ACTIONS
 from src.core.buffers import AdvantageBuffer
+from src.core.traversal_errors import TraversalFailure, TraversalFailureContext
 
 
 StateT = TypeVar("StateT")
@@ -194,6 +195,11 @@ class HuCurrentPolicySelfPlayCoordinator(Generic[StateT]):
         self.train_advantage = train_advantage
         self.train_strategy = train_strategy
         self.snapshots: tuple[nn.Module, nn.Module] | tuple[()] = ()
+        self._pending_advantage_samples: list[list[tuple]] | None = None
+        self._pending_strategy_samples: list[tuple] | None = None
+        self._active_actor_id: int | None = None
+        self._active_depth = 0
+        self._active_action_trace: tuple[str, ...] = ()
 
     @staticmethod
     def _network_input_size(network: nn.Module) -> int | None:
@@ -295,12 +301,37 @@ class HuCurrentPolicySelfPlayCoordinator(Generic[StateT]):
         traverser = int(traversing_player)
         if traverser not in (0, 1):
             raise ValueError("HU traversing_player должен быть P0 или P1")
-        return self._traverse(state, traverser, int(iteration))
+        return self._traverse(state, traverser, int(iteration), depth=0, action_trace=())
 
-    def _traverse(self, state: StateT, traverser: int, iteration: int) -> float:
+    def _record_advantage(self, actor_id, state, regrets, mask, iteration) -> None:
+        sample = (state.copy(), regrets.copy(), mask.copy(), int(iteration))
+        if self._pending_advantage_samples is None:
+            self.advantage_buffers[actor_id].add(*sample)
+            return
+        self._pending_advantage_samples[actor_id].append(sample)
+
+    def _record_strategy(self, actor_id, state, policy, mask, iteration) -> None:
+        sample = (int(actor_id), state.copy(), policy.copy(), mask.copy(), int(iteration))
+        if self._pending_strategy_samples is None:
+            self.strategy_buffer.add(*sample)
+            return
+        self._pending_strategy_samples.append(sample)
+
+    def _traverse(
+        self,
+        state: StateT,
+        traverser: int,
+        iteration: int,
+        *,
+        depth: int,
+        action_trace: tuple[str, ...],
+    ) -> float:
         if self.adapter.is_terminal(state):
             return float(self.adapter.terminal_value(state, traverser))
         actor_id = int(self.adapter.current_player(state))
+        self._active_actor_id = actor_id
+        self._active_depth = int(depth)
+        self._active_action_trace = action_trace
         if actor_id not in (0, 1):
             raise ValueError("HU traversal встретил actor вне P0/P1")
         mask = np.asarray(self.adapter.legal_mask(state), dtype=np.float32)
@@ -315,18 +346,30 @@ class HuCurrentPolicySelfPlayCoordinator(Generic[StateT]):
         if actor_id == traverser:
             action_values = np.zeros(NUM_ACTIONS, dtype=np.float32)
             for slot in legal_slots:
-                action_values[slot] = self._traverse(self.adapter.apply(state, int(slot)), traverser, iteration)
+                action_values[slot] = self._traverse(
+                    self.adapter.apply(state, int(slot)),
+                    traverser,
+                    iteration,
+                    depth=depth + 1,
+                    action_trace=(*action_trace, f"P{actor_id}:slot {slot}"),
+                )
             expected_value = float(np.dot(policy, action_values))
             regrets = (action_values - expected_value) * mask
-            self.advantage_buffers[actor_id].add(encoded, regrets, mask, iteration)
+            self._record_advantage(actor_id, encoded, regrets, mask, iteration)
             return expected_value
 
         # Одна и та же нормированная policy становится target и входом sampler-а.
-        self.strategy_buffer.add(actor_id, encoded, policy, mask, iteration)
+        self._record_strategy(actor_id, encoded, policy, mask, iteration)
         slot = int(self.sampler(legal_slots, policy))
         if slot not in legal_slots:
             raise ValueError("HU sampler выбрал недопустимое действие")
-        return self._traverse(self.adapter.apply(state, slot), traverser, iteration)
+        return self._traverse(
+            self.adapter.apply(state, slot),
+            traverser,
+            iteration,
+            depth=depth + 1,
+            action_trace=(*action_trace, f"P{actor_id}:slot {slot}"),
+        )
 
     def run_iteration(
         self,
@@ -336,33 +379,100 @@ class HuCurrentPolicySelfPlayCoordinator(Generic[StateT]):
         new_initial_state: Callable[[int, int], StateT],
         after_phase: Callable[[], None] | None = None,
         traversal_context: Callable[[], object] | None = None,
+        on_traversal_attempt: Callable[[], None] | None = None,
+        on_traversal_success: Callable[[], None] | None = None,
+        handle_traversal_failure: Callable[[TraversalFailure], bool] | None = None,
     ) -> None:
-        """Проводит P0/P1 на одном profile и обучает advantage только после обеих фаз."""
-        self.begin_iteration()
-        for traverser in (0, 1):
-            with traversal_context() if traversal_context is not None else nullcontext():
-                for traversal_index in range(int(traversals_per_player)):
-                    self.traverse(
-                        new_initial_state(traverser, traversal_index),
-                        traversing_player=traverser,
-                        iteration=iteration,
+        """Проводит атомарную HU-итерацию с обработкой ошибок отдельных обходов."""
+        if self._pending_advantage_samples is not None:
+            raise RuntimeError("HU transaction уже активна")
+        self._pending_advantage_samples = [[], []]
+        self._pending_strategy_samples = []
+        try:
+            self.begin_iteration()
+            for traverser in (0, 1):
+                with traversal_context() if traversal_context is not None else nullcontext():
+                    for traversal_index in range(int(traversals_per_player)):
+                        mark = (
+                            len(self._pending_advantage_samples[0]),
+                            len(self._pending_advantage_samples[1]),
+                            len(self._pending_strategy_samples),
+                        )
+                        if on_traversal_attempt is not None:
+                            on_traversal_attempt()
+                        try:
+                            self.traverse(
+                                new_initial_state(traverser, traversal_index),
+                                traversing_player=traverser,
+                                iteration=iteration,
+                            )
+                        except Exception as error:
+                            del self._pending_advantage_samples[0][mark[0]:]
+                            del self._pending_advantage_samples[1][mark[1]:]
+                            del self._pending_strategy_samples[mark[2]:]
+                            failure = self._as_traversal_failure(
+                                error, iteration, traversal_index, traverser
+                            )
+                            if handle_traversal_failure is not None and handle_traversal_failure(failure):
+                                continue
+                            if failure is error:
+                                raise
+                            raise failure from error
+                        if on_traversal_success is not None:
+                            on_traversal_success()
+                if after_phase is not None:
+                    after_phase()
+            self._commit_pending_samples()
+            for player_id in (0, 1):
+                if self.train_advantage is not None:
+                    self.train_advantage(
+                        player_id,
+                        self.advantage_nets[player_id],
+                        self.advantage_target_nets[player_id],
+                        self.advantage_optimizers[player_id],
+                        self.advantage_buffers[player_id],
                     )
-            if after_phase is not None:
-                after_phase()
-        for player_id in (0, 1):
-            if self.train_advantage is not None:
-                self.train_advantage(
-                    player_id,
-                    self.advantage_nets[player_id],
-                    self.advantage_target_nets[player_id],
-                    self.advantage_optimizers[player_id],
-                    self.advantage_buffers[player_id],
+                self.advantage_target_nets[player_id].load_state_dict(
+                    self.advantage_nets[player_id].state_dict()
                 )
-            self.advantage_target_nets[player_id].load_state_dict(
-                self.advantage_nets[player_id].state_dict()
-            )
-        if self.train_strategy is not None:
-            self.train_strategy(self.strategy_net, self.strategy_optimizer, self.strategy_buffer)
+            if self.train_strategy is not None:
+                self.train_strategy(self.strategy_net, self.strategy_optimizer, self.strategy_buffer)
+        finally:
+            self._pending_advantage_samples = None
+            self._pending_strategy_samples = None
+
+    def _as_traversal_failure(
+        self,
+        error: Exception,
+        iteration: int,
+        traversal_index: int,
+        traversing_player: int,
+    ) -> TraversalFailure:
+        if isinstance(error, TraversalFailure):
+            return error
+        return TraversalFailure(
+            TraversalFailureContext(
+                iteration=int(iteration),
+                traversal_index=int(traversal_index),
+                traversing_player=int(traversing_player),
+                acting_player=self._active_actor_id,
+                depth=self._active_depth,
+                reason=f"HU traversal завершился ошибкой: {error}",
+                action_trace=self._active_action_trace,
+                details={"exception_type": type(error).__name__},
+            ),
+            error,
+        )
+
+    def _commit_pending_samples(self) -> None:
+        """Фиксирует samples только после успешного завершения обеих traversal-фаз."""
+        assert self._pending_advantage_samples is not None
+        assert self._pending_strategy_samples is not None
+        for player_id, samples in enumerate(self._pending_advantage_samples):
+            for sample in samples:
+                self.advantage_buffers[player_id].add(*sample)
+        for sample in self._pending_strategy_samples:
+            self.strategy_buffer.add(*sample)
 
 
 __all__ = [
