@@ -26,7 +26,7 @@ from src.core.hu_self_play import (
     HuStrategyBuffer,
     HuTraversalAdapter,
 )
-from src.core.model import PokerNetwork
+from src.core.model import CARD_CONTEXT_ARCHITECTURE, CARD_FEATURE_SIZE, PokerNetwork
 from src.core.traversal_errors import TraversalFailure
 from src.utils.config import (
     cfg_get,
@@ -167,7 +167,10 @@ def _prune_light_checkpoints(directory: str | Path) -> None:
             path.unlink(missing_ok=True)
 
 
-def _load_full_checkpoint_strategy_state(path: Path) -> dict[str, torch.Tensor]:
+def _load_full_checkpoint_strategy_state(
+    path: Path,
+    agent: DeepCFRAgent | None = None,
+) -> dict[str, torch.Tensor]:
     """Извлекает strategy-веса из full checkpoint и проверяет игровой контракт."""
     checkpoint = torch.load(path, map_location="cpu", weights_only=False)
     if not isinstance(checkpoint, dict):
@@ -178,6 +181,10 @@ def _load_full_checkpoint_strategy_state(path: Path) -> dict[str, torch.Tensor]:
             f"В full checkpoint {path} action-space '{version}', "
             f"ожидался '{ACTION_SPACE_VERSION}'"
         )
+    if agent is not None:
+        validate_network_metadata = getattr(agent, "_validate_checkpoint_network_metadata", None)
+        if validate_network_metadata is not None:
+            validate_network_metadata(checkpoint)
     state_dict = checkpoint.get("strategy_net")
     if not isinstance(state_dict, dict):
         raise ValueError(f"В full checkpoint {path} отсутствует strategy_net")
@@ -313,7 +320,7 @@ def _configure_opponent_pool(
     for path in dict.fromkeys(paths):
         resolved_path = path.resolve()
         if resolved_path not in state_cache:
-            state_cache[resolved_path] = _load_full_checkpoint_strategy_state(resolved_path)
+            state_cache[resolved_path] = _load_full_checkpoint_strategy_state(resolved_path, agent)
     agent.set_opponent_strategy_states(
         [state_cache[path.resolve()] for path in paths],
         traversing_player=traversing_player,
@@ -338,7 +345,7 @@ def _configure_strategy_opponent_pool(
             resolved_current_strategy_path = current_strategy_path.resolve()
             if resolved_current_strategy_path not in state_cache:
                 state_cache[resolved_current_strategy_path] = _load_full_checkpoint_strategy_state(
-                    resolved_current_strategy_path
+                    resolved_current_strategy_path, agent
                 )
             current_strategy_state = state_cache[resolved_current_strategy_path]
         states_by_player = {
@@ -347,7 +354,7 @@ def _configure_strategy_opponent_pool(
     for player_id, path in checkpoint_by_player.items():
         resolved_path = path.resolve()
         if resolved_path not in state_cache:
-            state_cache[resolved_path] = _load_full_checkpoint_strategy_state(resolved_path)
+            state_cache[resolved_path] = _load_full_checkpoint_strategy_state(resolved_path, agent)
         states_by_player[player_id] = state_cache[resolved_path]
     agent.set_opponent_strategy_states_by_player(states_by_player, traversing_player)
     return list(checkpoint_by_player.values())
@@ -366,9 +373,20 @@ def _atomic_torch_save(payload: dict[str, Any], path: str | Path) -> None:
         temporary.unlink(missing_ok=True)
 
 
-def _network_architecture(network: PokerNetwork) -> dict[str, int]:
+def _network_architecture(network: PokerNetwork) -> dict[str, int | str]:
     """Возвращает минимальный контракт формы сети для строгого HU resume."""
+    if network.architecture == CARD_CONTEXT_ARCHITECTURE:
+        return {
+            "network_architecture": network.architecture,
+            "card_feature_size": CARD_FEATURE_SIZE,
+            "input_size": int(
+                network.card_encoder[0].in_features + network.context_encoder[0].in_features
+            ),
+            "hidden_size": int(network.card_encoder[0].out_features),
+            "num_actions": int(network.action_head.out_features),
+        }
     return {
+        "network_architecture": network.architecture,
         "input_size": int(network.base[0].in_features),
         "hidden_size": int(network.base[0].out_features),
         "num_actions": int(network.action_head.out_features),
@@ -1029,8 +1047,12 @@ def _create_hu_current_policy_coordinator(
         ),
     ]
 
-    hidden_size = int(agent.strategy_net.base[0].out_features)
-    strategy_net = PokerNetwork(agent.input_size + 2, hidden_size).to(agent.device)
+    hidden_size = int(_network_architecture(agent.strategy_net)["hidden_size"])
+    strategy_net = PokerNetwork(
+        agent.input_size + 2,
+        hidden_size,
+        architecture=agent.strategy_net.architecture,
+    ).to(agent.device)
     strategy_optimizer = torch.optim.AdamW(
         strategy_net.parameters(),
         lr=float(cfg_get("strategy_lr", 5e-5)),

@@ -25,7 +25,10 @@ from src.core.action_space import (
 from src.core.buffers import AdvantageBuffer, StrategyBuffer
 from src.core.checkpointing import _resolve_model_save_path
 from src.core.model import (
+    CARD_CONTEXT_ARCHITECTURE,
+    CARD_FEATURE_SIZE,
     HISTORY_SUMMARY_V3_ENCODING_VERSION,
+    MONOLITHIC_ARCHITECTURE,
     PokerNetwork,
     encoder_input_size,
     encode_state_for_version,
@@ -62,7 +65,7 @@ class DeepCFRAgent:
     """Deep CFR без непрерывного sizing и Q-control-variate."""
 
     def __init__(self, player_id=0, num_players=None, memory_size=None,
-                 device="cpu", **_legacy_options):
+                 device="cpu", network_architecture=None, **_legacy_options):
         self.player_id = int(player_id)
         self.num_players = int(num_players or cfg_get("num_players", 6))
         configured_trainable_players = int(cfg_get("num_trainable_players", 1))
@@ -86,9 +89,18 @@ class DeepCFRAgent:
             self.use_multi_agent,
         )
         hidden_size = int(cfg_get("hidden_size", 256))
+        self.network_architecture = str(
+            network_architecture
+            if network_architecture is not None
+            else cfg_get("network_architecture", MONOLITHIC_ARCHITECTURE)
+        )
 
-        self.advantage_net = PokerNetwork(self.input_size, hidden_size, NUM_ACTIONS).to(self.device)
-        self.advantage_target_net = PokerNetwork(self.input_size, hidden_size, NUM_ACTIONS).to(self.device)
+        self.advantage_net = PokerNetwork(
+            self.input_size, hidden_size, NUM_ACTIONS, self.network_architecture
+        ).to(self.device)
+        self.advantage_target_net = PokerNetwork(
+            self.input_size, hidden_size, NUM_ACTIONS, self.network_architecture
+        ).to(self.device)
         self.advantage_target_net.load_state_dict(self.advantage_net.state_dict())
         self.advantage_target_net.eval()
         for parameter in self.advantage_target_net.parameters():
@@ -98,7 +110,9 @@ class DeepCFRAgent:
             lr=float(cfg_get("advantage_lr", 1e-4)),
             weight_decay=float(cfg_get("advantage_weight_decay", 1e-5)),
         )
-        self.strategy_net = PokerNetwork(self.input_size, hidden_size, NUM_ACTIONS).to(self.device)
+        self.strategy_net = PokerNetwork(
+            self.input_size, hidden_size, NUM_ACTIONS, self.network_architecture
+        ).to(self.device)
         self.strategy_optimizer = optim.AdamW(
             self.strategy_net.parameters(),
             lr=float(cfg_get("strategy_lr", 5e-5)),
@@ -170,6 +184,42 @@ class DeepCFRAgent:
         encoding_version=HISTORY_SUMMARY_V3_ENCODING_VERSION,
     ):
         return encoder_input_size(num_players, encoding_version, use_multi_agent)
+
+    @staticmethod
+    def _network_hidden_size(network):
+        if network.architecture == CARD_CONTEXT_ARCHITECTURE:
+            return int(network.card_encoder[0].out_features)
+        return int(network.base[0].out_features)
+
+    def _network_metadata(self):
+        metadata = {"network_architecture": self.network_architecture}
+        if self.network_architecture == CARD_CONTEXT_ARCHITECTURE:
+            metadata["card_feature_size"] = CARD_FEATURE_SIZE
+        return metadata
+
+    def _validate_checkpoint_network_metadata(self, checkpoint):
+        checkpoint_config = checkpoint.get("config", {})
+        if not isinstance(checkpoint_config, dict):
+            checkpoint_config = {}
+        checkpoint_architecture = checkpoint.get(
+            "network_architecture",
+            checkpoint_config.get("network_architecture"),
+        )
+        if checkpoint_architecture is None:
+            if self.network_architecture != MONOLITHIC_ARCHITECTURE:
+                raise ValueError(
+                    "Чекпоинт не содержит метаданные архитектуры и несовместим с card_context_v1"
+                )
+            return
+        if checkpoint_architecture != self.network_architecture:
+            raise ValueError("Чекпоинт имеет несовместимую архитектуру сети")
+        if checkpoint_architecture == CARD_CONTEXT_ARCHITECTURE:
+            checkpoint_card_feature_size = checkpoint.get(
+                "card_feature_size",
+                checkpoint_config.get("card_feature_size"),
+            )
+            if checkpoint_card_feature_size != CARD_FEATURE_SIZE:
+                raise ValueError("Чекпоинт имеет несовместимый размер card-признаков")
 
     @staticmethod
     def _network_hidden_size_from_state(state_dict):
@@ -561,7 +611,12 @@ class DeepCFRAgent:
 
         networks: dict[int, PokerNetwork] = {}
         for player_id, state_dict in zip(opponent_ids, state_dicts, strict=True):
-            network = PokerNetwork(self.input_size, self.advantage_net.base[0].out_features, NUM_ACTIONS)
+            network = PokerNetwork(
+                self.input_size,
+                self._network_hidden_size(self.advantage_net),
+                NUM_ACTIONS,
+                self.network_architecture,
+            )
             network.load_state_dict(state_dict, strict=True)
             network.to(self.device)
             network.eval()
@@ -596,7 +651,12 @@ class DeepCFRAgent:
 
         networks: dict[int, PokerNetwork] = {}
         for player_id, state_dict in state_dicts.items():
-            network = PokerNetwork(self.input_size, self.strategy_net.base[0].out_features, NUM_ACTIONS)
+            network = PokerNetwork(
+                self.input_size,
+                self._network_hidden_size(self.strategy_net),
+                NUM_ACTIONS,
+                self.network_architecture,
+            )
             network.load_state_dict(state_dict, strict=True)
             network.to(self.device)
             network.eval()
@@ -1530,6 +1590,7 @@ class DeepCFRAgent:
             buffer._size = count
 
     def _build_checkpoint(self, seed=None, extra=None):
+        network_metadata = self._network_metadata()
         checkpoint = {
             "checkpoint_format_version": CHECKPOINT_FORMAT_VERSION,
             "action_space_version": ACTION_SPACE_VERSION,
@@ -1539,6 +1600,7 @@ class DeepCFRAgent:
             "use_multi_agent_advantage": self.use_multi_agent,
             "encoding_version": self.encoding_version,
             "encoder_input_size": self.input_size,
+            **network_metadata,
             "advantage_net": self.advantage_net.state_dict(),
             "advantage_target_net": self.advantage_target_net.state_dict(),
             "strategy_net": self.strategy_net.state_dict(),
@@ -1546,7 +1608,7 @@ class DeepCFRAgent:
             "strategy_optimizer": self.strategy_optimizer.state_dict(),
             "config": {
                 "num_actions": NUM_ACTIONS, "action_space_version": ACTION_SPACE_VERSION,
-                "hidden_size": self.advantage_net.base[0].out_features,
+                "hidden_size": self._network_hidden_size(self.advantage_net),
                 "num_players": self.num_players, "use_multi_agent_advantage": self.use_multi_agent,
                 "encoding_version": self.encoding_version,
                 "encoder_input_size": self.input_size,
@@ -1559,6 +1621,7 @@ class DeepCFRAgent:
                 "strategy_distillation_lambda": self.strategy_distillation_lambda,
                 "strategy_distillation_temperature": self.strategy_distillation_temperature,
                 "strategy_distillation_anneal_iterations": self.strategy_distillation_anneal_iterations,
+                **network_metadata,
             },
         }
         if self.save_replay_buffers_in_checkpoint:
@@ -1570,6 +1633,7 @@ class DeepCFRAgent:
 
     def build_light_checkpoint(self, seed=None):
         """Возвращает inference-артефакт только с усреднённой стратегией."""
+        network_metadata = self._network_metadata()
         return {
             "checkpoint_format_version": CHECKPOINT_FORMAT_VERSION,
             "checkpoint_kind": "strategy_only",
@@ -1581,15 +1645,17 @@ class DeepCFRAgent:
             "num_actions": NUM_ACTIONS,
             "encoding_version": self.encoding_version,
             "encoder_input_size": self.input_size,
+            **network_metadata,
             "strategy_net": self.strategy_net.state_dict(),
             "config": {
                 "num_actions": NUM_ACTIONS,
                 "action_space_version": ACTION_SPACE_VERSION,
-                "hidden_size": self.strategy_net.base[0].out_features,
+                "hidden_size": self._network_hidden_size(self.strategy_net),
                 "num_players": self.num_players,
                 "use_multi_agent_advantage": self.use_multi_agent,
                 "encoding_version": self.encoding_version,
                 "encoder_input_size": self.input_size,
+                **network_metadata,
             },
         }
 
@@ -1621,6 +1687,7 @@ class DeepCFRAgent:
             raise ValueError("Чекпоинт имеет несовместимую версию encoder")
         if int(checkpoint.get("encoder_input_size", -1)) != self.input_size:
             raise ValueError("Чекпоинт имеет несовместимый размер входа encoder")
+        self._validate_checkpoint_network_metadata(checkpoint)
         for key in ("advantage_net", "advantage_target_net", "strategy_net"):
             if key not in checkpoint:
                 raise ValueError(f"В checkpoint отсутствует обязательный ключ {key}")

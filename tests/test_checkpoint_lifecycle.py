@@ -3,7 +3,15 @@ from pathlib import Path
 import pytest
 import torch
 
+from src.core.deep_cfr import DeepCFRAgent
+from src.core.model import (
+    CARD_CONTEXT_ARCHITECTURE,
+    CARD_FEATURE_SIZE,
+    MONOLITHIC_ARCHITECTURE,
+    PokerNetwork,
+)
 from src.training import train as train_mod
+from src.utils import config as config_mod
 
 
 class TinyAgent:
@@ -17,6 +25,47 @@ class TinyAgent:
 class LightCheckpointAgent(TinyAgent):
     def build_light_checkpoint(self, seed=None):
         return {"iteration": self.iteration_count, "seed": seed, "strategy_net": {}}
+
+
+def test_hu_architecture_metadata_describes_card_context_network():
+    network = PokerNetwork(
+        CARD_FEATURE_SIZE + 2,
+        hidden_size=8,
+        architecture=CARD_CONTEXT_ARCHITECTURE,
+    )
+
+    assert train_mod._network_architecture(network) == {
+        "network_architecture": CARD_CONTEXT_ARCHITECTURE,
+        "card_feature_size": CARD_FEATURE_SIZE,
+        "input_size": CARD_FEATURE_SIZE + 2,
+        "hidden_size": 8,
+        "num_actions": 6,
+    }
+
+
+def test_opponent_strategy_loader_rejects_incompatible_architecture_before_weights(tmp_path):
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text("num_actions: 6\nhidden_size: 8\n", encoding="utf-8")
+    checkpoint_path = tmp_path / "card-context.pt"
+
+    try:
+        config_mod.load_config(config_path)
+        card_context_agent = DeepCFRAgent(
+            player_id=0,
+            num_players=2,
+            network_architecture=CARD_CONTEXT_ARCHITECTURE,
+        )
+        card_context_agent.save_model(str(checkpoint_path))
+        monolithic_agent = DeepCFRAgent(
+            player_id=0,
+            num_players=2,
+            network_architecture=MONOLITHIC_ARCHITECTURE,
+        )
+
+        with pytest.raises(ValueError, match="архитектур"):
+            train_mod._load_full_checkpoint_strategy_state(checkpoint_path, monolithic_agent)
+    finally:
+        config_mod.load_config("config.yaml")
 
 
 @pytest.mark.parametrize(

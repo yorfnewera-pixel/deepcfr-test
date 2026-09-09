@@ -10,6 +10,7 @@ from src.core.action_space import NUM_ACTIONS
 from src.core.model import (
     HISTORY_SUMMARY_V3_ENCODING_VERSION,
     LEGACY_ENCODING_VERSION,
+    NETWORK_ARCHITECTURES,
 )
 
 
@@ -23,6 +24,7 @@ _DEFAULTS = {
     "num_players": 6,
     "hu_current_policy_self_play": False,
     "encoding_version": "history_summary_v3",
+    "network_architecture": "monolithic_v1",
     "use_multi_agent_advantage": False,
     "advantage_memory_size": 300000,
     "strategy_memory_size": 300000,
@@ -121,6 +123,8 @@ def load_config(path=None):
             HISTORY_SUMMARY_V3_ENCODING_VERSION,
         ):
             raise ValueError("encoding_version имеет неподдерживаемое значение")
+        if _config["network_architecture"] not in NETWORK_ARCHITECTURES:
+            raise ValueError("network_architecture имеет неподдерживаемое значение")
         training_error_mode = _config["training_error_mode"]
         if not isinstance(training_error_mode, str) or training_error_mode not in (
             "strict",

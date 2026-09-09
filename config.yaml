@@ -6,6 +6,8 @@ num_trainable_players: 1
 hu_current_policy_self_play: false
 # Public history summary, несовместим с legacy_v2 чекпоинтами.
 encoding_version: history_summary_v3
+# Архитектура сети; monolithic_v1 сохраняет совместимость со старыми checkpoint.
+network_architecture: monolithic_v1
 
 hidden_size: 256
 advantage_lr: 1.0e-4
