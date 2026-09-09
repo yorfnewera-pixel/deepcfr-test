@@ -1,6 +1,7 @@
 import numpy as np
 import pokers as pkrs
 import pytest
+import torch
 
 from src.core.action_space import NUM_ACTIONS
 from src.core.buffers import StrategyBuffer
@@ -141,8 +142,18 @@ def test_non_ok_state_status_raises_traversal_failure(monkeypatch):
     )
     _configure_single_legal_action(monkeypatch, agent)
 
-    with pytest.raises(TraversalFailure, match="status"):
-        agent.cfr_traverse_multi(state, iteration=1, traversing_player=0)
+    with pytest.raises(TraversalFailure, match="status") as error:
+        agent.cfr_traverse_multi(
+            state,
+            iteration=1,
+            traversing_player=0,
+            traversal_index=4,
+        )
+
+    diagnostic = agent.record_traversal_failure(error.value)
+    assert diagnostic["traversal_index"] == 4
+    assert diagnostic["action"] == "slot 0: 'call'"
+    assert diagnostic["status"] == "StateStatus.IllegalAction"
 
 
 def test_missing_state_status_after_apply_action_raises_traversal_failure(monkeypatch):
@@ -165,6 +176,67 @@ def test_empty_legal_slots_on_nonterminal_state_raise_traversal_failure(monkeypa
 
     with pytest.raises(TraversalFailure, match="допустим"):
         agent.cfr_traverse_multi(state, iteration=1, traversing_player=0)
+
+
+def test_nan_advantage_policy_raises_traversal_failure_before_sampling(monkeypatch):
+    agent, state = _agent_and_nonterminal_state(lambda _action: _TerminalState())
+    state.current_player = 1
+    _configure_single_legal_action(monkeypatch, agent)
+    monkeypatch.setattr(
+        agent.advantage_net,
+        "forward",
+        lambda state_t: torch.full((state_t.shape[0], NUM_ACTIONS), float("nan"), device=state_t.device),
+    )
+
+    with pytest.raises(TraversalFailure, match="policy") as error:
+        agent.cfr_traverse_multi(
+            state,
+            iteration=1,
+            traversing_player=0,
+            traversal_index=2,
+        )
+
+    assert error.value.context.depth == 0
+
+
+def test_nan_strategy_policy_raises_traversal_failure_before_sampling(monkeypatch):
+    agent, state = _agent_and_nonterminal_state(lambda _action: _TerminalState())
+    state.current_player = 1
+    _configure_single_legal_action(monkeypatch, agent)
+    agent._opponent_strategy_nets[1] = agent.strategy_net
+    monkeypatch.setattr(
+        agent.strategy_net,
+        "forward",
+        lambda state_t: torch.full((state_t.shape[0], NUM_ACTIONS), float("nan"), device=state_t.device),
+    )
+
+    with pytest.raises(TraversalFailure, match="policy") as error:
+        agent.cfr_traverse_multi(
+            state,
+            iteration=1,
+            traversing_player=0,
+            traversal_index=3,
+        )
+
+    assert error.value.context.depth == 0
+    diagnostic = agent.record_traversal_failure(error.value)
+    assert diagnostic["iteration"] == 1
+    assert diagnostic["traversal_index"] == 3
+    assert diagnostic["mask"] == [1.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    assert all(np.isnan(value) for value in diagnostic["policy"])
+
+
+def test_nan_runtime_strategy_policy_raises_traversal_failure_before_sampling(monkeypatch):
+    agent = DeepCFRAgent(player_id=0, num_players=2, device="cpu")
+    state = _state()
+    monkeypatch.setattr(
+        agent.strategy_net,
+        "forward",
+        lambda state_t: torch.full((state_t.shape[0], NUM_ACTIONS), float("nan"), device=state_t.device),
+    )
+
+    with pytest.raises(TraversalFailure, match="policy"):
+        agent.choose_action(state, player_id=int(state.current_player))
 
 
 def test_late_failed_traverser_action_discards_collector_without_subset_sample(monkeypatch):
@@ -319,3 +391,32 @@ def test_invalid_advantage_sample_does_not_change_buffer(monkeypatch, values, ma
         agent.cfr_traverse_multi(_state(), iteration=1, traversing_player=0)
 
     assert _buffer_snapshot(agent.advantage_buffer) == before
+
+
+@pytest.mark.parametrize(
+    ("strategy", "reason"),
+    [
+        (
+            np.array([-0.1, 1.1, 0, 0, 0, 0], dtype=np.float32),
+            "отрицательные вероятности",
+        ),
+        (
+            np.array([0.5, 0.4, 0.1, 0, 0, 0], dtype=np.float32),
+            "недопустимого действия",
+        ),
+        (
+            np.array([0.4, 0.4, 0, 0, 0, 0], dtype=np.float32),
+            "Сумма strategy",
+        ),
+    ],
+    ids=["отрицательная_вероятность", "масса_на_недопустимом", "ненормированная_масса"],
+)
+def test_invalid_strategy_sample_does_not_change_buffer(strategy, reason):
+    agent = _agent_with_small_reservoir()
+    state, _regrets, _strategy, mask = _sample(agent)
+    before = _buffer_snapshot(agent.strategy_buffer)
+
+    with pytest.raises(TraversalFailure, match=reason):
+        agent._record_strategy_sample(state, strategy, mask, 1)
+
+    assert _buffer_snapshot(agent.strategy_buffer) == before

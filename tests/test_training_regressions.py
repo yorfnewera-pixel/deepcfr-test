@@ -139,6 +139,27 @@ def test_skip_traversal_stops_when_iteration_limit_is_reached(monkeypatch, tmp_p
     assert agent.train_advantage_calls == 0
 
 
+def test_skip_traversal_limit_is_global_across_heads_up_players(monkeypatch, tmp_path):
+    agent = _fake_agent_with_traversal_outcomes(
+        [TraversalFailure(_traversal_failure_context()), TraversalFailure(_traversal_failure_context())]
+    )
+    _configure_training_error_mode(monkeypatch, "skip_traversal", limit=2)
+    _configure_fake_training_loop(monkeypatch, agent)
+
+    with pytest.raises(RuntimeError, match="training_max_failed_traversals_per_iteration"):
+        train_mod.train_self_play_multi(
+            num_iterations=1,
+            traversals_per_iteration=1,
+            evaluate_every=0,
+            save_dir=tmp_path,
+            num_players=2,
+            trainable_players=2,
+        )
+
+    assert agent.traversal_failures == 2
+    assert agent.train_advantage_calls == 0
+
+
 def test_strict_mode_propagates_first_traversal_failure_without_training(monkeypatch, tmp_path):
     failure = TraversalFailure(_traversal_failure_context())
     agent = _fake_agent_with_traversal_outcomes([failure])
@@ -186,15 +207,55 @@ def test_traversal_failure_stats_track_reason_depth_and_success():
 
     stats = agent.get_traversal_stats()
     assert diagnostic == {
+        "iteration": 1,
+        "traversal_index": None,
+        "traversing_player": 0,
+        "acting_player": 0,
         "reason": "Превышена допустимая глубина обхода",
         "depth": 201,
-        "traversing_player": 0,
+        "action_trace": (),
     }
     assert stats["attempted"] == 2
     assert stats["successful"] == 1
     assert stats["failed"] == 1
     assert stats["failure_reasons"] == {"Превышена допустимая глубина обхода": 1}
     assert stats["depth_limit_hits"] == 1
+
+
+def test_traversal_failure_diagnostic_retains_local_context_fields():
+    agent = DeepCFRAgent(player_id=0, num_players=2, device="cpu")
+    context = TraversalFailureContext(
+        iteration=7,
+        traversal_index=3,
+        traversing_player=0,
+        acting_player=1,
+        depth=4,
+        reason="Некорректная policy оппонента",
+        action_trace=("slot 1: call",),
+        details={
+            "action": "slot 1: call",
+            "status": "StateStatus.IllegalAction",
+            "mask": [1.0, 1.0, 0.0, 0.0, 0.0, 0.0],
+            "policy": [0.5, 0.5, 0.0, 0.0, 0.0, 0.0],
+        },
+    )
+
+    diagnostic = agent.record_traversal_failure(TraversalFailure(context))
+
+    assert diagnostic == {
+        "iteration": 7,
+        "traversal_index": 3,
+        "traversing_player": 0,
+        "acting_player": 1,
+        "depth": 4,
+        "reason": "Некорректная policy оппонента",
+        "action_trace": ("slot 1: call",),
+        "action": "slot 1: call",
+        "status": "StateStatus.IllegalAction",
+        "mask": [1.0, 1.0, 0.0, 0.0, 0.0, 0.0],
+        "policy": [0.5, 0.5, 0.0, 0.0, 0.0, 0.0],
+    }
+    assert agent.get_traversal_stats()["failure_diagnostics"] == [diagnostic]
 
 
 def test_iteration_summary_contains_all_requested_metrics():

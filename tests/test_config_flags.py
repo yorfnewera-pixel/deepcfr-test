@@ -111,18 +111,15 @@ def test_training_max_failed_traversals_rejects_negative_limit(tmp_path):
         settings.set_strict_checking(False)
 
 
-def test_training_validate_state_invariants_returns_bool(tmp_path):
+def test_training_validate_state_invariants_rejects_enabled_mode(tmp_path):
     config_path = tmp_path / "config.yaml"
     config_path.write_text(
-        "num_actions: 6\ntraining_validate_state_invariants: enabled\n",
+        "num_actions: 6\ntraining_validate_state_invariants: true\n",
         encoding="utf-8",
     )
 
     try:
-        config_mod.load_config(config_path)
-        assert config_mod.cfg_training_validate_state_invariants() is True
+        with pytest.raises(ValueError, match="training_validate_state_invariants"):
+            config_mod.load_config(config_path)
     finally:
         config_mod.load_config("config.yaml")
-        from src.utils import settings
-
-        settings.set_strict_checking(False)

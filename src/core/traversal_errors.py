@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True)
@@ -10,6 +10,7 @@ class TraversalFailureContext:
     depth: int
     reason: str
     action_trace: tuple[str, ...] = ()
+    details: dict[str, object] = field(default_factory=dict)
 
 
 class TraversalFailure(RuntimeError):

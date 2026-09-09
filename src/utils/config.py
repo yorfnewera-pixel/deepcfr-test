@@ -99,6 +99,11 @@ def load_config(path=None):
             or max_failed_traversals < 0
         ):
             raise ValueError("training_max_failed_traversals_per_iteration должен быть целым числом >= 0")
+        if _config["training_validate_state_invariants"]:
+            raise ValueError(
+                "training_validate_state_invariants пока не поддерживается: "
+                "проверка инвариантов состояния не реализована"
+            )
         print(f"[Config] Загружен: {path}")
     else:
         _raw_config = {}

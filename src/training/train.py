@@ -655,6 +655,8 @@ def train_self_play_multi(
             opponent_setup_elapsed = time.perf_counter() - opponent_setup_started
             traversal_started = time.perf_counter()
             with _traversal_thread_limit(bool(cfg_get("traversal_single_thread", True))):
+                failed_traversals = 0
+                agent.reset_traversal_stats()
                 for traversing_player in traversing_players:
                     max_opponents = max(0, agent.num_players - 1)
                     strategy_count = min(
@@ -697,7 +699,6 @@ def train_self_play_multi(
                     if opponent_checkpoints:
                         _print_opponent_checkpoints(opponent_checkpoints, traversing_player)
                     agent.prepare_iteration(iteration, traversing_player=traversing_player)
-                    agent.reset_traversal_stats()
                     if trainable_player_count == 1:
                         print(f"  Запускаю {traversals_per_iteration} обходов...")
                     else:
@@ -705,7 +706,6 @@ def train_self_play_multi(
                             f"  Игрок {traversing_player}: запускаю "
                             f"{traversals_per_iteration} обходов..."
                         )
-                    failed_traversals = 0
                     for traversal in range(int(traversals_per_iteration)):
                         state_seed = (
                             (seed or 0)
@@ -720,6 +720,7 @@ def train_self_play_multi(
                                 iteration,
                                 traversing_player=traversing_player,
                                 random_agent=None,
+                                traversal_index=traversal,
                             )
                             agent.record_traversal_success()
                         except TraversalFailure as error:

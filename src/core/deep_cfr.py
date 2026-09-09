@@ -32,7 +32,6 @@ from src.utils.config import (
     cfg_reservoir_flag,
 )
 from src.utils.logging import log_game_error
-from src.utils import settings
 from src.utils.traversal_profiler import TRAVERSAL_PROFILER, profile_section
 
 
@@ -146,6 +145,7 @@ class DeepCFRAgent:
         self.last_strategy_profile = None
         self._traversal_random_agent = None
         self._active_traversal_collector: _TraversalSampleCollector | None = None
+        self._active_traversal_index: int | None = None
         self._opponent_policy_agents: dict[int, Any] = {}
         self._opponent_advantage_nets: dict[int, PokerNetwork] = {}
         self._opponent_strategy_nets: dict[int, PokerNetwork] = {}
@@ -328,6 +328,118 @@ class DeepCFRAgent:
         legal_count = float(mask.sum())
         return mask / legal_count if legal_count else np.zeros(NUM_ACTIONS, dtype=np.float32)
 
+    def _validate_finite_traversal_values(
+        self,
+        values,
+        value_name,
+        mask,
+        iteration,
+        traversing_player,
+        acting_player,
+        depth,
+        policy_source,
+    ):
+        details = {
+            "policy_source": policy_source,
+            "mask": np.asarray(mask, dtype=np.float32).tolist(),
+        }
+        try:
+            values = np.asarray(values, dtype=np.float32)
+        except (TypeError, ValueError, OverflowError) as error:
+            self._raise_traversal_failure(
+                iteration,
+                traversing_player,
+                acting_player,
+                depth,
+                f"Не удалось прочитать {value_name} policy {policy_source}",
+                details=details,
+                cause=error,
+            )
+        details[value_name] = values.tolist()
+        if values.shape != (NUM_ACTIONS,):
+            self._raise_traversal_failure(
+                iteration,
+                traversing_player,
+                acting_player,
+                depth,
+                f"Некорректная форма {value_name} policy {policy_source}",
+                details=details,
+            )
+        if not np.all(np.isfinite(values)):
+            self._raise_traversal_failure(
+                iteration,
+                traversing_player,
+                acting_player,
+                depth,
+                f"Неконечные {value_name} policy {policy_source}",
+                details=details,
+            )
+        return values
+
+    def _validate_traversal_policy(
+        self,
+        policy,
+        mask,
+        iteration,
+        traversing_player,
+        acting_player,
+        depth,
+        policy_source,
+    ):
+        policy = self._validate_finite_traversal_values(
+            policy,
+            "policy",
+            mask,
+            iteration,
+            traversing_player,
+            acting_player,
+            depth,
+            policy_source,
+        )
+        legal_mask = np.asarray(mask, dtype=np.float32) > 0.0
+        details = {
+            "policy_source": policy_source,
+            "mask": np.asarray(mask, dtype=np.float32).tolist(),
+            "policy": policy.tolist(),
+        }
+        if legal_mask.shape != (NUM_ACTIONS,) or not legal_mask.any():
+            self._raise_traversal_failure(
+                iteration,
+                traversing_player,
+                acting_player,
+                depth,
+                f"Некорректная mask для policy {policy_source}",
+                details=details,
+            )
+        if np.any(policy < 0.0):
+            self._raise_traversal_failure(
+                iteration,
+                traversing_player,
+                acting_player,
+                depth,
+                f"Policy {policy_source} содержит отрицательные вероятности",
+                details=details,
+            )
+        if not np.allclose(policy[~legal_mask], 0.0, atol=1e-6, rtol=0.0):
+            self._raise_traversal_failure(
+                iteration,
+                traversing_player,
+                acting_player,
+                depth,
+                f"Policy {policy_source} содержит вероятность недопустимого действия",
+                details=details,
+            )
+        if not np.isclose(policy[legal_mask].sum(), 1.0, atol=1e-6, rtol=0.0):
+            self._raise_traversal_failure(
+                iteration,
+                traversing_player,
+                acting_player,
+                depth,
+                f"Policy {policy_source} не нормирована по допустимым действиям",
+                details=details,
+            )
+        return policy
+
     def _advantage_policy(self, state, player_id):
         mask = self.get_legal_action_mask(state)
         if not mask.any():
@@ -336,7 +448,26 @@ class DeepCFRAgent:
         state_t = torch.from_numpy(encoded).float().unsqueeze(0).to(self.device)
         with torch.inference_mode():
             advantages = self.advantage_net(state_t)[0].cpu().numpy()
-        return mask, self._regret_matching(advantages, mask)
+        advantages = self._validate_finite_traversal_values(
+            advantages,
+            "advantages",
+            mask,
+            self.iteration_count,
+            player_id,
+            player_id,
+            0,
+            "advantage_net",
+        )
+        policy = self._regret_matching(advantages, mask)
+        return mask, self._validate_traversal_policy(
+            policy,
+            mask,
+            self.iteration_count,
+            player_id,
+            player_id,
+            0,
+            "advantage_net",
+        )
 
     @staticmethod
     def _is_random_opponent_turn(random_agent, current_player, traversing_player):
@@ -448,6 +579,7 @@ class DeepCFRAgent:
         self.traversal_successes = 0
         self.traversal_failures = 0
         self.traversal_failure_reasons = {}
+        self.traversal_failure_diagnostics = []
         self.traversal_cancelled_samples = 0
         self.traversal_depth_limit_failures = 0
         self.traversal_nodes = 0
@@ -482,11 +614,20 @@ class DeepCFRAgent:
         self.traversal_failure_reasons[reason] = self.traversal_failure_reasons.get(reason, 0) + 1
         if "глубин" in reason.lower():
             self.traversal_depth_limit_failures += 1
-        return {
+        diagnostic = {
+            "iteration": context.iteration,
+            "traversal_index": context.traversal_index,
+            "traversing_player": context.traversing_player,
+            "acting_player": context.acting_player,
             "reason": reason,
             "depth": context.depth,
-            "traversing_player": context.traversing_player,
+            "action_trace": context.action_trace,
         }
+        diagnostic.update(
+            (key, value) for key, value in context.details.items() if key not in diagnostic
+        )
+        self.traversal_failure_diagnostics.append(diagnostic)
+        return diagnostic
 
     def _record_child_fanout(self, role, count):
         if role == "traverser":
@@ -501,7 +642,7 @@ class DeepCFRAgent:
         raise TraversalFailure(
             TraversalFailureContext(
                 iteration=iteration,
-                traversal_index=None,
+                traversal_index=self._active_traversal_index,
                 traversing_player=self.player_id,
                 acting_player=None,
                 depth=0,
@@ -588,6 +729,7 @@ class DeepCFRAgent:
             "successful": self.traversal_successes,
             "failed": self.traversal_failures,
             "failure_reasons": dict(self.traversal_failure_reasons),
+            "failure_diagnostics": [dict(diagnostic) for diagnostic in self.traversal_failure_diagnostics],
             "cancelled_samples": self.traversal_cancelled_samples,
             "depth_limit_hits": max(
                 self.traversal_max_depth_hits,
@@ -633,12 +775,22 @@ class DeepCFRAgent:
         random_agent = random_agents[-1] if random_agents else None
         return self.cfr_traverse_multi(state, iteration, self.player_id, depth, random_agent)
 
-    def cfr_traverse_multi(self, state, iteration, traversing_player, depth=0, random_agent=None):
+    def cfr_traverse_multi(
+        self,
+        state,
+        iteration,
+        traversing_player,
+        depth=0,
+        random_agent=None,
+        traversal_index=None,
+    ):
         if depth != 0:
             return self._cfr_traverse_multi(state, iteration, traversing_player, depth)
         collector = _TraversalSampleCollector()
+        previous_traversal_index = self._active_traversal_index
         self._active_traversal_collector = collector
         self._traversal_random_agent = random_agent
+        self._active_traversal_index = traversal_index
         try:
             result = self._cfr_traverse_multi(state, iteration, traversing_player, depth)
             self._commit_traversal_collector(collector)
@@ -651,6 +803,7 @@ class DeepCFRAgent:
         finally:
             self._active_traversal_collector = None
             self._traversal_random_agent = None
+            self._active_traversal_index = previous_traversal_index
 
     def _raise_traversal_failure(
         self,
@@ -661,15 +814,20 @@ class DeepCFRAgent:
         reason,
         action_description=None,
         cause=None,
+        details=None,
     ) -> NoReturn:
+        context_details = {} if details is None else dict(details)
+        if action_description is not None:
+            context_details.setdefault("action", action_description)
         context = TraversalFailureContext(
             iteration=iteration,
-            traversal_index=None,
+            traversal_index=self._active_traversal_index,
             traversing_player=traversing_player,
             acting_player=acting_player,
             depth=depth,
             reason=reason,
             action_trace=() if action_description is None else (action_description,),
+            details=context_details,
         )
         error = TraversalFailure(context, cause)
         if cause is None:
@@ -697,7 +855,8 @@ class DeepCFRAgent:
                 depth,
                 f"Не удалось получить status следующего состояния после действия {action_description}",
                 action_description,
-                error,
+                cause=error,
+                details={"status": None},
             )
         if next_status == pkrs.StateStatus.Ok:
             return
@@ -709,6 +868,7 @@ class DeepCFRAgent:
             depth,
             f"Недопустимый status состояния после действия {action_description}: {next_status}",
             action_description,
+            details={"status": str(next_status)},
         )
 
     def _cfr_traverse_multi(self, state, iteration, traversing_player, depth):
@@ -815,6 +975,7 @@ class DeepCFRAgent:
                 current_player,
                 depth,
                 "У нетерминального состояния отсутствуют допустимые действия",
+                details={"mask": np.asarray(legal_mask, dtype=np.float32).tolist()},
             )
 
         if current_player == traversing_player:
@@ -823,6 +984,16 @@ class DeepCFRAgent:
             state_t = torch.from_numpy(encoded).unsqueeze(0).to(self.device)
             with torch.inference_mode():
                 advantages = self.advantage_net(state_t)[0].cpu().numpy()
+            advantages = self._validate_finite_traversal_values(
+                advantages,
+                "advantages",
+                legal_mask,
+                iteration,
+                traversing_player,
+                current_player,
+                depth,
+                "advantage_net",
+            )
             action_values = np.zeros(NUM_ACTIONS, dtype=np.float32)
             applied_slots = []
             for slot in legal_slots:
@@ -867,6 +1038,15 @@ class DeepCFRAgent:
             applied_mask = np.zeros(NUM_ACTIONS, dtype=np.float32)
             applied_mask[applied_slots] = 1.0
             strategy = self._regret_matching(advantages, applied_mask)
+            strategy = self._validate_traversal_policy(
+                strategy,
+                applied_mask,
+                iteration,
+                traversing_player,
+                current_player,
+                depth,
+                "advantage_net",
+            )
             ev = float(sum(float(strategy[slot]) * float(action_values[slot]) for slot in applied_slots))
             regrets = np.zeros(NUM_ACTIONS, dtype=np.float32)
             for slot in applied_slots:
@@ -884,13 +1064,56 @@ class DeepCFRAgent:
         if strategy_net is not None:
             with torch.inference_mode():
                 strategy = self._masked_softmax(strategy_net(state_t), mask)[0].cpu().numpy()
+            strategy = self._validate_traversal_policy(
+                strategy,
+                mask,
+                iteration,
+                traversing_player,
+                current_player,
+                depth,
+                "strategy_net",
+            )
         else:
             opponent_net = self._opponent_advantage_nets.get(current_player, self.advantage_net)
             with torch.inference_mode():
                 advantages = opponent_net(state_t)[0].cpu().numpy()
+            advantages = self._validate_finite_traversal_values(
+                advantages,
+                "advantages",
+                mask,
+                iteration,
+                traversing_player,
+                current_player,
+                depth,
+                "advantage_net",
+            )
             strategy = self._regret_matching(advantages, mask)
+            strategy = self._validate_traversal_policy(
+                strategy,
+                mask,
+                iteration,
+                traversing_player,
+                current_player,
+                depth,
+                "advantage_net",
+            )
         weights = strategy[legal_slots]
-        slot = int(np.random.choice(legal_slots, p=weights / weights.sum()))
+        try:
+            slot = int(np.random.choice(legal_slots, p=weights / weights.sum()))
+        except (TypeError, ValueError) as error:
+            self._raise_traversal_failure(
+                iteration,
+                traversing_player,
+                current_player,
+                depth,
+                "Не удалось выбрать действие по policy оппонента",
+                details={
+                    "policy_source": "opponent_sampling",
+                    "mask": np.asarray(mask, dtype=np.float32).tolist(),
+                    "policy": strategy.tolist(),
+                },
+                cause=error,
+            )
         self.action_decision_count += 1
         if is_raise_slot(slot):
             self.action_raise_count += 1
@@ -1170,7 +1393,15 @@ class DeepCFRAgent:
         with torch.inference_mode():
             logits = self.strategy_net(state_t)
             probabilities = self._masked_softmax(logits, mask_t)[0].cpu().numpy()
-        return probabilities.astype(np.float32)
+        return self._validate_traversal_policy(
+            probabilities,
+            mask,
+            self.iteration_count,
+            player_id,
+            player_id,
+            0,
+            "strategy_net",
+        ).astype(np.float32)
 
     def choose_action(self, state, player_id=None, deterministic=False):
         probabilities = self.get_policy_distribution(state, player_id)
