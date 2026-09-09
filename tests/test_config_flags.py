@@ -76,9 +76,13 @@ def test_training_error_mode_accepts_supported_values(tmp_path, mode):
         settings.set_strict_checking(False)
 
 
-def test_training_error_mode_rejects_unknown_value(tmp_path):
+@pytest.mark.parametrize("invalid_mode", ["recover", [], {}])
+def test_training_error_mode_rejects_unknown_value(tmp_path, invalid_mode):
     config_path = tmp_path / "config.yaml"
-    config_path.write_text("num_actions: 6\ntraining_error_mode: recover\n", encoding="utf-8")
+    config_path.write_text(
+        f"num_actions: 6\ntraining_error_mode: {invalid_mode}\n",
+        encoding="utf-8",
+    )
 
     try:
         with pytest.raises(ValueError, match="training_error_mode"):

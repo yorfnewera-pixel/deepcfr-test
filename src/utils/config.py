@@ -86,7 +86,11 @@ def load_config(path=None):
         _config = _deep_merge(_DEFAULTS, loaded)
         if int(_config["num_actions"]) != NUM_ACTIONS:
             raise ValueError(f"num_actions должен быть равен {NUM_ACTIONS}")
-        if _config["training_error_mode"] not in {"strict", "skip_traversal"}:
+        training_error_mode = _config["training_error_mode"]
+        if not isinstance(training_error_mode, str) or training_error_mode not in (
+            "strict",
+            "skip_traversal",
+        ):
             raise ValueError("training_error_mode должен быть strict или skip_traversal")
         max_failed_traversals = _config["training_max_failed_traversals_per_iteration"]
         if (
