@@ -53,7 +53,7 @@
 - `history_summary_size(num_players: int) -> int`
 - `encode_state(state, player_id=0) -> np.ndarray`
 
-- [ ] Вынести единую формулу базового input из `DeepCFRAgent`, `model.py` и `policy_runtime` в импортируемую константу/функцию. Для `n` игроков v3 base size равен `157 + 4 * (2 * n + 8)`.
+- [ ] Вынести единую формулу базового input из `DeepCFRAgent`, `model.py` и `policy_runtime` в импортируемую константу/функцию. Для `n` игроков v2 base size равен `121 + 6 * n`, а v3 base size — `121 + 6 * n + 4 * (2 * n + 8)`; это 181 для HU и 237 для six-max.
 - [ ] Реализовать private helper, который валидирует `action_history_complete`, группирует `ActionRecord` по street и строит блоки в hero-relative системе координат: `last_actor_relative`, `last_action_kind`, `raise_actor_relative_mask`, `raise_count`, `raise_amount_total / norm_unit`.
 - [ ] Добавить unit-тест для пустой complete history, проверки размера для 2 и 6 игроков, а также hero-relative преобразования actor id.
 - [ ] Добавить regression для линии «preflop raise против flop raise»: оба состояния доходят до river с одинаковым v2 snapshot, но v3 vectors различаются.
