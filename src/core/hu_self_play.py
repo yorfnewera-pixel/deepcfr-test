@@ -162,6 +162,16 @@ class HuCurrentPolicySelfPlayCoordinator(Generic[StateT]):
         all_networks = [*advantage_nets, *advantage_target_nets]
         if len({id(network) for network in all_networks}) != len(all_networks):
             raise ValueError("HU advantage-сети и target-сети должны быть независимыми")
+        advantage_parameter_ids = [self._parameter_ids(network) for network in advantage_nets]
+        target_parameter_ids = [self._parameter_ids(network) for network in advantage_target_nets]
+        if advantage_parameter_ids[0] & advantage_parameter_ids[1]:
+            raise ValueError("HU advantage-сети P0/P1 не должны разделять параметры")
+        if target_parameter_ids[0] & target_parameter_ids[1]:
+            raise ValueError("HU target-сети P0/P1 не должны разделять параметры")
+        if (advantage_parameter_ids[0] | advantage_parameter_ids[1]) & (
+            target_parameter_ids[0] | target_parameter_ids[1]
+        ):
+            raise ValueError("HU advantage-сети и target-сети не должны разделять параметры")
         for player_id, (network, optimizer) in enumerate(
             zip(advantage_nets, advantage_optimizers, strict=True)
         ):
@@ -195,13 +205,18 @@ class HuCurrentPolicySelfPlayCoordinator(Generic[StateT]):
         return None
 
     @staticmethod
+    def _parameter_ids(network: nn.Module) -> set[int]:
+        """Возвращает идентификаторы параметров, включая разделяемые между Module."""
+        return {id(parameter) for parameter in network.parameters()}
+
+    @staticmethod
     def _validate_optimizer_ownership(
         player_id: int,
         network: nn.Module,
         optimizer: Optimizer,
     ) -> None:
         """Не допускает, чтобы обновление P0/P1 меняло чужие параметры."""
-        network_parameter_ids = {id(parameter) for parameter in network.parameters()}
+        network_parameter_ids = HuCurrentPolicySelfPlayCoordinator._parameter_ids(network)
         optimizer_parameter_ids = {
             id(parameter)
             for parameter_group in optimizer.param_groups

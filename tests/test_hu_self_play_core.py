@@ -19,6 +19,17 @@ class _ОднослойнаяСеть(torch.nn.Module):
         return self.advantages.unsqueeze(0).expand(states.shape[0], -1)
 
 
+class _СетьСРазделяемымПараметром(torch.nn.Module):
+    """Отдельный Module, который намеренно может владеть общим Parameter."""
+
+    def __init__(self, parameter):
+        super().__init__()
+        self.advantages = parameter
+
+    def forward(self, states):
+        return self.advantages.unsqueeze(0).expand(states.shape[0], -1)
+
+
 class _Дерево:
     """Минимальное дерево: P0 выбирает ветку, затем P1 завершает раздачу."""
 
@@ -119,6 +130,32 @@ def test_hu_otklonyaet_target_kak_ssylku_na_advantage_set():
     arguments["advantage_target_nets"][1] = arguments["advantage_nets"][1]
 
     with pytest.raises(ValueError, match="независим"):
+        HuCurrentPolicySelfPlayCoordinator(**arguments)
+
+
+@pytest.mark.parametrize("resource_name", ["advantage_nets", "advantage_target_nets"])
+def test_hu_otklonyaet_raznye_seti_p0_i_p1_s_obshchim_parameterom(resource_name):
+    arguments = _аргументы_координатора()
+    shared_parameter = torch.nn.Parameter(torch.zeros(6))
+    first_network = _СетьСРазделяемымПараметром(shared_parameter)
+    second_network = _СетьСРазделяемымПараметром(shared_parameter)
+    arguments[resource_name] = [first_network, second_network]
+    if resource_name == "advantage_nets":
+        arguments["advantage_optimizers"] = [
+            torch.optim.SGD(first_network.parameters(), lr=0.1),
+            torch.optim.SGD(second_network.parameters(), lr=0.1),
+        ]
+
+    with pytest.raises(ValueError, match="P0/P1"):
+        HuCurrentPolicySelfPlayCoordinator(**arguments)
+
+
+def test_hu_otklonyaet_advantage_i_target_s_obshchim_parameterom():
+    arguments = _аргументы_координатора()
+    shared_parameter = next(arguments["advantage_nets"][0].parameters())
+    arguments["advantage_target_nets"][1] = _СетьСРазделяемымПараметром(shared_parameter)
+
+    with pytest.raises(ValueError, match="advantage-сети и target-сети"):
         HuCurrentPolicySelfPlayCoordinator(**arguments)
 
 
