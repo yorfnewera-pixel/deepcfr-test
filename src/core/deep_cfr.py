@@ -444,6 +444,12 @@ class DeepCFRAgent:
             self.strategy_buffer.clear()
 
     def reset_traversal_stats(self):
+        self.traversal_attempts = 0
+        self.traversal_successes = 0
+        self.traversal_failures = 0
+        self.traversal_failure_reasons = {}
+        self.traversal_cancelled_samples = 0
+        self.traversal_depth_limit_failures = 0
         self.traversal_nodes = 0
         self.traversal_terminal_nodes = 0
         self.traversal_max_depth_observed = 0
@@ -460,6 +466,27 @@ class DeepCFRAgent:
         self.evicted_nodes = 0
         self.buffer_skip_nodes = 0
         self.depth_histogram = {}
+
+    def record_traversal_attempt(self):
+        self.traversal_attempts += 1
+
+    def record_traversal_success(self):
+        self.traversal_successes += 1
+
+    def record_traversal_failure(self, error: TraversalFailure) -> dict[str, object]:
+        if not isinstance(error, TraversalFailure):
+            raise TypeError("Ожидается TraversalFailure")
+        context = error.context
+        reason = context.reason
+        self.traversal_failures += 1
+        self.traversal_failure_reasons[reason] = self.traversal_failure_reasons.get(reason, 0) + 1
+        if "глубин" in reason.lower():
+            self.traversal_depth_limit_failures += 1
+        return {
+            "reason": reason,
+            "depth": context.depth,
+            "traversing_player": context.traversing_player,
+        }
 
     def _record_child_fanout(self, role, count):
         if role == "traverser":
@@ -557,6 +584,15 @@ class DeepCFRAgent:
         attempts = self.recorded_nodes + self.buffer_skip_nodes
         decisions = self.action_decision_count
         return {
+            "attempted": self.traversal_attempts,
+            "successful": self.traversal_successes,
+            "failed": self.traversal_failures,
+            "failure_reasons": dict(self.traversal_failure_reasons),
+            "cancelled_samples": self.traversal_cancelled_samples,
+            "depth_limit_hits": max(
+                self.traversal_max_depth_hits,
+                self.traversal_depth_limit_failures,
+            ),
             "nodes": self.traversal_nodes,
             "terminal_nodes": self.traversal_terminal_nodes,
             "max_depth": self.traversal_max_depth_observed,
@@ -607,6 +643,11 @@ class DeepCFRAgent:
             result = self._cfr_traverse_multi(state, iteration, traversing_player, depth)
             self._commit_traversal_collector(collector)
             return result
+        except TraversalFailure:
+            self.traversal_cancelled_samples += (
+                len(collector.advantage_samples) + len(collector.strategy_samples)
+            )
+            raise
         finally:
             self._active_traversal_collector = None
             self._traversal_random_agent = None
