@@ -1,0 +1,571 @@
+Ниже готовый план, который можно целиком передать агенту. Он основан на согласованном аудите и уже добавленных regression-тестах.
+
+# План внедрения `history_summary_v3`
+
+## 1. Цель изменения
+
+Устранить доказанные коллизии `encode_state()`, при которых разные наблюдаемые betting lines дают одинаковый вход blueprint-сети.
+
+Реализовать компактный actor-aware summary публичной истории по улицам, **не переходя на Transformer, RNN или raw sequence input**.
+
+Основная схема:
+
+```
+Rust poker engine
+    ↓ хранит достоверную public action history
+Python encode_state()
+    ↓ строит fixed-width summary по четырём улицам
+Advantage/strategy MLP
+```
+
+## 2. Ограничения задачи
+
+В этом изменении:
+
+- не менять алгоритм CFR;
+- не менять ES/OS traversal;
+- не менять regret matching;
+- не менять правила сбора advantage/strategy samples;
+- не менять action space `six_fixed_v2`;
+- не совмещать изменение с HU self-play, D2CFR, Q, дистилляцией или teacher transfer;
+- не заявлять perfect-recall совместимость: `history_summary_v3` остаётся осознанной компактной абстракцией.
+
+Старый encoder должен считаться отдельной версией:
+
+```
+текущий encoder: legacy/v2
+новый encoder: history_summary_v3
+```
+
+Новый режим обучается с нуля. Не пытаться молча адаптировать старые веса или replay-буферы.
+
+---
+
+# Этап 1. Public action history в Rust-движке
+
+## 3. Добавить структуру `ActionRecord`
+
+Добавить в движок публичную запись действия со следующими полями:
+
+```
+actor_id
+street
+requested_action
+paid_amount
+applied_raise_increment
+is_effective_raise
+```
+
+Если для диагностики необходимо, можно также сохранять legal actions до применения действия.
+
+### Семантика полей
+
+- `actor_id` — игрок, совершивший действие.
+- `street` — улица до применения действия.
+- `requested_action` — исходное действие, переданное движку.
+- `paid_amount` — фактически списанные со стека фишки.
+- `applied_raise_increment` — фактическое увеличение ставки сверх обязательного call.
+- `is_effective_raise` — действительно ли действие повысило текущую ставку согласно семантике движка.
+
+Для effective raise:
+
+```
+applied_raise_increment =
+    max(
+        0,
+        min(call_amount + requested_amount, available_stack)
+        - call_amount
+    )
+```
+
+Все величины берутся до действия.
+
+Флаг `is_effective_raise` вычисляет только Rust-движок с его `CHIP_EPSILON`. Python не должен повторять численное условие.
+
+Для действий из `resolve_action()` должно выполняться:
+
+```
+ActionRecord.applied_raise_increment
+≈ ResolvedAction.additional_amount
+```
+
+Но источником истины остаётся движок.
+
+## 4. Добавить историю в `State`
+
+Добавить:
+
+```
+action_history: Vec<ActionRecord>
+action_history_complete: bool
+```
+
+Контракт:
+
+- `from_seed` и `from_deck` создают пустую, но полную историю;
+- `apply_action` переносит прежнюю историю и добавляет одну новую запись;
+- запись добавляется только после успешной проверки и применения действия;
+- illegal action не меняет history;
+- `clone` сохраняет history и флаг полноты;
+- `from_mid_hand` принимает историю опционально;
+- если `from_mid_hand` вызван без полной истории, состояние получает:
+
+```
+action_history_complete = false
+```
+
+Нельзя трактовать отсутствие истории как «до текущего момента никто не действовал».
+
+## 5. Проверки движка
+
+Добавить тесты:
+
+1. `Raise → Call` создаёт две записи с правильными actor и street.
+2. `paid_amount` соответствует фактически списанным фишкам.
+3. Raise больше остатка стека сохраняет requested amount, но меньший фактический increment.
+4. Short all-in с положительным повышением отмечается как effective raise.
+5. Raise, не повысивший текущую ставку, не отмечается effective raise.
+6. Fold/Check имеют нулевой paid/increment.
+7. Illegal action не добавляет запись.
+8. Clone сохраняет историю.
+9. `from_mid_hand` без history создаёт incomplete state.
+10. Все допустимые compact raise slots согласованы с `ResolvedAction.additional_amount`.
+
+Запустить:
+
+```bash
+cargo test
+pytest pokers/tests/test_game_logic.py -q
+```
+
+---
+
+# Этап 2. Реализация `history_summary_v3`
+
+## 6. Добавить версию encoding
+
+Ввести единый контракт:
+
+```python
+ENCODING_VERSION = "history_summary_v3"
+```
+
+Не дублировать формулы input size в разных файлах. Добавить общие функции:
+
+```python
+legacy_base_input_size(num_players)
+history_summary_size(num_players)
+encoder_input_size(num_players)
+```
+
+Формулы:
+
+```
+legacy base = 121 + 6 × num_players
+history summary = 4 × (2 × num_players + 8)
+v3 base = legacy base + history summary
+```
+
+Размерности:
+
+| Режим | Legacy | History | V3 |
+| --- | --- | --- | --- |
+| HU | 133 | 48 | 181 |
+| Six-max | 157 | 80 | 237 |
+| Six-max + actor one-hot | 163 | 80 | 243 |
+
+## 7. Формат summary
+
+Для каждой из четырёх улиц добавить:
+
+```
+last_actor_relative:
+    one-hot(num_players + 1)
+    отдельное значение для None
+
+last_action_kind:
+    one-hot(5)
+    Fold, Check, Call, Raise, None
+
+raise_actor_relative_mask:
+    multi-hot(num_players)
+
+raise_count:
+    один нормализованный scalar
+
+raise_amount_total:
+    сумма applied_raise_increment / norm_unit
+```
+
+Размер блока одной улицы:
+
+```
+(num_players + 1) + 5 + num_players + 1 + 1
+= 2 × num_players + 8
+```
+
+### Правила
+
+- Actor кодируется относительно `player_id`, а не абсолютного seat.
+- Raise учитывается в `raise_count`, `raise_actor_relative_mask` и `raise_amount_total` только при `is_effective_raise=True`.
+- Python использует готовые поля `ActionRecord`, не пересчитывает effective raise.
+- Summary строится только при:
+
+```
+action_history_complete == true
+```
+
+При incomplete history выдавать понятную ошибку, а не нулевой вектор.
+
+## 8. Unit-тесты encoder
+
+Проверить:
+
+- пустая complete history;
+- правильный размер HU — 181;
+- правильный размер six-max — 237;
+- размер multi-agent six-max — 243;
+- детерминированность результата;
+- корректный порядок улиц;
+- hero-relative преобразование actor;
+- смена `player_id` правильно переставляет actor positions;
+- effective raise учитывается;
+- неэффективный raise не считается агрессией;
+- incomplete history вызывает явное исключение.
+
+---
+
+# Этап 3. Перевести существующие anti-aliasing тесты
+
+Использовать уже добавленный файл:
+
+```
+tests/test_information_set_encoding.py
+```
+
+Обе обязательные пары должны целиком строиться через:
+
+```python
+resolve_action(ActionSlot..., state)
+```
+
+## 9. Обязательные регрессии
+
+### Коллизия A: улица агрессии
+
+```
+A:
+preflop call/call
+flop check/half-pot raise/call
+turn check/check
+river check
+
+B:
+preflop call/call
+flop check/check
+turn check/half-pot raise/call
+river check
+```
+
+Для legacy snapshot:
+
+- одинаковая legal mask;
+- одинаковый 133-мерный вектор.
+
+Для v3:
+
+```python
+assert not np.array_equal(v3_A, v3_B)
+```
+
+### Коллизия B: личность агрессора
+
+```
+A:
+turn Check(P1), RaiseHalfPot(P0), Call(P1)
+
+B:
+turn RaiseHalfPot(P1), Call(P0)
+```
+
+Для legacy snapshot:
+
+- одинаковая legal mask;
+- одинаковый encoder.
+
+Для v3:
+
+- разные vectors.
+
+## 10. Правильно завершить lifecycle `xfail`
+
+При реализации v3:
+
+- снять `xfail` с будущих v3-тестов;
+- проверки текущего равенства либо удалить, либо направить на явно сохранённый legacy-v2 encoder;
+- не оставлять одновременно тест «должны быть равны» и тест «должны различаться» против одной функции;
+- штатный suite после внедрения должен быть зелёным без `xfailed` для этих требований.
+
+---
+
+# Этап 4. Передать history через все reconstruction-пути
+
+## 11. Найти все места создания состояния
+
+Проверить минимум:
+
+- training traversal;
+- runtime-search rollouts;
+- belief reconstruction;
+- evaluation;
+- paired harness;
+- runtime adapters;
+- `from_mid_hand`;
+- любые копии или ручные реконструкции `State`.
+
+Если состояние реконструируется из существующего полного состояния, переносить:
+
+```
+action_history
+action_history_complete
+```
+
+Не пытаться восстановить полную историю только из:
+
+```
+from_action
+pot
+stacks
+contributions
+```
+
+## 12. Runtime-search
+
+Различать две истории:
+
+1. `State.action_history` — публичная история, необходимая encoder.
+2. `ActionHistoryRecorder.observed_decisions` — отдельная история для beliefs/runtime-search.
+
+Вторая не заменяет первую.
+
+Требования:
+
+- прямой вызов v3 policy на incomplete state завершается понятной ошибкой;
+- runtime-search не создаёт фиктивную историю из последнего действия;
+- rebuild неизменной публичной части состояния даёт тот же v3 tensor;
+- fallback runtime-search не должен обходить проверку совместимости blueprint.
+
+---
+
+# Этап 5. Обновить сети, буферы и checkpoints
+
+## 13. Использовать единую размерность
+
+Перевести на общий helper:
+
+- advantage network;
+- strategy network;
+- frozen target networks;
+- opponent networks;
+- teacher loader;
+- advantage buffer;
+- strategy buffer;
+- evaluation policy;
+- runtime blueprint;
+- multi-agent actor encoding.
+
+Нельзя продолжать определять режим по эвристике:
+
+```python
+input_size != default_input_size
+```
+
+Режимы должны быть записаны явно.
+
+## 14. Повысить checkpoint format
+
+```python
+CHECKPOINT_FORMAT_VERSION = 6
+```
+
+Сохранять как минимум:
+
+```
+checkpoint_format_version
+encoding_version
+encoder_input_size
+num_players
+use_multi_agent_advantage
+action_space_version
+```
+
+Записывать их и в верхнем уровне checkpoint, и в сохранённой конфигурации, если проект использует оба представления.
+
+## 15. Проверять совместимость до загрузки весов
+
+До создания или заполнения сети проверять:
+
+- checkpoint format;
+- action space;
+- encoding version;
+- declared input size;
+- количество игроков;
+- наличие actor one-hot/multi-agent режима.
+
+Явно отклонять:
+
+- checkpoint format 5;
+- legacy/v2 weights;
+- старые replay-буферы;
+- несовместимый teacher checkpoint;
+- mismatch `encoder_input_size`;
+- mismatch `num_players`;
+- неизвестную версию encoding.
+
+Сообщение должно объяснять:
+
+> `history_summary_v3` требует нового обучения; автоматическая миграция старых весов и replay-буферов не поддерживается.
+> 
+
+При resume совместимого v3-checkpoint повторная инициализация не выполняется.
+
+---
+
+# Этап 6. Полная проверка
+
+## 16. Автоматический aliasing audit
+
+Создать read-only CLI:
+
+```
+tools/audit_information_set_aliasing.py
+```
+
+Параметры:
+
+```
+--players
+--stack
+--seed
+--max-depth
+```
+
+CLI должен:
+
+- использовать только `legal_action_mask` и `resolve_action`;
+- посещать достижимые decision nodes;
+- группировать состояния по `float32.tobytes()`;
+- считать distinct tensors;
+- считать collision buckets;
+- показывать воспроизводимые action traces;
+- ничего не менять в training data.
+
+Проверить baseline:
+
+```
+players=2
+stack=30
+seed=17
+max_depth=12
+```
+
+После v3 обязательные две пары должны различаться. Не требовать полного отсутствия всех коллизий: summary намеренно lossy.
+
+## 17. Запуски тестов
+
+Последовательно выполнить:
+
+```bash
+cargo test
+pytest pokers/tests/test_game_logic.py -q
+pytest tests/test_information_set_encoding.py -q
+pytest tests/test_relative_encoding.py -q
+pytest tests/test_action_space.py -q
+pytest tests/test_runtime_search_history.py -q
+pytest tests/test_runtime_search_rollouts.py -q
+pytest tests/test_runtime_search_beliefs.py -q
+pytest tests/test_pokers_regressions.py -q
+pytest tests/test_checkpoint_lifecycle.py -q
+pytest tests/test_frozen_blueprint_policy.py -q
+pytest tests/test_training_regressions.py -q
+pytest -q
+```
+
+Не сообщать, что тесты прошли, если они не запускались.
+
+## 18. Smoke training
+
+Запустить новый короткий v3 training:
+
+- в новой директории checkpoints;
+- без resume из v2;
+- с пустыми replay-буферами;
+- проверить сохранение full checkpoint;
+- проверить сохранение light checkpoint;
+- проверить загрузку обоих;
+- проверить продолжение обучения;
+- проверить evaluation policy.
+
+Отдельно измерить:
+
+- время одного traversal;
+- время итерации;
+- размер replay samples;
+- размер checkpoint;
+- память процесса.
+
+История в `State` не должна создавать неприемлемое копирование полного `Vec` на каждой ветке. Если overhead значителен, оптимизировать владение историей в Rust, не меняя внешний контракт.
+
+## 19. Сравнение v2 и v3
+
+Сравнить одинаковую архитектуру и параметры, кроме encoder:
+
+```
+v2 baseline
+против
+history_summary_v3
+```
+
+Условия:
+
+- одинаковые seeds;
+- одинаковый training budget;
+- одинаковые opponent pools;
+- одинаковый evaluation harness;
+- несколько независимых запусков;
+- учитывать wall-clock, а не только iterations.
+
+Сохранить:
+
+- commit SHA;
+- конфигурации;
+- число итераций;
+- время;
+- результаты paired evaluation;
+- число остающихся collision buckets;
+- решение принять или отклонить v3.
+
+Устранение коллизий само по себе не гарантирует улучшения EV. Не заменять baseline до измерения.
+
+---
+
+# Критерии готовности
+
+Изменение считается завершённым, если:
+
+- Rust хранит достоверную public action history.
+- Illegal actions не загрязняют history.
+- Incomplete history не кодируется как пустая.
+- HU v3 input имеет размер 181.
+- Six-max v3 input имеет размер 237.
+- Обе доказанные коллизии разделяются.
+- Actor positions кодируются относительно hero.
+- Все training/runtime/reconstruction-пути сохраняют history.
+- Старые checkpoints и replay-буферы отклоняются явно.
+- Full/light v3 checkpoints сохраняются и загружаются.
+- Regression-тесты больше не находятся в `xfail`.
+- Полный test suite проходит.
+- Smoke training и resume успешно проверены.
+- Результаты сравнения v2/v3 записаны до замены baseline.
+
+**Не объединять эту работу с HU self-play, D2CFR, Q-сетью или переносом HU teacher. Это отдельное изменение представления information set.**
