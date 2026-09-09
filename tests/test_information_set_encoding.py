@@ -1,6 +1,9 @@
 import numpy as np
 import pokers as pkrs
 import pytest
+import subprocess
+import sys
+from pathlib import Path
 
 from src.core.action_space import ActionSlot, legal_action_mask, resolve_action
 from src.core.model import (
@@ -10,6 +13,7 @@ from src.core.model import (
     history_summary_size,
     legacy_base_input_size,
 )
+from tools.audit_information_set_aliasing import audit_information_set_aliasing
 
 
 def _initial_hu_state() -> pkrs.State:
@@ -155,3 +159,123 @@ def test_encoder_input_size_contracts_are_explicit() -> None:
     assert encoder_input_size(2, "legacy_v2") == 133
     assert encoder_input_size(2, "history_summary_v3") == 181
     assert encoder_input_size(6, "history_summary_v3", use_multi_agent=True) == 243
+
+
+def test_information_set_aliasing_audit_reproduces_v2_collisions_and_v3_regressions() -> None:
+    audit = audit_information_set_aliasing(
+        players=2,
+        stack=30.0,
+        seed=17,
+        max_depth=12,
+    )
+
+    assert audit.decision_nodes > 0
+    assert audit.legacy_v2.collision_bucket_count >= 1
+
+    regression_pairs = (
+        (
+            (
+                ActionSlot.CALL,
+                ActionSlot.CALL,
+                ActionSlot.CHECK,
+                ActionSlot.RAISE_HALF_POT,
+                ActionSlot.CALL,
+                ActionSlot.CHECK,
+                ActionSlot.CHECK,
+                ActionSlot.CHECK,
+            ),
+            (
+                ActionSlot.CALL,
+                ActionSlot.CALL,
+                ActionSlot.CHECK,
+                ActionSlot.CHECK,
+                ActionSlot.CHECK,
+                ActionSlot.RAISE_HALF_POT,
+                ActionSlot.CALL,
+                ActionSlot.CHECK,
+            ),
+        ),
+        (
+            (
+                ActionSlot.CALL,
+                ActionSlot.CALL,
+                ActionSlot.CHECK,
+                ActionSlot.CHECK,
+                ActionSlot.CHECK,
+                ActionSlot.RAISE_HALF_POT,
+                ActionSlot.CALL,
+            ),
+            (
+                ActionSlot.CALL,
+                ActionSlot.CALL,
+                ActionSlot.CHECK,
+                ActionSlot.CHECK,
+                ActionSlot.RAISE_HALF_POT,
+                ActionSlot.CALL,
+            ),
+        ),
+    )
+    for first_trace, second_trace in regression_pairs:
+        first = audit.encoding_for_trace(first_trace)
+        second = audit.encoding_for_trace(second_trace)
+
+        assert first.legacy_v2 == second.legacy_v2
+        assert first.history_summary_v3 != second.history_summary_v3
+
+
+def test_information_set_aliasing_audit_excludes_folded_terminal_state() -> None:
+    audit = audit_information_set_aliasing(
+        players=2,
+        stack=30.0,
+        seed=17,
+        max_depth=1,
+    )
+
+    assert (ActionSlot.FOLD,) not in audit.encodings_by_trace
+
+
+@pytest.mark.parametrize("stack", (float("nan"), float("inf")))
+def test_information_set_aliasing_audit_rejects_non_finite_stack(stack: float) -> None:
+    with pytest.raises(ValueError):
+        audit_information_set_aliasing(
+            players=2,
+            stack=stack,
+            seed=17,
+            max_depth=1,
+        )
+
+
+def test_information_set_aliasing_audit_cli_prints_reproducible_summary() -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "tools/audit_information_set_aliasing.py",
+            "--players", "2",
+            "--stack", "30",
+            "--seed", "17",
+            "--max-depth", "12",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        cwd=Path(__file__).parents[1],
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "decision_nodes=" in result.stdout
+    assert "legacy_v2: distinct_tensors=" in result.stdout
+    assert "collision 1:" in result.stdout
+
+
+def test_information_set_aliasing_audit_cli_rejects_non_finite_stack_without_traceback() -> None:
+    result = subprocess.run(
+        [sys.executable, "tools/audit_information_set_aliasing.py", "--stack", "nan"],
+        check=False,
+        capture_output=True,
+        text=True,
+        cwd=Path(__file__).parents[1],
+    )
+
+    assert result.returncode != 0
+    assert "Traceback" not in result.stderr
+    assert "конечным" in result.stderr
