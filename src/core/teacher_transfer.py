@@ -30,6 +30,7 @@ from src.training.train import (
 
 _HU_INPUT_SIZE = encoder_input_size(2, HISTORY_SUMMARY_V3_ENCODING_VERSION)
 _HU_STRATEGY_INPUT_SIZE = _HU_INPUT_SIZE + 2
+_CUDA_PHILOX_STATE_NUMEL = 16  # uint64 seed и int64 offset генератора Philox.
 _CARD_ENCODER_PARAMETER_NAMES = ("0.weight", "0.bias")
 _NETWORK_PARAMETER_NAMES = (
     "card_encoder.0.weight",
@@ -298,6 +299,7 @@ def _validate_optimizer_state(
         or not isinstance(groups, list)
         or len(groups) != 1
         or not _is_expected_adamw_group(groups[0], expected_parameter_ids)
+        or set(state) not in (set(), set(expected_parameter_ids))
     ):
         raise ValueError("HU checkpoint содержит повреждённый optimizer")
     parameter_shapes = tuple(
@@ -479,14 +481,17 @@ def _validate_rng_state(payload: object) -> None:
         or not isinstance(numpy_state["cached_gaussian"], float)
         or not math.isfinite(numpy_state["cached_gaussian"])
         or not _is_cpu_uint32_tensor(state, (624,))
-        or not _is_cpu_uint8_rng_tensor(torch_cpu)
+        or not _is_cpu_uint8_rng_tensor(torch_cpu, torch.get_rng_state().numel())
     ):
         raise ValueError("HU checkpoint содержит повреждённое RNG состояние")
     cuda_state = payload.get("torch_cuda")
     if "torch_cuda" in payload and (
         not isinstance(cuda_state, list)
         or not cuda_state
-        or any(not _is_cpu_uint8_rng_tensor(value) for value in cuda_state)
+        or any(
+            not _is_cpu_uint8_rng_tensor(value, _CUDA_PHILOX_STATE_NUMEL)
+            for value in cuda_state
+        )
     ):
         raise ValueError("HU checkpoint содержит повреждённое RNG состояние")
 
@@ -517,11 +522,11 @@ def _is_cpu_uint32_tensor(value: object, shape: tuple[int, ...]) -> bool:
     )
 
 
-def _is_cpu_uint8_rng_tensor(value: object) -> bool:
+def _is_cpu_uint8_rng_tensor(value: object, expected_numel: int) -> bool:
     return (
         torch.is_tensor(value)
         and value.ndim == 1
-        and value.numel() > 0
+        and value.numel() == expected_numel
         and value.device.type == "cpu"
         and value.layout == torch.strided
         and value.dtype == torch.uint8

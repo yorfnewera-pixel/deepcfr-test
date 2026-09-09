@@ -164,6 +164,61 @@ def test_transfer_accepts_genuine_hu_checkpoint_with_empty_adamw_state(tmp_path)
     assert torch.equal(student.strategy_net.card_encoder[0].weight, source_network.card_encoder[0].weight)
 
 
+def test_transfer_rejects_partial_valid_adamw_state_before_student_mutation(tmp_path):
+    """Ломается, если частичный state AdamW принимается как полный training state."""
+    checkpoint_path = tmp_path / "partial-adamw-state.pt"
+    _hu_card_checkpoint(checkpoint_path)
+    payload = torch.load(checkpoint_path, weights_only=True)
+    parameter_state = payload["strategy"]["optimizer"]["state"][0]
+    payload["strategy"]["optimizer"]["state"] = {0: parameter_state}
+    torch.save(payload, checkpoint_path)
+    student = _six_max_student()
+    before = _card_state(student.strategy_net)
+
+    with pytest.raises(ValueError, match="повреждённый optimizer"):
+        student.load_card_encoder_from_hu_checkpoint(checkpoint_path)
+
+    _assert_card_state_unchanged(student.strategy_net, before)
+
+
+@pytest.mark.parametrize("rng_key", ["torch_cpu", "torch_cuda"])
+def test_transfer_rejects_truncated_torch_rng_state_before_student_mutation(tmp_path, rng_key, monkeypatch):
+    """Ломается, если torch RNG ненулевой, но не канонической длины, принимается."""
+    checkpoint_path = tmp_path / f"truncated-{rng_key}-rng.pt"
+    _hu_card_checkpoint(checkpoint_path)
+    payload = torch.load(checkpoint_path, weights_only=True)
+    payload["rng"][rng_key] = (
+        torch.zeros(1, dtype=torch.uint8)
+        if rng_key == "torch_cpu"
+        else [torch.zeros(1, dtype=torch.uint8)]
+    )
+    torch.save(payload, checkpoint_path)
+    if rng_key == "torch_cuda":
+        monkeypatch.setattr(transfer_mod.torch.cuda, "is_available", lambda: False)
+    student = _six_max_student()
+    before = _card_state(student.strategy_net)
+
+    with pytest.raises(ValueError, match="повреждённое RNG состояние"):
+        student.load_card_encoder_from_hu_checkpoint(checkpoint_path)
+
+    _assert_card_state_unchanged(student.strategy_net, before)
+
+
+def test_transfer_accepts_canonical_cuda_rng_state_without_local_cuda(tmp_path, monkeypatch):
+    """Ломается, если CPU student отвергает 16-байтный CUDA Philox state teacher checkpoint."""
+    checkpoint_path = tmp_path / "cuda-rng-without-local-cuda.pt"
+    source_network = _hu_card_checkpoint(checkpoint_path)
+    payload = torch.load(checkpoint_path, weights_only=True)
+    payload["rng"]["torch_cuda"] = [torch.zeros(16, dtype=torch.uint8)]
+    torch.save(payload, checkpoint_path)
+    monkeypatch.setattr(transfer_mod.torch.cuda, "is_available", lambda: False)
+    student = _six_max_student()
+
+    student.load_card_encoder_from_hu_checkpoint(checkpoint_path)
+
+    assert torch.equal(student.strategy_net.card_encoder[0].weight, source_network.card_encoder[0].weight)
+
+
 @pytest.mark.parametrize(
     ("mutate", "message"),
     [
