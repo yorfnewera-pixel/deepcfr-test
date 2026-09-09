@@ -1,6 +1,7 @@
 """Изолированный контур HU self-play с неизменяемым профилем policies."""
 from __future__ import annotations
 
+from contextlib import nullcontext
 from copy import deepcopy
 from dataclasses import dataclass
 from typing import Callable, Generic, TypeVar
@@ -334,16 +335,18 @@ class HuCurrentPolicySelfPlayCoordinator(Generic[StateT]):
         traversals_per_player: int,
         new_initial_state: Callable[[int, int], StateT],
         after_phase: Callable[[], None] | None = None,
+        traversal_context: Callable[[], object] | None = None,
     ) -> None:
         """Проводит P0/P1 на одном profile и обучает advantage только после обеих фаз."""
         self.begin_iteration()
         for traverser in (0, 1):
-            for traversal_index in range(int(traversals_per_player)):
-                self.traverse(
-                    new_initial_state(traverser, traversal_index),
-                    traversing_player=traverser,
-                    iteration=iteration,
-                )
+            with traversal_context() if traversal_context is not None else nullcontext():
+                for traversal_index in range(int(traversals_per_player)):
+                    self.traverse(
+                        new_initial_state(traverser, traversal_index),
+                        traversing_player=traverser,
+                        iteration=iteration,
+                    )
             if after_phase is not None:
                 after_phase()
         for player_id in (0, 1):

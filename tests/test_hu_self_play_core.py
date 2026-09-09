@@ -251,3 +251,23 @@ def test_snapshots_neizmenny_i_odny_dlya_obeih_faz_iteratsii():
     assert torch.equal(snapshot_values[0][1], snapshot_values[1][1])
     assert torch.equal(coordinator.snapshots[0].advantages, torch.tensor([1, 3, 0, 0, 0, 0]))
     assert coordinator.advantage_nets[0].advantages[0].item() == 101
+
+
+def test_hu_zavershaet_obe_fazy_do_obucheniya_advantage_nog():
+    events = []
+
+    def train_advantage(player_id, *_args):
+        events.append(f"train_p{player_id}")
+
+    coordinator = _координатор(train_advantage=train_advantage)
+    coordinator.traverse = lambda *_args, traversing_player, **_kwargs: events.append(
+        f"traverse_p{traversing_player}"
+    )
+
+    coordinator.run_iteration(
+        iteration=1,
+        traversals_per_player=1,
+        new_initial_state=lambda _player, _index: (0, 0),
+    )
+
+    assert events == ["traverse_p0", "traverse_p1", "train_p0", "train_p1"]

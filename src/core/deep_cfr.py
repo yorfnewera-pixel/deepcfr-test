@@ -1463,6 +1463,12 @@ class DeepCFRAgent:
         if not mask.any():
             raise ValueError("В текущем состоянии нет допустимых действий")
         encoded = self._encode_state(state, player_id)
+        if getattr(self, "hu_current_policy_self_play", False):
+            if player_id not in (0, 1):
+                raise ValueError("HU strategy поддерживает только P0 и P1")
+            encoded = np.concatenate(
+                (encoded, np.eye(2, dtype=np.float32)[player_id])
+            )
         state_t = torch.from_numpy(encoded).float().unsqueeze(0).to(self.device)
         mask_t = torch.from_numpy(mask).unsqueeze(0).to(self.device)
         with torch.inference_mode():

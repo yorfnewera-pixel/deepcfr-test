@@ -7,6 +7,7 @@ import re
 import tempfile
 import time
 import argparse
+from copy import deepcopy
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
@@ -17,7 +18,14 @@ import torch
 
 from src.agents.random_agent import RandomAgent
 from src.core.action_space import ACTION_SPACE_VERSION
+from src.core.buffers import AdvantageBuffer
 from src.core.deep_cfr import DeepCFRAgent
+from src.core.hu_self_play import (
+    HuCurrentPolicySelfPlayCoordinator,
+    HuStrategyBuffer,
+    HuTraversalAdapter,
+)
+from src.core.model import PokerNetwork
 from src.core.traversal_errors import TraversalFailure
 from src.utils.config import (
     cfg_get,
@@ -593,6 +601,216 @@ def evaluate_against_checkpoint_agents(agent: DeepCFRAgent, opponent_agents, num
     return evaluate_against_agent(agent, opponent_agents[0], num_games)
 
 
+class _HuConditionedStrategyBuffer:
+    """Представляет HU reservoir в форме, ожидаемой общим методом обучения strategy."""
+
+    def __init__(self, buffer: HuStrategyBuffer):
+        self._buffer = buffer
+
+    def sample(self, num_samples: int = -1):
+        return self._buffer.sample_conditioned(num_samples)
+
+    def __len__(self) -> int:
+        return len(self._buffer)
+
+
+def _create_hu_current_policy_coordinator(
+    agent: DeepCFRAgent,
+) -> HuCurrentPolicySelfPlayCoordinator[pkrs.State]:
+    """Создаёт изолированные P0/P1 advantage-ноги для HU режима."""
+    advantage_nets = [agent.advantage_net, deepcopy(agent.advantage_net).to(agent.device)]
+    advantage_target_nets = [
+        agent.advantage_target_net,
+        deepcopy(agent.advantage_target_net).to(agent.device),
+    ]
+    for target in advantage_target_nets:
+        target.eval()
+        for parameter in target.parameters():
+            parameter.requires_grad_(False)
+    advantage_optimizers = [
+        agent.optimizer,
+        torch.optim.AdamW(
+            advantage_nets[1].parameters(),
+            lr=float(cfg_get("advantage_lr", 1e-4)),
+            weight_decay=float(cfg_get("advantage_weight_decay", 1e-5)),
+        ),
+    ]
+    advantage_buffers = [
+        agent.advantage_buffer,
+        AdvantageBuffer(
+            int(cfg_get("advantage_memory_size", 300000)),
+            agent.input_size,
+        ),
+    ]
+
+    hidden_size = int(agent.strategy_net.base[0].out_features)
+    strategy_net = PokerNetwork(agent.input_size + 2, hidden_size).to(agent.device)
+    strategy_optimizer = torch.optim.AdamW(
+        strategy_net.parameters(),
+        lr=float(cfg_get("strategy_lr", 5e-5)),
+        weight_decay=float(cfg_get("strategy_weight_decay", 1e-5)),
+    )
+    strategy_buffer = HuStrategyBuffer(
+        int(cfg_get("strategy_memory_size", 300000)), agent.input_size
+    )
+    agent.strategy_net = strategy_net
+    agent.strategy_optimizer = strategy_optimizer
+    agent.strategy_buffer = _HuConditionedStrategyBuffer(strategy_buffer)
+    agent.hu_current_policy_self_play = True
+    agent.hu_advantage_nets = tuple(advantage_nets)
+    agent.hu_advantage_target_nets = tuple(advantage_target_nets)
+    agent.hu_advantage_optimizers = tuple(advantage_optimizers)
+    agent.hu_advantage_buffers = tuple(advantage_buffers)
+    agent.hu_strategy_buffer = strategy_buffer
+
+    def apply(state: pkrs.State, slot: int) -> pkrs.State:
+        action = agent.action_type_to_pokers_action(slot, state)
+        next_state = state.apply_action(action)
+        if next_state.status != pkrs.StateStatus.Ok:
+            raise ValueError(f"HU traversal получил некорректный status: {next_state.status}")
+        return next_state
+
+    advantage_losses = [0.0, 0.0]
+    strategy_losses: list[float] = []
+
+    def train_advantage(player_id: int, network, target_network, optimizer, buffer) -> float:
+        previous = (
+            agent.advantage_net,
+            agent.advantage_target_net,
+            agent.optimizer,
+            agent.advantage_buffer,
+        )
+        try:
+            agent.advantage_net = network
+            agent.advantage_target_net = target_network
+            agent.optimizer = optimizer
+            agent.advantage_buffer = buffer
+            with _training_thread_limit(cfg_get("training_torch_threads")):
+                loss = agent.train_advantage_network_multi(player_id=player_id)
+            advantage_losses[player_id] = float(loss)
+            return float(loss)
+        finally:
+            (
+                agent.advantage_net,
+                agent.advantage_target_net,
+                agent.optimizer,
+                agent.advantage_buffer,
+            ) = previous
+
+    def train_strategy(_network, _optimizer, _buffer) -> float:
+        with _training_thread_limit(cfg_get("training_torch_threads")):
+            loss = agent.train_strategy_network()
+        strategy_losses.append(float(loss))
+        return float(loss)
+
+    coordinator = HuCurrentPolicySelfPlayCoordinator(
+        advantage_nets=advantage_nets,
+        advantage_target_nets=advantage_target_nets,
+        advantage_optimizers=advantage_optimizers,
+        advantage_buffers=advantage_buffers,
+        strategy_net=strategy_net,
+        strategy_optimizer=strategy_optimizer,
+        strategy_buffer=strategy_buffer,
+        adapter=HuTraversalAdapter(
+            current_player=lambda state: int(state.current_player),
+            is_terminal=lambda state: bool(state.final_state),
+            legal_mask=agent.get_legal_action_mask,
+            encode=lambda state, player_id: agent._encode_state(state, player_id),
+            apply=apply,
+            terminal_value=lambda state, player_id: float(state.players_state[player_id].reward),
+        ),
+        train_advantage=train_advantage,
+        train_strategy=train_strategy,
+    )
+    coordinator.training_losses = (advantage_losses, strategy_losses)
+    agent.hu_coordinator = coordinator
+    return coordinator
+
+
+def _prepare_hu_current_policy_iteration(agent: DeepCFRAgent) -> None:
+    """Очищает только HU replay-буферы, не затрагивая legacy lifecycle."""
+    if not agent.advantage_buffer_reservoir:
+        for buffer in agent.hu_advantage_buffers:
+            buffer.clear()
+    if agent.clear_strategy_buffer_each_iteration:
+        agent.hu_strategy_buffer.clear()
+    agent.reset_traversal_stats()
+
+
+def _train_hu_current_policy_self_play(
+    *,
+    agent: DeepCFRAgent,
+    num_iterations: int,
+    traversals_per_iteration: int,
+    save_dir: str | Path,
+    evaluate_every: int,
+    evaluation_games: int,
+    num_players: int,
+    seed: int | None,
+    log_dir: str | Path | None,
+) -> DeepCFRAgent:
+    """Выполняет HU current-policy self-play без внешних opponent/checkpoint policy."""
+    del save_dir
+    coordinator = _create_hu_current_policy_coordinator(agent)
+    start_iteration = agent.iteration_count + 1
+    writer = _create_writer(log_dir)
+    try:
+        print(
+            "Старт HU current-policy self-play: "
+            f"итераций={num_iterations}, обходов/итерацию={traversals_per_iteration}, device={agent.device}"
+        )
+        for iteration in range(start_iteration, start_iteration + int(num_iterations)):
+            iteration_started = time.perf_counter()
+            agent.iteration_count = iteration
+            _prepare_hu_current_policy_iteration(agent)
+            print(f"\nИтерация {iteration} (HU current-policy self-play):")
+            traversal_started = time.perf_counter()
+            coordinator.run_iteration(
+                iteration=iteration,
+                traversals_per_player=traversals_per_iteration,
+                new_initial_state=lambda player_id, traversal_index: _new_hand(
+                    num_players,
+                    (seed or 0)
+                    + iteration * 2 * max(1, int(traversals_per_iteration))
+                    + player_id * max(1, int(traversals_per_iteration))
+                    + traversal_index,
+                ),
+                traversal_context=lambda: _traversal_thread_limit(
+                    bool(cfg_get("traversal_single_thread", True))
+                ),
+            )
+            traversal_elapsed = time.perf_counter() - traversal_started
+            advantage_losses, strategy_losses = coordinator.training_losses
+            advantage_loss = float(sum(advantage_losses) / len(advantage_losses))
+            strategy_loss = float(strategy_losses[-1]) if strategy_losses else 0.0
+            if writer is not None:
+                writer.add_scalar("Loss/Advantage", advantage_loss, iteration)
+                writer.add_scalar("Loss/Strategy", strategy_loss, iteration)
+                writer.add_scalar("Time/Traversal", traversal_elapsed, iteration)
+                writer.add_scalar("Train/AdvantageLearningRate", agent.optimizer.param_groups[0]["lr"], iteration)
+            if evaluate_every and iteration % int(evaluate_every) == 0:
+                evaluation = evaluate_against_random(
+                    agent, evaluation_games, num_players, return_stats=True
+                )
+                print(
+                    f"  Оценка против random: reward={evaluation['mean_reward']:.4f}, "
+                    f"raise_freq={evaluation['raise_frequency']:.3f}, игр={int(evaluation['games'])}"
+                )
+            if _checkpoint_save_due(iteration, int(cfg_get("checkpoint_save_every", 1000))):
+                print("  HU checkpoint отключён: сохранение двух advantage-ног будет добавлено отдельно.")
+            iteration_elapsed = time.perf_counter() - iteration_started
+            if writer is not None:
+                writer.add_scalar("Time/Iteration", iteration_elapsed, iteration)
+            print(_format_iteration_summary(
+                iteration_elapsed, traversal_elapsed, advantage_loss, strategy_loss, 0.0
+            ))
+    finally:
+        if writer is not None:
+            writer.flush()
+            writer.close()
+    return agent
+
+
 def train_self_play_multi(
     num_iterations: int = 1_000,
     traversals_per_iteration: int = 100,
@@ -607,6 +825,7 @@ def train_self_play_multi(
     opponent_checkpoint_dir: str | Path | None = None,
     trainable_players: int | None = None,
     teacher_strategy_checkpoint: str | Path | None = None,
+    hu_current_policy_self_play: bool | None = None,
     **_unused_options,
 ) -> DeepCFRAgent:
     """Обучает один общий action-only агент external-sampling Deep CFR."""
@@ -620,6 +839,32 @@ def train_self_play_multi(
         agent.num_trainable_players = max(1, min(int(trainable_players), agent.num_players))
     if teacher_strategy_checkpoint is None:
         teacher_strategy_checkpoint = cfg_get("teacher_strategy_checkpoint", None)
+    hu_current_policy_enabled = (
+        bool(cfg_get("hu_current_policy_self_play", False))
+        if hu_current_policy_self_play is None
+        else bool(hu_current_policy_self_play)
+    )
+    if hu_current_policy_enabled:
+        HuCurrentPolicySelfPlayCoordinator.validate_runtime_configuration(
+            enabled=True,
+            num_players=agent.num_players,
+            num_trainable_players=agent.num_trainable_players,
+            opponent_checkpoint_dir=opponent_checkpoint_dir,
+            teacher_strategy_checkpoint=teacher_strategy_checkpoint,
+        )
+        if initial_checkpoint is not None:
+            raise ValueError("HU current-policy self-play пока не поддерживает resume из checkpoint")
+        return _train_hu_current_policy_self_play(
+            agent=agent,
+            num_iterations=num_iterations,
+            traversals_per_iteration=traversals_per_iteration,
+            save_dir=save_dir,
+            evaluate_every=evaluate_every,
+            evaluation_games=evaluation_games,
+            num_players=num_players,
+            seed=seed,
+            log_dir=log_dir,
+        )
     if teacher_strategy_checkpoint:
         agent.load_teacher_strategy_checkpoint(teacher_strategy_checkpoint)
     opponent_state_cache: dict[Path, dict[str, torch.Tensor]] = {}
