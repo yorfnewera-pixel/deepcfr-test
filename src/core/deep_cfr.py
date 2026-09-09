@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import math
 import time
+from dataclasses import dataclass, field
+from numbers import Integral
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +25,7 @@ from src.core.action_space import (
 from src.core.buffers import AdvantageBuffer, StrategyBuffer
 from src.core.checkpointing import _resolve_model_save_path
 from src.core.model import PokerNetwork, encode_state, encode_state_with_position
+from src.core.traversal_errors import TraversalFailure, TraversalFailureContext
 from src.utils.config import (
     cfg_clear_strategy_buffer_each_iteration,
     cfg_get,
@@ -34,6 +37,18 @@ from src.utils.traversal_profiler import TRAVERSAL_PROFILER, profile_section
 
 
 CHECKPOINT_FORMAT_VERSION = 5
+
+
+@dataclass
+class _TraversalSampleCollector:
+    """Накапливает samples до успешного завершения корневого traversal."""
+
+    advantage_samples: list[tuple[np.ndarray, np.ndarray, np.ndarray, int]] = field(
+        default_factory=list
+    )
+    strategy_samples: list[tuple[np.ndarray, np.ndarray, np.ndarray, int]] = field(
+        default_factory=list
+    )
 
 
 class DeepCFRAgent:
@@ -130,6 +145,7 @@ class DeepCFRAgent:
         self.last_advantage_profile = None
         self.last_strategy_profile = None
         self._traversal_random_agent = None
+        self._active_traversal_collector: _TraversalSampleCollector | None = None
         self._opponent_policy_agents: dict[int, Any] = {}
         self._opponent_advantage_nets: dict[int, PokerNetwork] = {}
         self._opponent_strategy_nets: dict[int, PokerNetwork] = {}
@@ -454,7 +470,56 @@ class DeepCFRAgent:
             histogram = self.opponent_child_fanout
         histogram[count] = histogram.get(count, 0) + 1
 
+    def _raise_invalid_training_sample(self, iteration, reason):
+        raise TraversalFailure(
+            TraversalFailureContext(
+                iteration=iteration,
+                traversal_index=None,
+                traversing_player=self.player_id,
+                acting_player=None,
+                depth=0,
+                reason=reason,
+            )
+        )
+
+    def _validate_training_sample(self, state, values, mask, iteration, sample_kind):
+        if sample_kind not in {"advantage", "strategy"}:
+            self._raise_invalid_training_sample(iteration, "Неизвестный тип training sample")
+        if not isinstance(iteration, Integral) or isinstance(iteration, bool) or iteration < 1:
+            self._raise_invalid_training_sample(iteration, "Iteration должен быть целым числом не меньше 1")
+        for name, value, shape in (
+            ("state", state, (self.input_size,)),
+            ("values", values, (NUM_ACTIONS,)),
+            ("mask", mask, (NUM_ACTIONS,)),
+        ):
+            if not isinstance(value, np.ndarray) or value.dtype != np.float32:
+                self._raise_invalid_training_sample(iteration, f"{name} должен быть numpy array с dtype float32")
+            if value.shape != shape:
+                self._raise_invalid_training_sample(iteration, f"{name} имеет неверную форму {value.shape}")
+            if not np.all(np.isfinite(value)):
+                self._raise_invalid_training_sample(iteration, f"{name} содержит нечисловые значения")
+        if not np.all(np.isin(mask, (0.0, 1.0))):
+            self._raise_invalid_training_sample(iteration, "Mask должен содержать только 0 или 1")
+        legal_actions = mask == 1.0
+        if not np.any(legal_actions):
+            self._raise_invalid_training_sample(iteration, "Mask не содержит допустимых действий")
+        if sample_kind == "strategy":
+            if np.any(values < 0.0):
+                self._raise_invalid_training_sample(iteration, "Strategy не может содержать отрицательные вероятности")
+            if not np.allclose(values[~legal_actions], 0.0, atol=1e-6, rtol=0.0):
+                self._raise_invalid_training_sample(iteration, "Strategy содержит вероятность недопустимого действия")
+            if not np.isclose(values[legal_actions].sum(), 1.0, atol=1e-6, rtol=0.0):
+                self._raise_invalid_training_sample(iteration, "Сумма strategy по допустимым действиям должна быть равна 1")
+
     def _record_advantage_sample(self, state, regrets, mask, iteration):
+        self._validate_training_sample(state, regrets, mask, iteration, "advantage")
+        collector = self._active_traversal_collector
+        if collector is not None:
+            collector.advantage_samples.append((state, regrets, mask, iteration))
+            return
+        self._add_advantage_sample(state, regrets, mask, iteration)
+
+    def _add_advantage_sample(self, state, regrets, mask, iteration):
         status = self.advantage_buffer.add(state, regrets, mask, iteration)
         if status == "recorded":
             self.recorded_nodes += 1
@@ -463,6 +528,24 @@ class DeepCFRAgent:
             self.evicted_nodes += 1
         else:
             self.buffer_skip_nodes += 1
+
+    def _record_strategy_sample(self, state, strategy, mask, iteration):
+        self._validate_training_sample(state, strategy, mask, iteration, "strategy")
+        collector = self._active_traversal_collector
+        if collector is not None:
+            collector.strategy_samples.append((state, strategy, mask, iteration))
+            return
+        self.strategy_buffer.add(state, strategy, mask, iteration)
+
+    def _commit_traversal_collector(self, collector):
+        for sample in collector.advantage_samples:
+            self._validate_training_sample(*sample, "advantage")
+        for sample in collector.strategy_samples:
+            self._validate_training_sample(*sample, "strategy")
+        for sample in collector.advantage_samples:
+            self._add_advantage_sample(*sample)
+        for sample in collector.strategy_samples:
+            self.strategy_buffer.add(*sample)
 
     def get_traversal_stats(self):
         attempts = self.recorded_nodes + self.buffer_skip_nodes
@@ -509,13 +592,18 @@ class DeepCFRAgent:
         return self.cfr_traverse_multi(state, iteration, self.player_id, depth, random_agent)
 
     def cfr_traverse_multi(self, state, iteration, traversing_player, depth=0, random_agent=None):
-        if depth == 0:
-            self._traversal_random_agent = random_agent
-        try:
+        if depth != 0:
             return self._cfr_traverse_multi(state, iteration, traversing_player, depth)
+        collector = _TraversalSampleCollector()
+        self._active_traversal_collector = collector
+        self._traversal_random_agent = random_agent
+        try:
+            result = self._cfr_traverse_multi(state, iteration, traversing_player, depth)
+            self._commit_traversal_collector(collector)
+            return result
         finally:
-            if depth == 0:
-                self._traversal_random_agent = None
+            self._active_traversal_collector = None
+            self._traversal_random_agent = None
 
     def _cfr_traverse_multi(self, state, iteration, traversing_player, depth):
         self.traversal_nodes += 1
@@ -589,7 +677,7 @@ class DeepCFRAgent:
                 regrets[slot] = action_values[slot] - ev
             regrets = self._normalise_regrets(regrets, state, applied_slots)
             self._record_advantage_sample(encoded, regrets, applied_mask, iteration)
-            self.strategy_buffer.add(encoded, strategy, applied_mask, iteration)
+            self._record_strategy_sample(encoded, strategy, applied_mask, iteration)
             return ev
 
         self.traversal_opponent_decision_nodes += 1
