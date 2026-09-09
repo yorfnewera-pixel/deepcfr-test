@@ -1,0 +1,22 @@
+# Короткий воспроизводимый smoke baseline для HU current-policy self-play.
+num_actions: 6
+num_players: 2
+num_trainable_players: 2
+hu_current_policy_self_play: true
+encoding_version: history_summary_v3
+
+hidden_size: 32
+advantage_batch_size: 8
+strategy_batch_size: 8
+advantage_epochs: 1
+strategy_epochs: 1
+advantage_train_steps: 1
+strategy_train_steps: 1
+advantage_memory_size: 128
+strategy_memory_size: 128
+checkpoint_save_every: 1
+training_torch_threads: 1
+training_preload_to_device: false
+traversal_single_thread: true
+training_error_mode: strict
+training_max_failed_traversals_per_iteration: 0
