@@ -139,9 +139,8 @@ def _validated_source_card_encoder(
     _validate_hu_checkpoint_header(checkpoint)
     mode = _validate_hu_mode(checkpoint)
     _validate_hu_config(checkpoint, mode)
-    _validate_hu_full_training_state(checkpoint)
     strategy_architecture = _validate_hu_architecture(checkpoint)
-    strategy_state = _validate_strategy_state(checkpoint, strategy_architecture)
+    strategy_state = _validate_hu_full_training_state(checkpoint, strategy_architecture)
 
     return (
         {
@@ -204,7 +203,10 @@ def _validate_hu_config(checkpoint: dict[str, Any], mode: dict[str, Any]) -> Non
         raise ValueError("HU checkpoint имеет неполную конфигурацию")
 
 
-def _validate_hu_full_training_state(checkpoint: dict[str, Any]) -> None:
+def _validate_hu_full_training_state(
+    checkpoint: dict[str, Any],
+    strategy_architecture: dict[str, Any],
+) -> dict[str, torch.Tensor]:
     advantage_legs = checkpoint.get("advantage_legs")
     strategy = checkpoint.get("strategy")
     if not isinstance(advantage_legs, list) or len(advantage_legs) != 2 or not isinstance(strategy, dict):
@@ -214,52 +216,191 @@ def _validate_hu_full_training_state(checkpoint: dict[str, Any]) -> None:
         raise ValueError("HU checkpoint не содержит полный набор training state")
     if set(strategy) != {"network", "optimizer", "buffer"}:
         raise ValueError("HU checkpoint не содержит полный набор training state")
-    if any(
-        not _is_optimizer_state(leg["optimizer"])
-        or not _is_advantage_buffer_payload(leg["buffer"])
-        for leg in advantage_legs
-    ) or not _is_optimizer_state(strategy["optimizer"]) or not _is_strategy_buffer_payload(
-        strategy["buffer"]
-    ):
-        raise ValueError("HU checkpoint содержит повреждённый replay-буфер или optimizer")
-    rng = checkpoint.get("rng")
-    if not isinstance(rng, dict) or not {"python", "numpy", "torch_cpu"}.issubset(rng):
-        raise ValueError("HU checkpoint не содержит полное состояние RNG")
-
-
-def _is_optimizer_state(payload: object) -> bool:
-    return isinstance(payload, dict) and isinstance(payload.get("state"), dict) and isinstance(
-        payload.get("param_groups"), list
+    hidden_size = strategy_architecture["hidden_size"]
+    config = checkpoint["config"]
+    capacities = config["advantage_buffer_capacities"]
+    if not isinstance(capacities, list) or len(capacities) != 2:
+        raise ValueError("HU checkpoint имеет некорректную конфигурацию replay-буферов")
+    for index, leg in enumerate(advantage_legs):
+        _validate_network_state(leg["network"], _HU_INPUT_SIZE, hidden_size, "advantage")
+        _validate_network_state(leg["target_network"], _HU_INPUT_SIZE, hidden_size, "advantage")
+        _validate_optimizer_state(leg["optimizer"])
+        _validate_advantage_buffer(leg["buffer"], capacities[index])
+    strategy_state = _validate_network_state(
+        strategy["network"], _HU_STRATEGY_INPUT_SIZE, hidden_size, "strategy"
     )
+    _validate_optimizer_state(strategy["optimizer"])
+    _validate_strategy_buffer(strategy["buffer"], config["strategy_buffer_capacity"])
+    _validate_rng_state(checkpoint["rng"])
+    return strategy_state
 
 
-def _is_advantage_buffer_payload(payload: object) -> bool:
-    return _is_replay_buffer_payload(
+def _validate_network_state(
+    state: object,
+    input_size: int,
+    hidden_size: int,
+    network_kind: str,
+) -> dict[str, torch.Tensor]:
+    if not isinstance(state, dict) or set(state) != _STRATEGY_PARAMETER_NAMES:
+        raise ValueError(f"HU checkpoint содержит повреждённые {network_kind}-сети")
+    expected_shapes = {
+        "card_encoder.0.weight": (hidden_size, CARD_FEATURE_SIZE),
+        "card_encoder.0.bias": (hidden_size,),
+        "context_encoder.0.weight": (hidden_size, input_size - CARD_FEATURE_SIZE),
+        "context_encoder.0.bias": (hidden_size,),
+        "action_head.weight": (NUM_ACTIONS, hidden_size * 2),
+        "action_head.bias": (NUM_ACTIONS,),
+    }
+    for name, shape in expected_shapes.items():
+        value = state[name]
+        if not torch.is_tensor(value) or tuple(value.shape) != shape:
+            raise ValueError(f"HU checkpoint содержит повреждённые {network_kind}-сети")
+        if (
+            value.device.type != "cpu"
+            or value.layout != torch.strided
+            or value.dtype != torch.float32
+            or not value.is_contiguous()
+        ):
+            raise ValueError(f"HU checkpoint содержит недопустимый tensor {network_kind}-сети")
+    return state
+
+
+def _validate_optimizer_state(payload: object) -> None:
+    if not isinstance(payload, dict) or set(payload) != {"state", "param_groups"}:
+        raise ValueError("HU checkpoint содержит повреждённый optimizer")
+    state = payload["state"]
+    groups = payload["param_groups"]
+    if not isinstance(state, dict) or not state or not isinstance(groups, list) or not groups:
+        raise ValueError("HU checkpoint содержит повреждённый optimizer")
+    if any(not isinstance(group, dict) or not isinstance(group.get("params"), list) or not group["params"] for group in groups):
+        raise ValueError("HU checkpoint содержит повреждённый optimizer")
+
+
+def _validate_advantage_buffer(payload: object, capacity: object) -> None:
+    _validate_replay_buffer(
         payload,
-        {"capacity", "state_dim", "cur_id", "count", "eviction_count", "skip_count", "states", "regrets", "masks", "iterations"},
+        capacity,
+        _HU_INPUT_SIZE,
+        {
+            "states": (_HU_INPUT_SIZE, torch.float32),
+            "regrets": (NUM_ACTIONS, torch.float32),
+            "masks": (NUM_ACTIONS, torch.float32),
+            "iterations": (None, torch.float32),
+        },
     )
 
 
-def _is_strategy_buffer_payload(payload: object) -> bool:
-    return _is_replay_buffer_payload(
+def _validate_strategy_buffer(payload: object, capacity: object) -> None:
+    _validate_replay_buffer(
         payload,
-        {"capacity", "state_dim", "cur_id", "count", "eviction_count", "skip_count", "states", "actor_ids", "policies", "masks", "iterations"},
+        capacity,
+        _HU_INPUT_SIZE,
+        {
+            "states": (_HU_INPUT_SIZE, torch.float32),
+            "actor_ids": (None, torch.int64),
+            "policies": (NUM_ACTIONS, torch.float32),
+            "masks": (NUM_ACTIONS, torch.float32),
+            "iterations": (None, torch.float32),
+        },
     )
+    actor_ids = payload["actor_ids"]
+    if not bool(torch.all((actor_ids == 0) | (actor_ids == 1))):
+        raise ValueError("HU checkpoint содержит недопустимый actor_id replay-буфера")
 
 
-def _is_replay_buffer_payload(payload: object, expected_keys: set[str]) -> bool:
-    if not isinstance(payload, dict) or set(payload) != expected_keys:
-        return False
+def _validate_replay_buffer(
+    payload: object,
+    configured_capacity: object,
+    state_dim: int,
+    arrays: dict[str, tuple[int | None, torch.dtype]],
+) -> None:
+    required_keys = {"capacity", "state_dim", "cur_id", "count", "eviction_count", "skip_count", *arrays}
+    if not isinstance(payload, dict) or set(payload) != required_keys:
+        raise ValueError("HU checkpoint содержит повреждённый replay-буфер")
+    if isinstance(configured_capacity, bool) or not isinstance(configured_capacity, int):
+        raise ValueError("HU checkpoint имеет некорректную конфигурацию replay-буферов")
     for key in ("capacity", "state_dim", "cur_id", "count", "eviction_count", "skip_count"):
         if isinstance(payload[key], bool) or not isinstance(payload[key], int):
-            return False
+            raise ValueError("HU checkpoint содержит повреждённый replay-буфер")
     count = payload["count"]
-    if payload["capacity"] <= 0 or count < 0 or count > payload["capacity"] or payload["cur_id"] < count:
-        return False
-    return all(
-        torch.is_tensor(payload[key]) and payload[key].layout == torch.strided
-        for key in expected_keys - {"capacity", "state_dim", "cur_id", "count", "eviction_count", "skip_count"}
-    )
+    if (
+        payload["capacity"] != configured_capacity
+        or payload["capacity"] <= 0
+        or payload["state_dim"] != state_dim
+        or count < 0
+        or count > payload["capacity"]
+        or payload["cur_id"] < count
+        or payload["eviction_count"] < 0
+        or payload["skip_count"] < 0
+    ):
+        raise ValueError("HU checkpoint содержит повреждённый replay-буфер")
+    for key, (width, dtype) in arrays.items():
+        value = payload[key]
+        expected_shape = (count,) if width is None else (count, width)
+        if (
+            not torch.is_tensor(value)
+            or tuple(value.shape) != expected_shape
+            or value.device.type != "cpu"
+            or value.layout != torch.strided
+            or value.dtype != dtype
+            or not value.is_contiguous()
+        ):
+            raise ValueError("HU checkpoint содержит повреждённый replay-буфер")
+
+
+def _validate_rng_state(payload: object) -> None:
+    required_rng_keys = {"python", "numpy", "torch_cpu"}
+    if not isinstance(payload, dict) or not required_rng_keys.issubset(payload) or set(payload) - required_rng_keys - {"torch_cuda"}:
+        raise ValueError("HU checkpoint не содержит полное состояние RNG")
+    python_state = payload["python"]
+    if (
+        not isinstance(python_state, tuple)
+        or len(python_state) != 3
+        or isinstance(python_state[0], bool)
+        or not isinstance(python_state[0], int)
+        or not isinstance(python_state[1], tuple)
+        or not all(isinstance(value, int) and not isinstance(value, bool) for value in python_state[1])
+        or (python_state[2] is not None and not isinstance(python_state[2], float))
+    ):
+        raise ValueError("HU checkpoint содержит повреждённое RNG состояние")
+    numpy_state = payload["numpy"]
+    required_numpy_keys = {"algorithm", "state", "position", "has_gauss", "cached_gaussian"}
+    if not isinstance(numpy_state, dict) or set(numpy_state) != required_numpy_keys:
+        raise ValueError("HU checkpoint содержит повреждённое RNG состояние")
+    state = numpy_state["state"]
+    torch_cpu = payload["torch_cpu"]
+    if (
+        not isinstance(numpy_state["algorithm"], str)
+        or isinstance(numpy_state["position"], bool)
+        or not isinstance(numpy_state["position"], int)
+        or isinstance(numpy_state["has_gauss"], bool)
+        or not isinstance(numpy_state["has_gauss"], int)
+        or not isinstance(numpy_state["cached_gaussian"], float)
+        or not torch.is_tensor(state)
+        or state.device.type != "cpu"
+        or state.layout != torch.strided
+        or state.dtype != torch.uint32
+        or not state.is_contiguous()
+        or not torch.is_tensor(torch_cpu)
+        or torch_cpu.device.type != "cpu"
+        or torch_cpu.layout != torch.strided
+        or torch_cpu.dtype != torch.uint8
+        or not torch_cpu.is_contiguous()
+    ):
+        raise ValueError("HU checkpoint содержит повреждённое RNG состояние")
+    cuda_state = payload.get("torch_cuda")
+    if cuda_state is not None and (
+        not isinstance(cuda_state, list)
+        or any(
+            not torch.is_tensor(value)
+            or value.device.type != "cpu"
+            or value.layout != torch.strided
+            or value.dtype != torch.uint8
+            or not value.is_contiguous()
+            for value in cuda_state
+        )
+    ):
+        raise ValueError("HU checkpoint содержит повреждённое RNG состояние")
 
 
 def _validate_hu_architecture(checkpoint: dict[str, Any]) -> dict[str, Any]:
@@ -293,32 +434,6 @@ def _validate_network_architecture(schema: object, input_size: int, hidden_size:
     }
     if schema != expected_schema:
         raise ValueError("HU checkpoint имеет несовместимую архитектуру сети")
-
-
-def _validate_strategy_state(
-    checkpoint: dict[str, Any],
-    strategy_architecture: dict[str, Any],
-) -> dict[str, torch.Tensor]:
-    strategy = checkpoint["strategy"]
-    strategy_state = strategy["network"]
-    if not isinstance(strategy_state, dict) or set(strategy_state) != _STRATEGY_PARAMETER_NAMES:
-        raise ValueError("HU checkpoint содержит некорректные strategy-веса")
-    hidden_size = strategy_architecture["hidden_size"]
-    expected_shapes = {
-        "card_encoder.0.weight": (hidden_size, CARD_FEATURE_SIZE),
-        "card_encoder.0.bias": (hidden_size,),
-        "context_encoder.0.weight": (hidden_size, _HU_STRATEGY_INPUT_SIZE - CARD_FEATURE_SIZE),
-        "context_encoder.0.bias": (hidden_size,),
-        "action_head.weight": (NUM_ACTIONS, hidden_size * 2),
-        "action_head.bias": (NUM_ACTIONS,),
-    }
-    for name, shape in expected_shapes.items():
-        value = strategy_state[name]
-        if not torch.is_tensor(value) or tuple(value.shape) != shape:
-            raise ValueError(f"HU checkpoint имеет несовместимый параметр strategy: {name}")
-        if value.layout != torch.strided or value.dtype != torch.float32 or not value.is_contiguous():
-            raise ValueError(f"HU checkpoint содержит недопустимый tensor strategy: {name}")
-    return strategy_state
 
 
 def _validated_student_card_encoder(
