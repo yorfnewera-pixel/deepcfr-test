@@ -16,6 +16,7 @@ fn pokers(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<state::action::ActionEnum>()?;
     m.add_class::<state::action::Action>()?;
     m.add_class::<state::action::ActionRecord>()?;
+    m.add_class::<state::action::PublicActionRecord>()?;
     m.add_class::<state::card::Card>()?;
     m.add_class::<state::card::CardSuit>()?;
     m.add_class::<state::card::CardRank>()?;

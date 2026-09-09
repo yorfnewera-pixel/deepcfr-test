@@ -1,3 +1,4 @@
+import copy
 import json
 from pathlib import Path
 
@@ -128,6 +129,58 @@ def test_illegal_actions():
     all_in_state = state.apply_action(pkrs.Action(pkrs.ActionEnum.Raise, amount=101))
     assert all_in_state.status == pkrs.StateStatus.Ok
     assert all_in_state.players_state[state.current_player].stake == 0.0
+
+
+def test_public_action_history_records_only_successful_transitions():
+    state = pkrs.State.from_seed(
+        n_players=2, button=0, sb=1.0, bb=2.0, stake=20.0, seed=7
+    )
+
+    assert state.action_history_complete is True
+    assert state.action_history == []
+
+    illegal = state.apply_action(pkrs.Action(pkrs.ActionEnum.Check))
+    assert illegal.status == pkrs.StateStatus.IllegalAction
+    assert illegal.action_history == []
+
+    next_state = state.apply_action(pkrs.Action(pkrs.ActionEnum.Call))
+    assert next_state.status == pkrs.StateStatus.Ok
+    assert len(next_state.action_history) == 1
+
+    record = next_state.action_history[0]
+    assert record.actor_id == state.current_player
+    assert record.street == pkrs.Stage.Preflop
+    assert record.requested_action.action == pkrs.ActionEnum.Call
+    assert record.paid_amount == 1.0
+    assert record.applied_raise_increment == 0.0
+    assert record.is_effective_raise is False
+
+
+def test_public_action_history_uses_actual_short_all_in_raise_amounts():
+    state = pkrs.State.from_seed(
+        n_players=2, button=0, sb=1.0, bb=2.0, stake=3.0, seed=11
+    )
+
+    next_state = state.apply_action(pkrs.Action(pkrs.ActionEnum.Raise, amount=100.0))
+
+    assert next_state.status == pkrs.StateStatus.Ok
+    record = next_state.action_history[0]
+    assert record.requested_action.amount == 100.0
+    assert record.paid_amount == 2.0
+    assert record.applied_raise_increment == 1.0
+    assert record.is_effective_raise is True
+
+
+def test_public_action_history_survives_state_copy():
+    state = pkrs.State.from_seed(
+        n_players=2, button=0, sb=1.0, bb=2.0, stake=20.0, seed=13
+    ).apply_action(pkrs.Action(pkrs.ActionEnum.Call))
+
+    copied = copy.copy(state)
+
+    assert copied.action_history_complete is True
+    assert len(copied.action_history) == 1
+    assert copied.action_history[0].actor_id == state.action_history[0].actor_id
 
 
 def test_forced_checkdown_runs_out_to_showdown():

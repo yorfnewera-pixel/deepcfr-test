@@ -5,7 +5,7 @@ use pyo3::prelude::*;
 pub mod action;
 pub mod card;
 pub mod stage;
-use action::{ActionEnum, ActionRecord};
+use action::{ActionEnum, ActionRecord, PublicActionRecord};
 use card::Card;
 use stage::Stage;
 
@@ -30,6 +30,12 @@ pub struct State {
 
     #[pyo3(get, set)]
     pub from_action: Option<ActionRecord>,
+
+    #[pyo3(get)]
+    pub action_history: Vec<PublicActionRecord>,
+
+    #[pyo3(get)]
+    pub action_history_complete: bool,
 
     #[pyo3(get, set)]
     pub legal_actions: Vec<ActionEnum>,

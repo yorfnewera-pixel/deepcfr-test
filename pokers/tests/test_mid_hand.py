@@ -29,6 +29,8 @@ def test_from_mid_hand_preserves_folded_players_and_turn_owner():
     assert [p.active for p in state.players_state] == [True, True, False]
     assert state.last_raise_increment == 2.0
     assert pkrs.ActionEnum.Fold not in state.legal_actions
+    assert state.action_history_complete is False
+    assert state.action_history == []
 
 
 def test_short_all_in_call_uses_remaining_stack_without_reopening_betting():

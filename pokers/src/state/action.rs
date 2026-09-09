@@ -55,3 +55,21 @@ pub struct ActionRecord {
     #[pyo3(get, set)]
     pub legal_actions: Vec<ActionEnum>,
 }
+
+#[pyclass]
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(test, derive(Arbitrary))]
+pub struct PublicActionRecord {
+    #[pyo3(get)]
+    pub actor_id: u64,
+    #[pyo3(get)]
+    pub street: Stage,
+    #[pyo3(get)]
+    pub requested_action: Action,
+    #[pyo3(get)]
+    pub paid_amount: f64,
+    #[pyo3(get)]
+    pub applied_raise_increment: f64,
+    #[pyo3(get)]
+    pub is_effective_raise: bool,
+}

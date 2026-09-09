@@ -5,7 +5,7 @@ use pyo3::prelude::*;
 use rand::{seq::SliceRandom, SeedableRng};
 use strum::IntoEnumIterator;
 
-use crate::state::action::{Action, ActionEnum, ActionRecord};
+use crate::state::action::{Action, ActionEnum, ActionRecord, PublicActionRecord};
 use crate::state::card::{Card, CardRank, CardSuit};
 use crate::state::stage::Stage;
 use crate::state::{PlayerState, State, StateStatus};
@@ -139,6 +139,8 @@ impl State {
             stage: Stage::Preflop,
             button: button,
             from_action: None,
+            action_history: Vec::new(),
+            action_history_complete: true,
             legal_actions: Vec::new(),
             deck: deck,
             final_state: false,
@@ -303,6 +305,8 @@ impl State {
             stage,
             button,
             from_action: None,
+            action_history: Vec::new(),
+            action_history_complete: false,
             legal_actions: Vec::new(),
             deck,
             final_state: false,
@@ -353,6 +357,9 @@ impl State {
             };
         }
 
+        let mut paid_amount = 0.0;
+        let mut applied_raise_increment = 0.0;
+        let mut is_effective_raise = false;
         match action.action {
             ActionEnum::Fold => {
                 new_state.players_state[player].active = false;
@@ -367,6 +374,7 @@ impl State {
                 // all-in call legal instead of creating a negative stack.
                 let call_amount = (self.min_bet - self.players_state[player].bet_chips).max(0.0);
                 let paid = call_amount.min(self.players_state[player].stake);
+                paid_amount = paid;
                 new_state.players_state[player].bet_chips += paid;
                 new_state.players_state[player].stake =
                     (self.players_state[player].stake - paid).max(0.0);
@@ -379,6 +387,8 @@ impl State {
                 let bet = requested_bet.min(available);
                 let is_all_in = available - bet <= CHIP_EPSILON;
                 let actual_raise_increment = (bet - call_amount).max(0.0);
+                paid_amount = bet;
+                applied_raise_increment = actual_raise_increment;
                 let min_raise_increment = self.last_raise_increment.max(self.bb);
 
                 if !is_all_in && actual_raise_increment + CHIP_EPSILON < min_raise_increment {
@@ -393,6 +403,7 @@ impl State {
                 new_state.players_state[player].stake = (available - bet).max(0.0);
                 new_state.pot += bet;
                 if new_state.players_state[player].bet_chips > self.min_bet + CHIP_EPSILON {
+                    is_effective_raise = true;
                     new_state.min_bet = new_state.players_state[player].bet_chips;
                     // A short all-in does not redefine the minimum full raise.
                     if actual_raise_increment + CHIP_EPSILON >= min_raise_increment {
@@ -403,6 +414,15 @@ impl State {
 
             ActionEnum::Check => (),
         };
+
+        new_state.action_history.push(PublicActionRecord {
+            actor_id: self.current_player,
+            street: self.stage,
+            requested_action: action,
+            paid_amount,
+            applied_raise_increment,
+            is_effective_raise,
+        });
 
         new_state.players_state[player].last_stage_action = Some(action.action);
 
