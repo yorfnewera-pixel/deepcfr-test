@@ -934,6 +934,19 @@ class DeepCFRAgent:
     def train_advantage_network(self, *args, **kwargs):
         return self.train_advantage_network_multi(*args, **kwargs)
 
+    def _assert_finite_training_tensors(self, loss, parameters, optimizer, stage):
+        loss_is_finite = bool(torch.isfinite(loss).all())
+        gradients_are_finite = all(
+            parameter.grad is None or bool(torch.isfinite(parameter.grad).all())
+            for parameter in parameters
+        )
+        if loss_is_finite and gradients_are_finite:
+            return
+        optimizer.zero_grad(set_to_none=True)
+        raise FloatingPointError(
+            f"Обнаружены NaN или Inf на этапе {stage}"
+        )
+
     def train_advantage_network_multi(self, batch_size=None, epochs=None, player_id=0):
         del player_id
         batch_size = int(batch_size or self.advantage_batch_size)
@@ -1003,9 +1016,16 @@ class DeepCFRAgent:
                 loss = F.smooth_l1_loss(predictions * mask_t, targets * mask_t, beta=self.advantage_huber_delta)
             else:
                 loss = F.mse_loss(predictions * mask_t, targets * mask_t)
+            parameters = tuple(self.advantage_net.parameters())
             self.optimizer.zero_grad()
+            self._assert_finite_training_tensors(
+                loss, parameters, self.optimizer, "обучения сети преимуществ"
+            )
             loss.backward()
-            torch.nn.utils.clip_grad_norm_(self.advantage_net.parameters(), max_norm=1.0)
+            self._assert_finite_training_tensors(
+                loss, parameters, self.optimizer, "обучения сети преимуществ"
+            )
+            torch.nn.utils.clip_grad_norm_(parameters, max_norm=1.0)
             self.optimizer.step()
             total_loss += float(loss.item())
             steps += 1
@@ -1110,9 +1130,16 @@ class DeepCFRAgent:
                     / torch.clamp(weights.sum(), min=1e-8)
                 ) * (temperature ** 2)
             loss = supervised_loss + float(distillation_lambda) * distillation_loss
+            parameters = tuple(self.strategy_net.parameters())
             self.strategy_optimizer.zero_grad()
+            self._assert_finite_training_tensors(
+                loss, parameters, self.strategy_optimizer, "обучения сети стратегии"
+            )
             loss.backward()
-            torch.nn.utils.clip_grad_norm_(self.strategy_net.parameters(), max_norm=0.5)
+            self._assert_finite_training_tensors(
+                loss, parameters, self.strategy_optimizer, "обучения сети стратегии"
+            )
+            torch.nn.utils.clip_grad_norm_(parameters, max_norm=0.5)
             self.strategy_optimizer.step()
             total_loss += float(loss.item())
             total_supervised_loss += float(supervised_loss.item())

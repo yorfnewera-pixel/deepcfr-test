@@ -1072,6 +1072,77 @@ def test_dcfr_plus_advantage_discount_uses_unit_denominator():
     assert loss == pytest.approx((0.5 ** 2) / NUM_ACTIONS)
 
 
+def test_advantage_training_stops_before_optimizer_step_on_nonfinite_loss(monkeypatch):
+    agent = DeepCFRAgent(player_id=0, num_players=2, device="cpu")
+    agent.advantage_train_steps = 1
+    agent.advantage_buffer.add(
+        np.zeros(agent.input_size, dtype=np.float32),
+        np.full(NUM_ACTIONS, np.nan, dtype=np.float32),
+        np.ones(NUM_ACTIONS, dtype=np.float32),
+        1,
+    )
+
+    monkeypatch.setattr(
+        agent.optimizer,
+        "step",
+        lambda: pytest.fail("optimizer.step не должен вызываться при NaN loss"),
+    )
+
+    with pytest.raises(FloatingPointError, match="сети преимуществ"):
+        agent.train_advantage_network_multi(batch_size=1)
+
+    assert all(parameter.grad is None for parameter in agent.advantage_net.parameters())
+
+
+def test_strategy_training_stops_before_optimizer_step_on_nonfinite_loss(monkeypatch):
+    agent = DeepCFRAgent(player_id=0, num_players=2, device="cpu")
+    agent.strategy_train_steps = 1
+    agent.strategy_buffer.add(
+        np.zeros(agent.input_size, dtype=np.float32),
+        np.full(NUM_ACTIONS, np.nan, dtype=np.float32),
+        np.ones(NUM_ACTIONS, dtype=np.float32),
+        1,
+    )
+
+    monkeypatch.setattr(
+        agent.strategy_optimizer,
+        "step",
+        lambda: pytest.fail("optimizer.step не должен вызываться при NaN loss"),
+    )
+
+    with pytest.raises(FloatingPointError, match="сети стратегии"):
+        agent.train_strategy_network(batch_size=1)
+
+    assert all(parameter.grad is None for parameter in agent.strategy_net.parameters())
+
+
+def test_advantage_training_stops_before_optimizer_step_on_nonfinite_gradient(monkeypatch):
+    agent = DeepCFRAgent(player_id=0, num_players=2, device="cpu")
+    agent.advantage_train_steps = 1
+    agent.advantage_buffer.add(
+        np.zeros(agent.input_size, dtype=np.float32),
+        np.zeros(NUM_ACTIONS, dtype=np.float32),
+        np.ones(NUM_ACTIONS, dtype=np.float32),
+        1,
+    )
+    hook = next(agent.advantage_net.parameters()).register_hook(
+        lambda gradient: torch.full_like(gradient, torch.nan)
+    )
+    monkeypatch.setattr(
+        agent.optimizer,
+        "step",
+        lambda: pytest.fail("optimizer.step не должен вызываться при NaN градиенте"),
+    )
+
+    try:
+        with pytest.raises(FloatingPointError, match="сети преимуществ"):
+            agent.train_advantage_network_multi(batch_size=1)
+    finally:
+        hook.remove()
+
+    assert all(parameter.grad is None for parameter in agent.advantage_net.parameters())
+
+
 def test_checkpoint_opponent_strategy_uses_strategy_net_not_advantage_net(monkeypatch):
     state = pkrs.State.from_seed(
         n_players=2, button=0, sb=1.0, bb=2.0, stake=200.0, seed=11
