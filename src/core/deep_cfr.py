@@ -23,7 +23,7 @@ from src.core.action_space import (
     legal_action_mask,
     resolve_action,
 )
-from src.core.buffers import AdvantageBuffer, StrategyBuffer
+from src.core.buffers import AdvantageBuffer, DuelingAdvantageBuffer, StrategyBuffer
 from src.core.checkpointing import _resolve_model_save_path
 from src.core.model import (
     CARD_CONTEXT_ARCHITECTURE,
@@ -31,6 +31,7 @@ from src.core.model import (
     HISTORY_SUMMARY_V3_ENCODING_VERSION,
     MONOLITHIC_ARCHITECTURE,
     NETWORK_ARCHITECTURES,
+    DuelingRegretNetwork,
     PokerNetwork,
     encoder_input_size,
     encode_state_for_version,
@@ -140,6 +141,9 @@ class _TraversalSampleCollector:
     advantage_samples: list[tuple[np.ndarray, np.ndarray, np.ndarray, int]] = field(
         default_factory=list
     )
+    d2cfr_advantage_samples: list[
+        tuple[np.ndarray, np.ndarray, np.float32, np.ndarray, np.ndarray, int]
+    ] = field(default_factory=list)
     strategy_samples: list[tuple[np.ndarray, np.ndarray, np.ndarray, int]] = field(
         default_factory=list
     )
@@ -181,21 +185,26 @@ class DeepCFRAgent:
             else cfg_get("network_architecture", MONOLITHIC_ARCHITECTURE)
         )
 
-        self.advantage_net = PokerNetwork(
-            self.input_size, hidden_size, NUM_ACTIONS, self.network_architecture
-        ).to(self.device)
-        self.advantage_target_net = PokerNetwork(
-            self.input_size, hidden_size, NUM_ACTIONS, self.network_architecture
-        ).to(self.device)
-        self.advantage_target_net.load_state_dict(self.advantage_net.state_dict())
-        self.advantage_target_net.eval()
-        for parameter in self.advantage_target_net.parameters():
-            parameter.requires_grad_(False)
-        self.optimizer = optim.AdamW(
-            self.advantage_net.parameters(),
-            lr=float(cfg_get("advantage_lr", 1e-4)),
-            weight_decay=float(cfg_get("advantage_weight_decay", 1e-5)),
+        self.d2cfr_enabled = bool(cfg_get("d2cfr_enabled", False))
+        self.d2cfr_regret_loss_weight = float(cfg_get("d2cfr_regret_loss_weight", 1.0))
+        self.d2cfr_state_value_loss_weight = float(cfg_get("d2cfr_state_value_loss_weight", 1.0))
+        self.d2cfr_action_value_loss_weight = float(cfg_get("d2cfr_action_value_loss_weight", 1.0))
+        self.d2cfr_reinitialize_each_iteration = bool(
+            cfg_get("d2cfr_reinitialize_each_iteration", True)
         )
+        self.d2cfr_iteration_weight_power = float(cfg_get("d2cfr_iteration_weight_power", 1.0))
+        self.advantage_hidden_size = hidden_size
+        self.advantage_lr = float(cfg_get("advantage_lr", 1e-4))
+        self.advantage_weight_decay = float(cfg_get("advantage_weight_decay", 1e-5))
+        self.advantage_net = self._new_advantage_network()
+        self.advantage_target_net = None
+        if not self.d2cfr_enabled:
+            self.advantage_target_net = self._new_advantage_network()
+            self.advantage_target_net.load_state_dict(self.advantage_net.state_dict())
+            self.advantage_target_net.eval()
+            for parameter in self.advantage_target_net.parameters():
+                parameter.requires_grad_(False)
+        self.optimizer = self._new_advantage_optimizer(self.advantage_net)
         self.strategy_net = PokerNetwork(
             self.input_size, hidden_size, NUM_ACTIONS, self.network_architecture
         ).to(self.device)
@@ -221,7 +230,12 @@ class DeepCFRAgent:
 
         advantage_memory_size = int(memory_size or cfg_get("advantage_memory_size", 300000))
         strategy_memory_size = int(cfg_get("strategy_memory_size", 300000))
-        self.advantage_buffer = AdvantageBuffer(advantage_memory_size, self.input_size, NUM_ACTIONS)
+        self.advantage_buffer = (
+            DuelingAdvantageBuffer(advantage_memory_size, self.input_size, NUM_ACTIONS)
+            if self.d2cfr_enabled
+            else AdvantageBuffer(advantage_memory_size, self.input_size, NUM_ACTIONS)
+        )
+        self.d2cfr_buffer = self.advantage_buffer if self.d2cfr_enabled else None
         self.strategy_buffer = StrategyBuffer(
             strategy_memory_size,
             self.input_size,
@@ -277,6 +291,22 @@ class DeepCFRAgent:
         if network.architecture == CARD_CONTEXT_ARCHITECTURE:
             return int(network.card_encoder[0].out_features)
         return int(network.base[0].out_features)
+
+    def _new_advantage_network(self):
+        network_type = DuelingRegretNetwork if self.d2cfr_enabled else PokerNetwork
+        return network_type(
+            self.input_size,
+            self.advantage_hidden_size,
+            NUM_ACTIONS,
+            self.network_architecture,
+        ).to(self.device)
+
+    def _new_advantage_optimizer(self, network):
+        return optim.AdamW(
+            network.parameters(),
+            lr=self.advantage_lr,
+            weight_decay=self.advantage_weight_decay,
+        )
 
     def _network_metadata(self):
         metadata = {"network_architecture": self.network_architecture}
@@ -814,7 +844,7 @@ class DeepCFRAgent:
 
     def prepare_iteration(self, iteration, traversing_player):
         del iteration, traversing_player
-        if not self.advantage_buffer_reservoir:
+        if not self.d2cfr_enabled and not self.advantage_buffer_reservoir:
             self.advantage_buffer.clear()
         if self.clear_strategy_buffer_each_iteration:
             self.strategy_buffer.clear()
@@ -938,8 +968,62 @@ class DeepCFRAgent:
             return
         self._add_advantage_sample(state, regrets, mask, iteration)
 
+    @staticmethod
+    def _new_traversal_sample_collector():
+        return _TraversalSampleCollector()
+
+    def _validate_d2cfr_training_sample(
+        self, state, action_values, state_value, regrets, mask, iteration
+    ):
+        if not isinstance(self.d2cfr_buffer, DuelingAdvantageBuffer):
+            self._raise_invalid_training_sample(iteration, "D2CFR буфер не инициализирован")
+        try:
+            state_value_array = np.asarray(state_value, dtype=np.float32)
+        except (TypeError, ValueError, OverflowError) as error:
+            self._raise_invalid_training_sample(iteration, f"D2CFR V не преобразуется: {error}")
+        self._validate_training_sample(state, regrets, mask, iteration, "advantage")
+        for name, value, shape in (
+            ("D2CFR Q", action_values, (NUM_ACTIONS,)),
+            ("D2CFR V", state_value_array, ()),
+        ):
+            if not isinstance(value, np.ndarray) or value.dtype != np.float32:
+                self._raise_invalid_training_sample(iteration, f"{name} должен быть numpy array с dtype float32")
+            if value.shape != shape:
+                self._raise_invalid_training_sample(iteration, f"{name} имеет неверную форму {value.shape}")
+            if not np.all(np.isfinite(value)):
+                self._raise_invalid_training_sample(iteration, f"{name} содержит нечисловые значения")
+
+    def _record_d2cfr_advantage_sample(
+        self, state, action_values, state_value, regrets, mask, iteration
+    ):
+        state_value_array = np.asarray(state_value, dtype=np.float32)
+        self._validate_d2cfr_training_sample(
+            state, action_values, state_value_array, regrets, mask, iteration
+        )
+        sample = (state, action_values, state_value_array, regrets, mask, iteration)
+        collector = self._active_traversal_collector
+        if collector is not None:
+            collector.d2cfr_advantage_samples.append(sample)
+            return
+        self._add_d2cfr_advantage_sample(*sample)
+
     def _add_advantage_sample(self, state, regrets, mask, iteration):
         status = self.advantage_buffer.add(state, regrets, mask, iteration)
+        if status == "recorded":
+            self.recorded_nodes += 1
+        elif status == "evicted":
+            self.recorded_nodes += 1
+            self.evicted_nodes += 1
+        else:
+            self.buffer_skip_nodes += 1
+
+    def _add_d2cfr_advantage_sample(
+        self, state, action_values, state_value, regrets, mask, iteration
+    ):
+        assert isinstance(self.d2cfr_buffer, DuelingAdvantageBuffer)
+        status = self.d2cfr_buffer.add(
+            state, action_values, state_value, regrets, mask, iteration
+        )
         if status == "recorded":
             self.recorded_nodes += 1
         elif status == "evicted":
@@ -959,10 +1043,14 @@ class DeepCFRAgent:
     def _commit_traversal_collector(self, collector):
         for sample in collector.advantage_samples:
             self._validate_training_sample(*sample, "advantage")
+        for sample in collector.d2cfr_advantage_samples:
+            self._validate_d2cfr_training_sample(*sample)
         for sample in collector.strategy_samples:
             self._validate_training_sample(*sample, "strategy")
         for sample in collector.advantage_samples:
             self._add_advantage_sample(*sample)
+        for sample in collector.d2cfr_advantage_samples:
+            self._add_d2cfr_advantage_sample(*sample)
         for sample in collector.strategy_samples:
             self.strategy_buffer.add(*sample)
 
@@ -1016,6 +1104,37 @@ class DeepCFRAgent:
             result /= self.advantage_reward_scale
         return result.astype(np.float32)
 
+    def _advantage_target_scale(self, regrets, state, legal_slots):
+        """Возвращает общий линейный знаменатель D2-целей в одном infoset."""
+        scale = 1.0
+        if self.advantage_regret_norm == "pot_stack":
+            player = state.players_state[int(state.current_player)]
+            scale *= max(float(state.pot) + float(player.stake), 1.0)
+        elif self.advantage_regret_norm == "per_node_max" and legal_slots:
+            legal_regrets = np.asarray(regrets, dtype=np.float32)[legal_slots]
+            scale *= max(float(np.max(np.abs(legal_regrets))), 1.0)
+        scale *= self.advantage_reward_scale
+        if not math.isfinite(scale) or scale <= 0.0:
+            raise ValueError("D2CFR получил некорректный коэффициент нормализации targets")
+        return float(scale)
+
+    def _normalise_d2cfr_targets(self, action_values, state_value, state, legal_slots):
+        """Нормализует Q, V и R одним знаменателем, сохраняя R=Q-V на legal slots."""
+        action_array = np.asarray(action_values, dtype=np.float32)
+        if action_array.shape != (NUM_ACTIONS,) or not np.all(np.isfinite(action_array)):
+            raise ValueError("D2CFR action_values должны быть конечным вектором из шести действий")
+        state_value = float(state_value)
+        if not math.isfinite(state_value):
+            raise ValueError("D2CFR state_value должен быть конечным")
+        legal_mask = np.zeros(NUM_ACTIONS, dtype=np.float32)
+        legal_mask[np.asarray(legal_slots, dtype=np.intp)] = 1.0
+        raw_regrets = action_array - state_value
+        scale = self._advantage_target_scale(raw_regrets, state, legal_slots)
+        action_targets = (action_array / scale).astype(np.float32)
+        state_target = np.float32(state_value / scale)
+        regret_targets = ((action_array - state_value) / scale * legal_mask).astype(np.float32)
+        return action_targets, state_target, regret_targets
+
     def cfr_traverse(self, state, iteration, random_agents, depth=0):
         random_agent = random_agents[-1] if random_agents else None
         return self.cfr_traverse_multi(state, iteration, self.player_id, depth, random_agent)
@@ -1031,7 +1150,7 @@ class DeepCFRAgent:
     ):
         if depth != 0:
             return self._cfr_traverse_multi(state, iteration, traversing_player, depth)
-        collector = _TraversalSampleCollector()
+        collector = self._new_traversal_sample_collector()
         previous_traversal_index = self._active_traversal_index
         self._active_traversal_collector = collector
         self._traversal_random_agent = random_agent
@@ -1042,7 +1161,9 @@ class DeepCFRAgent:
             return result
         except TraversalFailure:
             self.traversal_cancelled_samples += (
-                len(collector.advantage_samples) + len(collector.strategy_samples)
+                len(collector.advantage_samples)
+                + len(collector.d2cfr_advantage_samples)
+                + len(collector.strategy_samples)
             )
             raise
         finally:
@@ -1296,8 +1417,21 @@ class DeepCFRAgent:
             regrets = np.zeros(NUM_ACTIONS, dtype=np.float32)
             for slot in applied_slots:
                 regrets[slot] = action_values[slot] - ev
-            regrets = self._normalise_regrets(regrets, state, applied_slots)
-            self._record_advantage_sample(encoded, regrets, applied_mask, iteration)
+            if self.d2cfr_enabled:
+                action_targets, state_target, regret_targets = self._normalise_d2cfr_targets(
+                    action_values, ev, state, applied_slots
+                )
+                self._record_d2cfr_advantage_sample(
+                    encoded,
+                    action_targets,
+                    state_target,
+                    regret_targets,
+                    applied_mask,
+                    iteration,
+                )
+            else:
+                regrets = self._normalise_regrets(regrets, state, applied_slots)
+                self._record_advantage_sample(encoded, regrets, applied_mask, iteration)
             self._record_strategy_sample(encoded, strategy, applied_mask, iteration)
             return ev
 
@@ -1415,7 +1549,139 @@ class DeepCFRAgent:
             f"Обнаружены NaN или Inf на этапе {stage}"
         )
 
+    @staticmethod
+    def _d2cfr_masked_weighted_mse(predictions, targets, masks, weights):
+        squared_error = (predictions - targets).square() * masks
+        legal_counts = masks.sum(dim=1).clamp_min(1.0)
+        per_sample = squared_error.sum(dim=1) / legal_counts
+        return (per_sample * weights).sum() / weights.sum().clamp_min(1e-12)
+
+    @staticmethod
+    def _d2cfr_weighted_mse(predictions, targets, weights):
+        squared_error = (predictions - targets).square()
+        return (squared_error * weights).sum() / weights.sum().clamp_min(1e-12)
+
+    def train_d2cfr_advantage_network_multi(self, batch_size=None, epochs=None, player_id=0):
+        del player_id
+        if not self.d2cfr_enabled or not isinstance(self.d2cfr_buffer, DuelingAdvantageBuffer):
+            raise RuntimeError("D2CFR обучение доступно только при d2cfr_enabled")
+        batch_size = int(batch_size or self.advantage_batch_size)
+        epochs = int(epochs or self.advantage_epochs)
+        count = len(self.d2cfr_buffer)
+        if count == 0:
+            self.last_advantage_train_steps = 0
+            self.last_advantage_effective_batch_size = 0
+            return 0.0
+        if self.d2cfr_reinitialize_each_iteration:
+            self.advantage_net = self._new_advantage_network()
+            self.optimizer = self._new_advantage_optimizer(self.advantage_net)
+
+        effective_batch = min(batch_size, count)
+        samples = self.d2cfr_buffer.sample(count)
+        if samples is None:
+            return 0.0
+        states, action_values, state_values, regrets, masks, iterations = samples
+        self.advantage_net.train()
+        total_loss, steps = 0.0, 0
+        loss_totals = {"regret_loss": 0.0, "state_value_loss": 0.0, "action_value_loss": 0.0}
+        iteration_now = max(int(self.iteration_count), 1)
+        configured_steps = self.advantage_train_steps
+        preloaded = self._preload_training_arrays(
+            (states, action_values, state_values, regrets, masks, iterations),
+            "d2cfr advantage",
+        )
+        self._synchronize_training_device()
+        started = time.perf_counter()
+        batch_iterator = (
+            self._fixed_step_batches(count, batch_size, configured_steps)
+            if configured_steps is not None
+            else self._full_epoch_batches(count, effective_batch, epochs)
+        )
+        fixed_preload_steps = (
+            int(configured_steps or 0)
+            if preloaded is not None and configured_steps is not None
+            else 0
+        )
+        preloaded_values = preloaded or (None,) * 6
+        step_source = range(max(0, fixed_preload_steps)) if fixed_preload_steps else batch_iterator
+        for item in step_source:
+            if fixed_preload_steps:
+                index_t = self._training_indices(count, batch_size)
+                batch = tuple(value.index_select(0, index_t) for value in preloaded_values)
+            else:
+                _, indices = item
+                if preloaded is None:
+                    batch = tuple(
+                        torch.from_numpy(array[indices].copy()).to(self.device)
+                        for array in (states, action_values, state_values, regrets, masks, iterations)
+                    )
+                else:
+                    index_t = torch.as_tensor(indices, dtype=torch.long, device=self.device)
+                    batch = tuple(value.index_select(0, index_t) for value in preloaded_values)
+            state_t, action_target_t, state_target_t, regret_target_t, mask_t, source_iteration_t = batch
+            source_iteration_t = source_iteration_t.to(dtype=torch.float32)
+            iteration_weights = (source_iteration_t / float(iteration_now)).pow(
+                self.d2cfr_iteration_weight_power
+            )
+            components = self.advantage_net.forward_components(state_t)
+            regret_loss = self._d2cfr_masked_weighted_mse(
+                components.regrets, regret_target_t, mask_t, iteration_weights
+            )
+            state_value_loss = self._d2cfr_weighted_mse(
+                components.state_values.squeeze(1), state_target_t, iteration_weights
+            )
+            action_value_loss = self._d2cfr_masked_weighted_mse(
+                components.action_values, action_target_t, mask_t, iteration_weights
+            )
+            loss = (
+                self.d2cfr_regret_loss_weight * regret_loss
+                + self.d2cfr_state_value_loss_weight * state_value_loss
+                + self.d2cfr_action_value_loss_weight * action_value_loss
+            )
+            parameters = tuple(self.advantage_net.parameters())
+            self.optimizer.zero_grad()
+            self._assert_finite_training_tensors(
+                loss, parameters, self.optimizer, "обучения D2CFR сети преимуществ"
+            )
+            loss.backward()
+            self._assert_finite_training_tensors(
+                loss, parameters, self.optimizer, "обучения D2CFR сети преимуществ"
+            )
+            torch.nn.utils.clip_grad_norm_(parameters, max_norm=1.0)
+            self.optimizer.step()
+            total_loss += float(loss.item())
+            loss_totals["regret_loss"] += float(regret_loss.item())
+            loss_totals["state_value_loss"] += float(state_value_loss.item())
+            loss_totals["action_value_loss"] += float(action_value_loss.item())
+            steps += 1
+        self._synchronize_training_device()
+        train_seconds = time.perf_counter() - started
+        self.last_advantage_train_steps = steps
+        self.last_advantage_effective_batch_size = effective_batch
+        self.last_advantage_target_stats = {
+            **{key: value / max(steps, 1) for key, value in loss_totals.items()},
+            "total_loss": total_loss / max(steps, 1),
+        }
+        self.last_advantage_profile = {
+            "samples": count,
+            "batch": batch_size if configured_steps is not None else effective_batch,
+            "epochs": epochs,
+            "configured_steps": configured_steps,
+            "expected_steps": (
+                configured_steps
+                if configured_steps is not None
+                else epochs * math.ceil(count / effective_batch)
+            ),
+            "actual_steps": steps,
+            "total_seconds": train_seconds,
+            "preloaded_to_device": preloaded is not None,
+            "d2cfr_enabled": True,
+        }
+        return total_loss / max(steps, 1)
+
     def train_advantage_network_multi(self, batch_size=None, epochs=None, player_id=0):
+        if self.d2cfr_enabled:
+            return self.train_d2cfr_advantage_network_multi(batch_size, epochs, player_id)
         del player_id
         batch_size = int(batch_size or self.advantage_batch_size)
         epochs = int(epochs or self.advantage_epochs)
