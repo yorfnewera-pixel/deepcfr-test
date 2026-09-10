@@ -12,7 +12,7 @@ from torch import nn
 from torch.optim import Optimizer
 
 from src.core.action_space import NUM_ACTIONS
-from src.core.buffers import AdvantageBuffer
+from src.core.buffers import AdvantageBuffer, DuelingAdvantageBuffer
 from src.core.traversal_errors import TraversalFailure, TraversalFailureContext
 
 
@@ -30,6 +30,9 @@ class HuTraversalAdapter(Generic[StateT]):
     apply: Callable[[StateT, int], StateT]
     terminal_value: Callable[[StateT, int], float]
     normalize_regrets: Callable[[StateT, np.ndarray, np.ndarray], np.ndarray] | None = None
+    normalise_d2cfr_targets: Callable[
+        [StateT, np.ndarray, float, np.ndarray], tuple[np.ndarray, np.float32, np.ndarray]
+    ] | None = None
 
 
 class HuStrategyBuffer:
@@ -141,20 +144,21 @@ class HuCurrentPolicySelfPlayCoordinator(Generic[StateT]):
         self,
         *,
         advantage_nets: list[nn.Module],
-        advantage_target_nets: list[nn.Module],
+        advantage_target_nets: list[nn.Module] | None,
         advantage_optimizers: list[Optimizer],
-        advantage_buffers: list[AdvantageBuffer],
+        advantage_buffers: list[AdvantageBuffer | DuelingAdvantageBuffer],
         strategy_net: nn.Module,
         strategy_optimizer: Optimizer,
         strategy_buffer: HuStrategyBuffer,
         adapter: HuTraversalAdapter[StateT],
         sampler: Callable[[np.ndarray, np.ndarray], int] | None = None,
-        train_advantage: Callable[[int, nn.Module, nn.Module, Optimizer, AdvantageBuffer], None] | None = None,
+        train_advantage: Callable[[int, nn.Module, nn.Module | None, Optimizer, AdvantageBuffer | DuelingAdvantageBuffer], None] | None = None,
         train_strategy: Callable[[nn.Module, Optimizer, HuStrategyBuffer], None] | None = None,
+        d2cfr_enabled: bool = False,
     ):
+        self.d2cfr_enabled = bool(d2cfr_enabled)
         for collection_name, collection in (
             ("advantage_nets", advantage_nets),
-            ("advantage_target_nets", advantage_target_nets),
             ("advantage_optimizers", advantage_optimizers),
             ("advantage_buffers", advantage_buffers),
         ):
@@ -162,25 +166,40 @@ class HuCurrentPolicySelfPlayCoordinator(Generic[StateT]):
                 raise ValueError(f"HU требует ровно две коллекции {collection_name}")
             if id(collection[0]) == id(collection[1]):
                 raise ValueError(f"HU P0/P1 требуют независимые {collection_name}")
-        all_networks = [*advantage_nets, *advantage_target_nets]
+        if self.d2cfr_enabled:
+            if advantage_target_nets is not None:
+                raise ValueError("HU D2CFR не использует advantage target-сети")
+            if adapter.normalise_d2cfr_targets is None:
+                raise ValueError("HU D2CFR требует normalise_d2cfr_targets adapter")
+            if not all(isinstance(buffer, DuelingAdvantageBuffer) for buffer in advantage_buffers):
+                raise ValueError("HU D2CFR требует DuelingAdvantageBuffer для P0/P1")
+        else:
+            if advantage_target_nets is None or len(advantage_target_nets) != 2:
+                raise ValueError("HU требует ровно две коллекции advantage_target_nets")
+        if advantage_target_nets is not None and id(advantage_target_nets[0]) == id(advantage_target_nets[1]):
+            raise ValueError("HU P0/P1 требуют независимые advantage_target_nets")
+        all_networks = [*advantage_nets, *(advantage_target_nets or [])]
         if len({id(network) for network in all_networks}) != len(all_networks):
             raise ValueError("HU advantage-сети и target-сети должны быть независимыми")
         advantage_parameter_ids = [self._parameter_ids(network) for network in advantage_nets]
-        target_parameter_ids = [self._parameter_ids(network) for network in advantage_target_nets]
         if advantage_parameter_ids[0] & advantage_parameter_ids[1]:
             raise ValueError("HU advantage-сети P0/P1 не должны разделять параметры")
-        if target_parameter_ids[0] & target_parameter_ids[1]:
-            raise ValueError("HU target-сети P0/P1 не должны разделять параметры")
-        if (advantage_parameter_ids[0] | advantage_parameter_ids[1]) & (
-            target_parameter_ids[0] | target_parameter_ids[1]
-        ):
-            raise ValueError("HU advantage-сети и target-сети не должны разделять параметры")
+        if advantage_target_nets is not None:
+            target_parameter_ids = [self._parameter_ids(network) for network in advantage_target_nets]
+            if target_parameter_ids[0] & target_parameter_ids[1]:
+                raise ValueError("HU target-сети P0/P1 не должны разделять параметры")
+            if (advantage_parameter_ids[0] | advantage_parameter_ids[1]) & (
+                target_parameter_ids[0] | target_parameter_ids[1]
+            ):
+                raise ValueError("HU advantage-сети и target-сети не должны разделять параметры")
         for player_id, (network, optimizer) in enumerate(
             zip(advantage_nets, advantage_optimizers, strict=True)
         ):
             self._validate_optimizer_ownership(player_id, network, optimizer)
         self.advantage_nets = tuple(advantage_nets)
-        self.advantage_target_nets = tuple(advantage_target_nets)
+        self.advantage_target_nets = (
+            None if advantage_target_nets is None else tuple(advantage_target_nets)
+        )
         self.advantage_optimizers = tuple(advantage_optimizers)
         self.advantage_buffers = tuple(advantage_buffers)
         self.strategy_net = strategy_net
@@ -311,6 +330,43 @@ class HuCurrentPolicySelfPlayCoordinator(Generic[StateT]):
             return
         self._pending_advantage_samples[actor_id].append(sample)
 
+    def _record_d2cfr_advantage(
+        self, actor_id, state, action_values, state_value, regrets, mask, iteration
+    ) -> None:
+        sample = (
+            state.copy(),
+            action_values.copy(),
+            np.float32(state_value),
+            regrets.copy(),
+            mask.copy(),
+            int(iteration),
+        )
+        if self._pending_advantage_samples is None:
+            self.advantage_buffers[actor_id].add(*sample)
+            return
+        self._pending_advantage_samples[actor_id].append(sample)
+
+    @staticmethod
+    def _validate_d2cfr_targets(action_values, state_value, regrets, mask) -> None:
+        action_values = np.asarray(action_values, dtype=np.float32)
+        regrets = np.asarray(regrets, dtype=np.float32)
+        mask = np.asarray(mask, dtype=np.float32)
+        state_value = np.asarray(state_value, dtype=np.float32)
+        if (
+            action_values.shape != (NUM_ACTIONS,)
+            or regrets.shape != (NUM_ACTIONS,)
+            or mask.shape != (NUM_ACTIONS,)
+            or state_value.shape != ()
+        ):
+            raise ValueError("HU D2CFR normalizer вернул некорректную форму targets")
+        if not all(np.all(np.isfinite(value)) for value in (action_values, regrets, state_value)):
+            raise ValueError("HU D2CFR normalizer вернул NaN или Inf")
+        legal = mask == 1.0
+        if not np.allclose(
+            regrets[legal], action_values[legal] - state_value, atol=1e-6, rtol=1e-6
+        ):
+            raise ValueError("HU D2CFR regrets должны быть равны Q - V")
+
     def _record_strategy(self, actor_id, state, policy, mask, iteration) -> None:
         sample = (int(actor_id), state.copy(), policy.copy(), mask.copy(), int(iteration))
         if self._pending_strategy_samples is None:
@@ -362,15 +418,33 @@ class HuCurrentPolicySelfPlayCoordinator(Generic[StateT]):
                     action_trace=next_trace,
                 )
             expected_value = float(np.dot(policy, action_values))
-            regrets = (action_values - expected_value) * mask
-            if self.adapter.normalize_regrets is not None:
-                regrets = np.asarray(
-                    self.adapter.normalize_regrets(state, regrets, mask),
-                    dtype=np.float32,
+            if self.d2cfr_enabled:
+                assert self.adapter.normalise_d2cfr_targets is not None
+                action_targets, state_target, regret_targets = self.adapter.normalise_d2cfr_targets(
+                    state, action_values, expected_value, mask
                 )
-            if regrets.shape != (NUM_ACTIONS,) or not np.all(np.isfinite(regrets)):
-                raise ValueError("HU normalizer вернул некорректные regrets")
-            self._record_advantage(actor_id, encoded, regrets, mask, iteration)
+                self._validate_d2cfr_targets(
+                    action_targets, state_target, regret_targets, mask
+                )
+                self._record_d2cfr_advantage(
+                    actor_id,
+                    encoded,
+                    np.asarray(action_targets, dtype=np.float32),
+                    np.float32(state_target),
+                    np.asarray(regret_targets, dtype=np.float32),
+                    mask,
+                    iteration,
+                )
+            else:
+                regrets = (action_values - expected_value) * mask
+                if self.adapter.normalize_regrets is not None:
+                    regrets = np.asarray(
+                        self.adapter.normalize_regrets(state, regrets, mask),
+                        dtype=np.float32,
+                    )
+                if regrets.shape != (NUM_ACTIONS,) or not np.all(np.isfinite(regrets)):
+                    raise ValueError("HU normalizer вернул некорректные regrets")
+                self._record_advantage(actor_id, encoded, regrets, mask, iteration)
             return expected_value
 
         # Одна и та же нормированная policy становится target и входом sampler-а.
@@ -450,13 +524,14 @@ class HuCurrentPolicySelfPlayCoordinator(Generic[StateT]):
                     self.train_advantage(
                         player_id,
                         self.advantage_nets[player_id],
-                        self.advantage_target_nets[player_id],
+                        None if self.advantage_target_nets is None else self.advantage_target_nets[player_id],
                         self.advantage_optimizers[player_id],
                         self.advantage_buffers[player_id],
                     )
-                self.advantage_target_nets[player_id].load_state_dict(
-                    self.advantage_nets[player_id].state_dict()
-                )
+                if self.advantage_target_nets is not None:
+                    self.advantage_target_nets[player_id].load_state_dict(
+                        self.advantage_nets[player_id].state_dict()
+                    )
             if self.train_strategy is not None:
                 self.train_strategy(self.strategy_net, self.strategy_optimizer, self.strategy_buffer)
         finally:

@@ -19,7 +19,7 @@ import torch
 
 from src.agents.random_agent import RandomAgent
 from src.core.action_space import ACTION_LABELS, ACTION_SPACE_VERSION, NUM_ACTIONS
-from src.core.buffers import AdvantageBuffer
+from src.core.buffers import AdvantageBuffer, DuelingAdvantageBuffer
 from src.core.deep_cfr import CHECKPOINT_FORMAT_VERSION, DeepCFRAgent
 from src.core.hu_self_play import (
     HuCurrentPolicySelfPlayCoordinator,
@@ -1181,14 +1181,17 @@ def _create_hu_current_policy_coordinator(
 ) -> HuCurrentPolicySelfPlayCoordinator[pkrs.State]:
     """Создаёт изолированные P0/P1 advantage-ноги для HU режима."""
     advantage_nets = [agent.advantage_net, deepcopy(agent.advantage_net).to(agent.device)]
-    advantage_target_nets = [
-        agent.advantage_target_net,
-        deepcopy(agent.advantage_target_net).to(agent.device),
-    ]
-    for target in advantage_target_nets:
-        target.eval()
-        for parameter in target.parameters():
-            parameter.requires_grad_(False)
+    advantage_target_nets = None
+    if not agent.d2cfr_enabled:
+        assert agent.advantage_target_net is not None
+        advantage_target_nets = [
+            agent.advantage_target_net,
+            deepcopy(agent.advantage_target_net).to(agent.device),
+        ]
+        for target in advantage_target_nets:
+            target.eval()
+            for parameter in target.parameters():
+                parameter.requires_grad_(False)
     advantage_optimizers = [
         agent.optimizer,
         torch.optim.AdamW(
@@ -1199,9 +1202,16 @@ def _create_hu_current_policy_coordinator(
     ]
     advantage_buffers = [
         agent.advantage_buffer,
-        AdvantageBuffer(
-            int(cfg_get("advantage_memory_size", 300000)),
-            agent.input_size,
+        (
+            DuelingAdvantageBuffer(
+                int(cfg_get("advantage_memory_size", 300000)),
+                agent.input_size,
+            )
+            if agent.d2cfr_enabled
+            else AdvantageBuffer(
+                int(cfg_get("advantage_memory_size", 300000)),
+                agent.input_size,
+            )
         ),
     ]
 
@@ -1224,7 +1234,9 @@ def _create_hu_current_policy_coordinator(
     agent.strategy_buffer = _HuConditionedStrategyBuffer(strategy_buffer)
     agent.hu_current_policy_self_play = True
     agent.hu_advantage_nets = tuple(advantage_nets)
-    agent.hu_advantage_target_nets = tuple(advantage_target_nets)
+    agent.hu_advantage_target_nets = (
+        None if advantage_target_nets is None else tuple(advantage_target_nets)
+    )
     agent.hu_advantage_optimizers = tuple(advantage_optimizers)
     agent.hu_advantage_buffers = tuple(advantage_buffers)
     agent.hu_strategy_buffer = strategy_buffer
@@ -1245,14 +1257,22 @@ def _create_hu_current_policy_coordinator(
             agent.advantage_target_net,
             agent.optimizer,
             agent.advantage_buffer,
+            agent.d2cfr_buffer,
         )
         try:
             agent.advantage_net = network
             agent.advantage_target_net = target_network
             agent.optimizer = optimizer
             agent.advantage_buffer = buffer
+            agent.d2cfr_buffer = buffer if agent.d2cfr_enabled else None
             with _training_thread_limit(cfg_get("training_torch_threads")):
                 loss = agent.train_advantage_network_multi(player_id=player_id)
+            advantage_nets[player_id] = agent.advantage_net
+            advantage_optimizers[player_id] = agent.optimizer
+            agent.hu_advantage_nets = tuple(advantage_nets)
+            agent.hu_advantage_optimizers = tuple(advantage_optimizers)
+            agent.hu_coordinator.advantage_nets = tuple(advantage_nets)
+            agent.hu_coordinator.advantage_optimizers = tuple(advantage_optimizers)
             advantage_losses[player_id] = float(loss)
             return float(loss)
         finally:
@@ -1261,6 +1281,7 @@ def _create_hu_current_policy_coordinator(
                 agent.advantage_target_net,
                 agent.optimizer,
                 agent.advantage_buffer,
+                agent.d2cfr_buffer,
             ) = previous
 
     def train_strategy(_network, _optimizer, _buffer) -> float:
@@ -1289,9 +1310,16 @@ def _create_hu_current_policy_coordinator(
                 state,
                 np.flatnonzero(mask).astype(int).tolist(),
             ),
+            normalise_d2cfr_targets=lambda state, action_values, state_value, mask: agent._normalise_d2cfr_targets(
+                action_values,
+                state_value,
+                state,
+                np.flatnonzero(mask).astype(int).tolist(),
+            ),
         ),
         train_advantage=train_advantage,
         train_strategy=train_strategy,
+        d2cfr_enabled=agent.d2cfr_enabled,
     )
     coordinator.training_losses = (advantage_losses, strategy_losses)
     agent.hu_coordinator = coordinator
@@ -1300,7 +1328,7 @@ def _create_hu_current_policy_coordinator(
 
 def _prepare_hu_current_policy_iteration(agent: DeepCFRAgent) -> None:
     """Очищает только HU replay-буферы, не затрагивая legacy lifecycle."""
-    if not agent.advantage_buffer_reservoir:
+    if not agent.d2cfr_enabled and not agent.advantage_buffer_reservoir:
         for buffer in agent.hu_advantage_buffers:
             buffer.clear()
     if agent.clear_strategy_buffer_each_iteration:
