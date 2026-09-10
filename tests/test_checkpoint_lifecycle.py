@@ -234,6 +234,91 @@ def test_enabled_transfer_resume_restores_provenance_without_retransfer(tmp_path
         config_mod.load_config("config.yaml")
 
 
+def test_enabled_transfer_resume_restores_frozen_card_encoder(tmp_path, monkeypatch):
+    """Ломается, если resume теряет freeze, записанный в provenance warm-start."""
+    config_path = tmp_path / "config.yaml"
+    checkpoint_path = tmp_path / "six-max-frozen-full.pt"
+    source_path = tmp_path / "teacher.pt"
+    source_path.touch()
+    provenance = {
+        "mode": "card_encoder_warmstart",
+        "copied_blocks": ["strategy_net.card_encoder"],
+        "source_path": str(source_path.resolve()),
+        "checksum_sha256": "c" * 64,
+        "source_architecture": CARD_CONTEXT_ARCHITECTURE,
+        "source_encoding_version": "history_summary_v3",
+        "teacher_num_players": 2,
+        "freeze": True,
+    }
+    try:
+        _load_transfer_config(config_path, ["num_players: 6", "hidden_size: 8"])
+        source = DeepCFRAgent(
+            player_id=0,
+            num_players=6,
+            hidden_size=8,
+            network_architecture=CARD_CONTEXT_ARCHITECTURE,
+        )
+        source.teacher_transfer_provenance = provenance
+        torch.save(source._build_checkpoint(), checkpoint_path)
+        _load_transfer_config(
+            config_path,
+            [
+                "num_players: 6",
+                "network_architecture: monolithic_v1",
+                "hidden_size: 8",
+                "teacher_transfer_enabled: true",
+                "teacher_transfer_mode: card_encoder_warmstart",
+                f"teacher_transfer_checkpoint: {source_path}",
+                "teacher_transfer_freeze_card_encoder: true",
+            ],
+        )
+        monkeypatch.setattr(
+            DeepCFRAgent,
+            "load_card_encoder_from_hu_checkpoint",
+            lambda *_args, **_kwargs: pytest.fail("resume не должен повторно переносить веса"),
+        )
+
+        restored = train_mod.train_self_play_multi(
+            num_iterations=0,
+            save_dir=tmp_path,
+            initial_checkpoint=str(checkpoint_path),
+        )
+
+        assert all(
+            not parameter.requires_grad
+            for parameter in restored.strategy_net.card_encoder.parameters()
+        )
+    finally:
+        config_mod.load_config("config.yaml")
+
+
+def test_resume_rejects_non_boolean_transfer_freeze(tmp_path):
+    """Ломается, если повреждённый provenance молча меняет freeze card_encoder."""
+    config_path = tmp_path / "config.yaml"
+    checkpoint_path = tmp_path / "six-max-invalid-freeze.pt"
+    try:
+        _load_transfer_config(config_path, ["num_players: 6", "hidden_size: 8"])
+        source = DeepCFRAgent(
+            player_id=0,
+            num_players=6,
+            hidden_size=8,
+            network_architecture=CARD_CONTEXT_ARCHITECTURE,
+        )
+        source.teacher_transfer_provenance = {"freeze": 1}
+        torch.save(source._build_checkpoint(), checkpoint_path)
+        target = DeepCFRAgent(
+            player_id=0,
+            num_players=6,
+            hidden_size=8,
+            network_architecture=CARD_CONTEXT_ARCHITECTURE,
+        )
+
+        with pytest.raises(ValueError, match="freeze"):
+            target.load_model(checkpoint_path)
+    finally:
+        config_mod.load_config("config.yaml")
+
+
 def test_atomic_save_keeps_previous_file_after_failure(tmp_path, monkeypatch):
     target = tmp_path / "checkpoint.pt"
     torch.save({"old": True}, target)

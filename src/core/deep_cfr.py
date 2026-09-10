@@ -1831,6 +1831,12 @@ class DeepCFRAgent:
         if provenance is not None and not isinstance(provenance, dict):
             raise ValueError("Чекпоинт имеет некорректный teacher_transfer_provenance")
         self.teacher_transfer_provenance = deepcopy(provenance)
+        if provenance is not None:
+            freeze_card_encoder = provenance.get("freeze", False)
+            if not isinstance(freeze_card_encoder, bool):
+                raise ValueError("Чекпоинт имеет некорректный freeze в teacher_transfer_provenance")
+            for parameter in self.strategy_net.card_encoder.parameters():
+                parameter.requires_grad = not freeze_card_encoder
         self.iteration_count = int(checkpoint.get("iteration", 0))
         return checkpoint
 
