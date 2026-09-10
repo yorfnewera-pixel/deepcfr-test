@@ -1,4 +1,6 @@
-"""Нейросеть и кодирование состояния для action-only Deep CFR."""
+"""Нейросеть и кодирование состояния для action-only Deep CFR и D2CFR."""
+
+from dataclasses import dataclass
 
 import numpy as np
 import torch
@@ -95,6 +97,96 @@ class PokerNetwork(nn.Module):
         else:
             embedding = torch.cat((self.encode_cards(x), self.encode_context(x)), dim=-1)
         return self.action_head(embedding)
+
+    def encode_cards(self, x):
+        if self.architecture != CARD_CONTEXT_ARCHITECTURE:
+            raise ValueError("Кодировщик карт доступен только для card_context_v1")
+        return self.card_encoder(x[..., :CARD_FEATURE_SIZE])
+
+    def encode_context(self, x):
+        if self.architecture != CARD_CONTEXT_ARCHITECTURE:
+            raise ValueError("Контекстный кодировщик доступен только для card_context_v1")
+        return self.context_encoder(x[..., CARD_FEATURE_SIZE:])
+
+
+@dataclass(frozen=True)
+class DuelingNetworkOutput:
+    """Согласованные counterfactual оценки D2CFR для одного batch."""
+
+    state_values: torch.Tensor
+    action_values: torch.Tensor
+    regrets: torch.Tensor
+
+
+class DuelingRegretNetwork(nn.Module):
+    """Dueling-сеть, где regret каждого слота равен ``Q(I, a) - V(I)``."""
+
+    def __init__(
+        self,
+        input_size=500,
+        hidden_size=256,
+        num_actions=NUM_ACTIONS,
+        architecture=MONOLITHIC_ARCHITECTURE,
+    ):
+        super().__init__()
+        if int(num_actions) != NUM_ACTIONS:
+            raise ValueError(f"DuelingRegretNetwork поддерживает только {NUM_ACTIONS} действий")
+        if architecture not in NETWORK_ARCHITECTURES:
+            raise ValueError(f"Неизвестная архитектура сети: {architecture}")
+        if architecture == CARD_CONTEXT_ARCHITECTURE and int(input_size) < CARD_FEATURE_SIZE:
+            raise ValueError(
+                f"Архитектура {CARD_CONTEXT_ARCHITECTURE} требует не менее {CARD_FEATURE_SIZE} признаков"
+            )
+
+        self.architecture = architecture
+        if architecture == MONOLITHIC_ARCHITECTURE:
+            self.base = nn.Sequential(
+                nn.Linear(input_size, hidden_size),
+                nn.ReLU(),
+                nn.Linear(hidden_size, hidden_size),
+                nn.ReLU(),
+                nn.Linear(hidden_size, hidden_size),
+                nn.ReLU(),
+            )
+            head_input_size = hidden_size
+        else:
+            context_size = int(input_size) - CARD_FEATURE_SIZE
+            self.card_encoder = nn.Sequential(
+                nn.Linear(CARD_FEATURE_SIZE, hidden_size),
+                nn.ReLU(),
+            )
+            self.context_encoder = nn.Sequential(
+                nn.Linear(context_size, hidden_size),
+                nn.ReLU(),
+            )
+            head_input_size = hidden_size * 2
+
+        self.state_value_head = nn.Linear(head_input_size, 1)
+        self.action_value_head = nn.Linear(head_input_size, NUM_ACTIONS)
+        nn.init.zeros_(self.state_value_head.weight)
+        nn.init.zeros_(self.state_value_head.bias)
+        nn.init.zeros_(self.action_value_head.weight)
+        nn.init.zeros_(self.action_value_head.bias)
+
+    def _encode(self, x):
+        if self.architecture == MONOLITHIC_ARCHITECTURE:
+            return self.base(x)
+        return torch.cat((self.encode_cards(x), self.encode_context(x)), dim=-1)
+
+    def forward_components(self, x):
+        """Возвращает V, Q и их точную разность без применения legal mask."""
+        embedding = self._encode(x)
+        state_values = self.state_value_head(embedding)
+        action_values = self.action_value_head(embedding)
+        return DuelingNetworkOutput(
+            state_values=state_values,
+            action_values=action_values,
+            regrets=action_values - state_values,
+        )
+
+    def forward(self, x, opponent_features=None):
+        del opponent_features
+        return self.forward_components(x).regrets
 
     def encode_cards(self, x):
         if self.architecture != CARD_CONTEXT_ARCHITECTURE:

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Mapping
 from copy import deepcopy
 
 import yaml
@@ -46,6 +47,13 @@ _DEFAULTS = {
     "advantage_reward_scale": 1.0,
     "advantage_loss": "mse",
     "advantage_huber_delta": 1.0,
+    "d2cfr_enabled": False,
+    "d2cfr_regret_loss_weight": 1.0,
+    "d2cfr_state_value_loss_weight": 1.0,
+    "d2cfr_action_value_loss_weight": 1.0,
+    "d2cfr_reinitialize_each_iteration": True,
+    "d2cfr_iteration_weight_power": 1.0,
+    "d2cfr_mc_correction_enabled": False,
     "policy_runtime_min_action_prob": 0.0,
     "checkpoint_save_every": 1000,
     "hu_checkpoint_save_every": 5000,
@@ -74,6 +82,39 @@ _config = None
 _raw_config = {}
 
 
+def _validate_d2cfr_configuration(config: Mapping[str, object]) -> None:
+    """Отклоняет ещё не реализованные либо математически несогласованные D2 режимы."""
+    if not bool(config["d2cfr_enabled"]):
+        return
+    if bool(config["d2cfr_mc_correction_enabled"]):
+        raise ValueError("D2CFR MC correction пока не реализован")
+    if config["advantage_regret_clip"] is not None:
+        raise ValueError("D2CFR несовместим с advantage_regret_clip")
+
+    weights = []
+    for key in (
+        "d2cfr_regret_loss_weight",
+        "d2cfr_state_value_loss_weight",
+        "d2cfr_action_value_loss_weight",
+    ):
+        try:
+            value = float(config[key])
+        except (TypeError, ValueError) as error:
+            raise ValueError(f"{key} должен быть числом") from error
+        if value < 0.0 or not value < float("inf"):
+            raise ValueError(f"{key} должен быть конечным числом >= 0")
+        weights.append(value)
+    if not any(weight > 0.0 for weight in weights):
+        raise ValueError("Для D2CFR хотя бы один loss weight должен быть > 0")
+
+    try:
+        iteration_weight_power = float(config["d2cfr_iteration_weight_power"])
+    except (TypeError, ValueError) as error:
+        raise ValueError("d2cfr_iteration_weight_power должен быть числом") from error
+    if iteration_weight_power < 0.0 or not iteration_weight_power < float("inf"):
+        raise ValueError("d2cfr_iteration_weight_power должен быть конечным числом >= 0")
+
+
 def _deep_merge(base, override):
     result = deepcopy(base)
     for key, value in override.items():
@@ -99,6 +140,7 @@ def load_config(path=None):
             raise ValueError("config.yaml должен содержать YAML-словарь")
         _raw_config = loaded.copy()
         _config = _deep_merge(_DEFAULTS, loaded)
+        _validate_d2cfr_configuration(_config)
         if int(_config["num_actions"]) != NUM_ACTIONS:
             raise ValueError(f"num_actions должен быть равен {NUM_ACTIONS}")
         if bool(_config["hu_current_policy_self_play"]) and (

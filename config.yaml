@@ -48,6 +48,14 @@ advantage_regret_clip: null
 advantage_reward_scale: 200
 advantage_loss: mse
 advantage_huber_delta: 1.0
+# Opt-in dueling D2CFR: совместим с HU и six-max, но не включает MC correction.
+d2cfr_enabled: false
+d2cfr_regret_loss_weight: 1.0
+d2cfr_state_value_loss_weight: 1.0
+d2cfr_action_value_loss_weight: 1.0
+d2cfr_reinitialize_each_iteration: true
+d2cfr_iteration_weight_power: 1.0
+d2cfr_mc_correction_enabled: false
 
 policy_runtime_min_action_prob: 0.05
 big_blind: 2.0
