@@ -225,4 +225,4 @@ class StrategyBuffer:
         return min(self._cur_id, self.capacity)
 
 
-__all__ = ["AdvantageBuffer", "StrategyBuffer"]
+__all__ = ["AdvantageBuffer", "DuelingAdvantageBuffer", "StrategyBuffer"]

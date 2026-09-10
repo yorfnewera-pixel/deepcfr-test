@@ -84,9 +84,16 @@ _raw_config = {}
 
 def _validate_d2cfr_configuration(config: Mapping[str, object]) -> None:
     """Отклоняет ещё не реализованные либо математически несогласованные D2 режимы."""
-    if not bool(config["d2cfr_enabled"]):
+    for key in (
+        "d2cfr_enabled",
+        "d2cfr_reinitialize_each_iteration",
+        "d2cfr_mc_correction_enabled",
+    ):
+        if not isinstance(config[key], bool):
+            raise ValueError(f"{key} должен быть bool")
+    if not config["d2cfr_enabled"]:
         return
-    if bool(config["d2cfr_mc_correction_enabled"]):
+    if config["d2cfr_mc_correction_enabled"]:
         raise ValueError("D2CFR MC correction пока не реализован")
     if config["advantage_regret_clip"] is not None:
         raise ValueError("D2CFR несовместим с advantage_regret_clip")
@@ -138,9 +145,10 @@ def load_config(path=None):
             loaded = yaml.safe_load(source) or {}
         if not isinstance(loaded, dict):
             raise ValueError("config.yaml должен содержать YAML-словарь")
+        candidate_config = _deep_merge(_DEFAULTS, loaded)
+        _validate_d2cfr_configuration(candidate_config)
         _raw_config = loaded.copy()
-        _config = _deep_merge(_DEFAULTS, loaded)
-        _validate_d2cfr_configuration(_config)
+        _config = candidate_config
         if int(_config["num_actions"]) != NUM_ACTIONS:
             raise ValueError(f"num_actions должен быть равен {NUM_ACTIONS}")
         if bool(_config["hu_current_policy_self_play"]) and (

@@ -3,6 +3,7 @@ import pytest
 import torch
 
 from src.core.action_space import NUM_ACTIONS
+from src.core import buffers as buffers_mod
 from src.core.buffers import DuelingAdvantageBuffer
 from src.core.model import (
     CARD_CONTEXT_ARCHITECTURE,
@@ -117,6 +118,10 @@ def test_dueling_buffer_requires_six_action_slots():
         DuelingAdvantageBuffer(capacity=2, state_dim=3, num_actions=NUM_ACTIONS - 1)
 
 
+def test_dueling_buffer_is_exported_as_public_buffer_contract():
+    assert "DuelingAdvantageBuffer" in buffers_mod.__all__
+
+
 @pytest.mark.parametrize(
     "contents,message",
     (
@@ -136,5 +141,47 @@ def test_config_rejects_unsupported_d2cfr_combinations(tmp_path, contents, messa
     try:
         with pytest.raises(ValueError, match=message):
             config_mod.load_config(config_path)
+    finally:
+        config_mod.load_config("config.yaml")
+
+
+@pytest.mark.parametrize(
+    "contents,flag_name",
+    (
+        ("d2cfr_enabled: 'false'\n", "d2cfr_enabled"),
+        (
+            "d2cfr_enabled: true\nd2cfr_mc_correction_enabled: 'false'\n",
+            "d2cfr_mc_correction_enabled",
+        ),
+        (
+            "d2cfr_enabled: true\nd2cfr_reinitialize_each_iteration: 'false'\n",
+            "d2cfr_reinitialize_each_iteration",
+        ),
+    ),
+)
+def test_config_requires_boolean_d2cfr_flags(tmp_path, contents, flag_name):
+    config_path = tmp_path / "non-boolean-d2cfr.yaml"
+    config_path.write_text(f"num_actions: 6\n{contents}", encoding="utf-8")
+
+    try:
+        with pytest.raises(ValueError, match=flag_name):
+            config_mod.load_config(config_path)
+    finally:
+        config_mod.load_config("config.yaml")
+
+
+def test_config_keeps_last_valid_values_after_rejected_d2cfr_file(tmp_path):
+    config_path = tmp_path / "invalid-d2cfr.yaml"
+    config_path.write_text(
+        "num_actions: 6\nd2cfr_enabled: true\nd2cfr_mc_correction_enabled: true\n",
+        encoding="utf-8",
+    )
+    config_mod.load_config("config.yaml")
+    expected = config_mod.cfg_all()
+
+    try:
+        with pytest.raises(ValueError, match="MC correction"):
+            config_mod.load_config(config_path)
+        assert config_mod.cfg_all() == expected
     finally:
         config_mod.load_config("config.yaml")
