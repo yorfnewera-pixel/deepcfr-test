@@ -1,8 +1,10 @@
 import numpy as np
 import pytest
+import torch
 
 from src.core.action_space import NUM_ACTIONS
 from src.core.deep_cfr import DeepCFRAgent
+from src.core.traversal_errors import TraversalFailure
 from src.utils import config as config_mod
 
 
@@ -125,3 +127,30 @@ def test_d2cfr_record_keeps_q_v_and_r_atomically_in_traversal_collector(d2_agent
     assert recorded_r[0, :2].tolist() == pytest.approx([0.02, -0.01])
     assert recorded_mask.tolist() == [mask.tolist()]
     assert recorded_iterations.tolist() == [3.0]
+
+
+def test_d2cfr_masked_loss_weights_each_legal_action_not_each_infoset():
+    predictions = torch.zeros(2, NUM_ACTIONS)
+    targets = torch.tensor(
+        [[2, 0, 0, 0, 0, 0], [1, 1, 0, 0, 0, 0]], dtype=torch.float32
+    )
+    masks = torch.tensor(
+        [[1, 0, 0, 0, 0, 0], [1, 1, 0, 0, 0, 0]], dtype=torch.float32
+    )
+    weights = torch.tensor([0.5, 1.0], dtype=torch.float32)
+
+    loss = DeepCFRAgent._d2cfr_masked_weighted_mse(predictions, targets, masks, weights)
+
+    assert loss.item() == pytest.approx(1.6)
+
+
+def test_d2cfr_record_rejects_regrets_inconsistent_with_q_minus_v(d2_agent):
+    with pytest.raises(TraversalFailure, match="Q - V"):
+        d2_agent._record_d2cfr_advantage_sample(
+            np.zeros(d2_agent.input_size, dtype=np.float32),
+            np.array([0.05, 0.02, 0, 0, 0, 0], dtype=np.float32),
+            np.float32(0.03),
+            np.zeros(NUM_ACTIONS, dtype=np.float32),
+            np.array([1, 1, 0, 0, 0, 0], dtype=np.float32),
+            iteration=3,
+        )

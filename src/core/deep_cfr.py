@@ -992,6 +992,10 @@ class DeepCFRAgent:
                 self._raise_invalid_training_sample(iteration, f"{name} имеет неверную форму {value.shape}")
             if not np.all(np.isfinite(value)):
                 self._raise_invalid_training_sample(iteration, f"{name} содержит нечисловые значения")
+        legal_slots = mask == 1.0
+        expected_regrets = action_values[legal_slots] - state_value_array
+        if not np.allclose(regrets[legal_slots], expected_regrets, atol=1e-6, rtol=1e-6):
+            self._raise_invalid_training_sample(iteration, "D2CFR regrets должны быть равны Q - V")
 
     def _record_d2cfr_advantage_sample(
         self, state, action_values, state_value, regrets, mask, iteration
@@ -1551,10 +1555,9 @@ class DeepCFRAgent:
 
     @staticmethod
     def _d2cfr_masked_weighted_mse(predictions, targets, masks, weights):
-        squared_error = (predictions - targets).square() * masks
-        legal_counts = masks.sum(dim=1).clamp_min(1.0)
-        per_sample = squared_error.sum(dim=1) / legal_counts
-        return (per_sample * weights).sum() / weights.sum().clamp_min(1e-12)
+        weighted_masks = masks * weights.unsqueeze(1)
+        squared_error = (predictions - targets).square() * weighted_masks
+        return squared_error.sum() / weighted_masks.sum().clamp_min(1e-12)
 
     @staticmethod
     def _d2cfr_weighted_mse(predictions, targets, weights):
