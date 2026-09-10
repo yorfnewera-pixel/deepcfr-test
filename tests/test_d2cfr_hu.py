@@ -118,3 +118,33 @@ def test_hu_d2_factory_uses_two_dueling_legs_without_target_networks(d2_hu_agent
     assert coordinator.advantage_target_nets is None
     assert all(isinstance(buffer, DuelingAdvantageBuffer) for buffer in coordinator.advantage_buffers)
     assert all(network is not d2_hu_agent.advantage_net for network in coordinator.advantage_nets[1:])
+
+
+def test_hu_d2_reinitialize_keeps_agent_p0_leg_in_sync_with_coordinator(d2_hu_agent):
+    coordinator = train_mod._create_hu_current_policy_coordinator(d2_hu_agent)
+    tree = _HuTree()
+    coordinator.adapter = HuTraversalAdapter(
+        current_player=tree.current_player,
+        is_terminal=tree.is_terminal,
+        legal_mask=tree.legal_mask,
+        encode=lambda _state, _actor: np.zeros(d2_hu_agent.input_size, dtype=np.float32),
+        apply=tree.apply,
+        terminal_value=tree.terminal_value,
+        normalise_d2cfr_targets=lambda state, q, v, mask: d2_hu_agent._normalise_d2cfr_targets(
+            q, v, state, np.flatnonzero(mask).astype(int).tolist()
+        ),
+    )
+    before = tuple(coordinator.advantage_nets)
+    d2_hu_agent.iteration_count = 1
+
+    coordinator.run_iteration(
+        iteration=1,
+        traversals_per_player=1,
+        new_initial_state=lambda _player_id, _traversal_index: (0, 0),
+    )
+
+    assert coordinator.advantage_nets[0] is not before[0]
+    assert coordinator.advantage_nets[1] is not before[1]
+    assert d2_hu_agent.advantage_net is coordinator.advantage_nets[0]
+    assert d2_hu_agent.optimizer is coordinator.advantage_optimizers[0]
+    assert d2_hu_agent.d2cfr_buffer is coordinator.advantage_buffers[0]

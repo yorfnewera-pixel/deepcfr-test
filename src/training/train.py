@@ -1276,13 +1276,20 @@ def _create_hu_current_policy_coordinator(
             advantage_losses[player_id] = float(loss)
             return float(loss)
         finally:
-            (
-                agent.advantage_net,
-                agent.advantage_target_net,
-                agent.optimizer,
-                agent.advantage_buffer,
-                agent.d2cfr_buffer,
-            ) = previous
+            if agent.d2cfr_enabled:
+                agent.advantage_net = agent.hu_advantage_nets[0]
+                agent.advantage_target_net = None
+                agent.optimizer = agent.hu_advantage_optimizers[0]
+                agent.advantage_buffer = agent.hu_advantage_buffers[0]
+                agent.d2cfr_buffer = agent.hu_advantage_buffers[0]
+            else:
+                (
+                    agent.advantage_net,
+                    agent.advantage_target_net,
+                    agent.optimizer,
+                    agent.advantage_buffer,
+                    agent.d2cfr_buffer,
+                ) = previous
 
     def train_strategy(_network, _optimizer, _buffer) -> float:
         with _training_thread_limit(cfg_get("training_torch_threads")):
