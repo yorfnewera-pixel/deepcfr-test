@@ -305,6 +305,9 @@ def test_resume_rejects_non_boolean_transfer_freeze(tmp_path):
             network_architecture=CARD_CONTEXT_ARCHITECTURE,
         )
         source.teacher_transfer_provenance = {"freeze": 1}
+        for parameter in source.strategy_net.parameters():
+            parameter.grad = torch.ones_like(parameter)
+        source.strategy_optimizer.step()
         torch.save(source._build_checkpoint(), checkpoint_path)
         target = DeepCFRAgent(
             player_id=0,
@@ -312,9 +315,22 @@ def test_resume_rejects_non_boolean_transfer_freeze(tmp_path):
             hidden_size=8,
             network_architecture=CARD_CONTEXT_ARCHITECTURE,
         )
+        before_strategy = {
+            name: value.detach().clone()
+            for name, value in target.strategy_net.state_dict().items()
+        }
+        before_provenance = {"freeze": False}
+        target.teacher_transfer_provenance = before_provenance
 
         with pytest.raises(ValueError, match="freeze"):
             target.load_model(checkpoint_path)
+
+        assert all(
+            torch.equal(value, before_strategy[name])
+            for name, value in target.strategy_net.state_dict().items()
+        )
+        assert target.strategy_optimizer.state_dict()["state"] == {}
+        assert target.teacher_transfer_provenance == before_provenance
     finally:
         config_mod.load_config("config.yaml")
 
