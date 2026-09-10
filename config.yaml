@@ -52,6 +52,8 @@ advantage_huber_delta: 1.0
 policy_runtime_min_action_prob: 0.05
 big_blind: 2.0
 checkpoint_save_every: 1000
+# HU full и light checkpoint сохраняются отдельно от six-max каждые 5000 итераций.
+hu_checkpoint_save_every: 5000
 checkpoint_keep_every: 50000
 traversal_single_thread: true
 training_torch_threads: 12

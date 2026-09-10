@@ -48,6 +48,7 @@ _DEFAULTS = {
     "advantage_huber_delta": 1.0,
     "policy_runtime_min_action_prob": 0.0,
     "checkpoint_save_every": 1000,
+    "hu_checkpoint_save_every": 5000,
     "checkpoint_keep_every": 50000,
     "traversal_single_thread": True,
     "training_torch_threads": None,

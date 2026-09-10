@@ -181,3 +181,17 @@ def test_hu_current_policy_self_play_otklonyaet_vneshnie_policy_istochniki(tmp_p
             config_mod.load_config(config_path)
     finally:
         config_mod.load_config("config.yaml")
+
+
+def test_hu_checkpoint_interval_has_separate_default(tmp_path):
+    """Ломается, если HU использует общий six-max интервал сохранения checkpoint."""
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text("num_actions: 6\n", encoding="utf-8")
+
+    try:
+        config_mod.load_config(config_path)
+
+        assert config_mod.cfg_get("hu_checkpoint_save_every") == 5000
+        assert config_mod.cfg_get("checkpoint_save_every") == 1000
+    finally:
+        config_mod.load_config("config.yaml")

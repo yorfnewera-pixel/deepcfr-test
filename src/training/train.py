@@ -904,6 +904,17 @@ def _save_iteration_checkpoint(
     return path
 
 
+def _save_light_checkpoint(
+    agent: DeepCFRAgent,
+    path: str | Path,
+    seed: int | None = None,
+) -> Path:
+    """Сохраняет только усреднённую strategy для инференса."""
+    target = Path(path)
+    _atomic_torch_save(agent.build_light_checkpoint(seed=seed), target)
+    return target
+
+
 def _save_iteration_light_checkpoint(
     agent: DeepCFRAgent,
     save_dir: str | Path,
@@ -913,7 +924,7 @@ def _save_iteration_light_checkpoint(
 ) -> Path:
     """Сохраняет только усреднённую стратегию для инференса."""
     path = Path(save_dir) / f"{prefix}{int(iteration)}.pt"
-    _atomic_torch_save(agent.build_light_checkpoint(seed=seed), path)
+    _save_light_checkpoint(agent, path, seed=seed)
     _prune_light_checkpoints(save_dir)
     return path
 
@@ -1385,13 +1396,20 @@ def _train_hu_current_policy_self_play(
                     f"  Оценка против random: reward={evaluation['mean_reward']:.4f}, "
                     f"raise_freq={evaluation['raise_frequency']:.3f}, игр={int(evaluation['games'])}"
                 )
-            if _checkpoint_save_due(iteration, int(cfg_get("checkpoint_save_every", 1000))):
+            if _checkpoint_save_due(iteration, int(cfg_get("hu_checkpoint_save_every", 5000))):
                 checkpoint_path = _save_hu_checkpoint(
                     agent,
                     Path(save_dir) / f"hu_checkpoint_iter_{iteration}.pt",
                     seed=seed,
                 )
+                light_checkpoint_path = _save_iteration_light_checkpoint(
+                    agent,
+                    save_dir,
+                    iteration,
+                    seed=seed,
+                )
                 print(f"  HU checkpoint: {checkpoint_path}")
+                print(f"  Light checkpoint: {light_checkpoint_path}")
             completed_iteration = iteration
             iteration_elapsed = time.perf_counter() - iteration_started
             if writer is not None:
@@ -1409,7 +1427,13 @@ def _train_hu_current_policy_self_play(
             Path(save_dir) / "hu_checkpoint_final.pt",
             seed=seed,
         )
+        final_light_checkpoint = _save_light_checkpoint(
+            agent,
+            Path(save_dir) / "light_checkpoint_final.pt",
+            seed=seed,
+        )
         print(f"Финальный HU checkpoint: {final_checkpoint}")
+        print(f"Финальный light checkpoint: {final_light_checkpoint}")
     return agent
 
 

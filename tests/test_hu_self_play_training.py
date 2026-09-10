@@ -98,6 +98,7 @@ def test_hu_training_uses_coordinator_without_opponent_pool(monkeypatch, tmp_pat
         lambda _agent: _RecordingCoordinator(events),
     )
     monkeypatch.setattr(train_mod, "_save_hu_checkpoint", lambda _agent, path, seed=None: path)
+    monkeypatch.setattr(train_mod, "_save_light_checkpoint", lambda _agent, path, seed=None: path)
     monkeypatch.setattr(train_mod, "_new_hand", lambda _players, seed: (seed % 2, seed))
     monkeypatch.setattr(
         train_mod,
@@ -247,7 +248,7 @@ def test_hu_resume_continues_from_next_iteration_and_writes_periodic_and_final_c
     monkeypatch.setattr(
         train_mod,
         "cfg_get",
-        lambda key, default=None: 1 if key == "checkpoint_save_every" else _cfg(key, default),
+        lambda key, default=None: 1 if key == "hu_checkpoint_save_every" else _cfg(key, default),
     )
     monkeypatch.setattr(train_mod, "_create_writer", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(
@@ -273,6 +274,11 @@ def test_hu_resume_continues_from_next_iteration_and_writes_periodic_and_final_c
         "_save_hu_checkpoint",
         lambda _agent, path, seed=None: saved_paths.append((path.name, seed)) or path,
     )
+    monkeypatch.setattr(
+        train_mod,
+        "_save_light_checkpoint",
+        lambda _agent, path, seed=None: saved_paths.append((path.name, seed)) or path,
+    )
 
     train_mod.train_self_play_multi(
         num_iterations=1,
@@ -286,4 +292,60 @@ def test_hu_resume_continues_from_next_iteration_and_writes_periodic_and_final_c
     )
 
     assert events == ["load", "prepare", ("run", 5, 3)]
-    assert saved_paths == [("hu_checkpoint_iter_5.pt", 9), ("hu_checkpoint_final.pt", 9)]
+    assert saved_paths == [
+        ("hu_checkpoint_iter_5.pt", 9),
+        ("light_checkpoint_iter_5.pt", 9),
+        ("hu_checkpoint_final.pt", 9),
+        ("light_checkpoint_final.pt", 9),
+    ]
+
+
+def test_hu_writes_full_and_light_checkpoints_on_hu_schedule_and_at_finish(monkeypatch, tmp_path):
+    """Ломается, если HU не сохраняет light checkpoint вместе с full по своему интервалу."""
+    saved_paths = []
+    agent = _HuAgent()
+    monkeypatch.setattr(train_mod, "DeepCFRAgent", lambda **_kwargs: agent)
+    monkeypatch.setattr(
+        train_mod,
+        "cfg_get",
+        lambda key, default=None: {
+            "hu_checkpoint_save_every": 1,
+            "checkpoint_save_every": 2,
+        }.get(key, _cfg(key, default)),
+    )
+    monkeypatch.setattr(train_mod, "_create_writer", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        train_mod,
+        "_create_hu_current_policy_coordinator",
+        lambda _agent: _ResumeCoordinator([]),
+    )
+    monkeypatch.setattr(train_mod, "_prepare_hu_current_policy_iteration", lambda _agent: None)
+    monkeypatch.setattr(
+        train_mod,
+        "_save_hu_checkpoint",
+        lambda _agent, path, seed=None: saved_paths.append(("full", path.name, seed)) or path,
+    )
+    monkeypatch.setattr(
+        train_mod,
+        "_save_light_checkpoint",
+        lambda _agent, path, seed=None: saved_paths.append(("light", path.name, seed)) or path,
+        raising=False,
+    )
+
+    train_mod.train_self_play_multi(
+        num_iterations=1,
+        traversals_per_iteration=1,
+        evaluate_every=0,
+        save_dir=tmp_path,
+        num_players=2,
+        trainable_players=2,
+        seed=17,
+        hu_current_policy_self_play=True,
+    )
+
+    assert saved_paths == [
+        ("full", "hu_checkpoint_iter_1.pt", 17),
+        ("light", "light_checkpoint_iter_1.pt", 17),
+        ("full", "hu_checkpoint_final.pt", 17),
+        ("light", "light_checkpoint_final.pt", 17),
+    ]
