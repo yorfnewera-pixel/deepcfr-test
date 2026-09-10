@@ -458,6 +458,9 @@ def _atomic_torch_save(payload: dict[str, Any], path: str | Path) -> None:
 
 def _network_architecture(network: PokerNetwork) -> dict[str, int | str]:
     """Возвращает минимальный контракт формы сети для строгого HU resume."""
+    action_head = getattr(network, "action_value_head", None)
+    if action_head is None:
+        action_head = network.action_head
     if network.architecture == CARD_CONTEXT_ARCHITECTURE:
         return {
             "network_architecture": network.architecture,
@@ -466,13 +469,13 @@ def _network_architecture(network: PokerNetwork) -> dict[str, int | str]:
                 network.card_encoder[0].in_features + network.context_encoder[0].in_features
             ),
             "hidden_size": int(network.card_encoder[0].out_features),
-            "num_actions": int(network.action_head.out_features),
+            "num_actions": int(action_head.out_features),
         }
     return {
         "network_architecture": network.architecture,
         "input_size": int(network.base[0].in_features),
         "hidden_size": int(network.base[0].out_features),
-        "num_actions": int(network.action_head.out_features),
+        "num_actions": int(action_head.out_features),
     }
 
 
@@ -599,6 +602,24 @@ def _advantage_buffer_payload(buffer: AdvantageBuffer) -> dict[str, Any]:
     }
 
 
+def _d2cfr_advantage_buffer_payload(buffer: DuelingAdvantageBuffer) -> dict[str, Any]:
+    count = len(buffer)
+    return {
+        "capacity": int(buffer.capacity),
+        "state_dim": int(buffer._states.shape[1]),
+        "cur_id": int(buffer._cur_id),
+        "count": int(count),
+        "eviction_count": int(buffer.eviction_count),
+        "skip_count": int(buffer.skip_count),
+        "states": torch.from_numpy(buffer._states[:count].copy()),
+        "action_values": torch.from_numpy(buffer._action_values[:count].copy()),
+        "state_values": torch.from_numpy(buffer._state_values[:count].copy()),
+        "regrets": torch.from_numpy(buffer._regrets[:count].copy()),
+        "masks": torch.from_numpy(buffer._masks[:count].copy()),
+        "iterations": torch.from_numpy(buffer._iterations[:count].copy()),
+    }
+
+
 def _strategy_buffer_payload(buffer: HuStrategyBuffer) -> dict[str, Any]:
     count = len(buffer)
     return {
@@ -657,6 +678,36 @@ def _restore_advantage_buffer(buffer: AdvantageBuffer, payload: dict[str, Any]) 
     buffer.skip_count = int(payload.get("skip_count", 0))
 
 
+def _restore_d2cfr_advantage_buffer(buffer: DuelingAdvantageBuffer, payload: dict[str, Any]) -> None:
+    count, cur_id = _buffer_count(payload, buffer.capacity)
+    state_dim = int(buffer._states.shape[1])
+    if int(payload.get("state_dim", -1)) != state_dim:
+        raise ValueError("HU checkpoint имеет несовместимый размер D2CFR advantage-буфера")
+    fields = {
+        "states": (count, state_dim),
+        "action_values": (count, NUM_ACTIONS),
+        "state_values": (count,),
+        "regrets": (count, NUM_ACTIONS),
+        "masks": (count, NUM_ACTIONS),
+        "iterations": (count,),
+    }
+    arrays = {name: _checkpoint_array(payload, name) for name in fields}
+    if any(arrays[name].shape != shape or not np.all(np.isfinite(arrays[name])) for name, shape in fields.items()):
+        raise ValueError("HU checkpoint имеет повреждённый D2CFR advantage-буфер")
+    if not np.all(np.isin(arrays["masks"], (0.0, 1.0))):
+        raise ValueError("HU checkpoint имеет некорректную mask D2CFR advantage-буфера")
+    buffer._states[:count] = arrays["states"]
+    buffer._action_values[:count] = arrays["action_values"]
+    buffer._state_values[:count] = arrays["state_values"]
+    buffer._regrets[:count] = arrays["regrets"]
+    buffer._masks[:count] = arrays["masks"]
+    buffer._iterations[:count] = arrays["iterations"]
+    buffer._cur_id = cur_id
+    buffer._size = count
+    buffer.eviction_count = int(payload.get("eviction_count", 0))
+    buffer.skip_count = int(payload.get("skip_count", 0))
+
+
 def _restore_strategy_buffer(buffer: HuStrategyBuffer, payload: dict[str, Any]) -> None:
     count, cur_id = _buffer_count(payload, buffer.capacity)
     if int(payload.get("state_dim", -1)) != int(buffer.state_dim):
@@ -702,6 +753,12 @@ def _hu_trajectory_configuration(agent: DeepCFRAgent) -> dict[str, Any]:
         "advantage_reward_scale": float(agent.advantage_reward_scale),
         "advantage_loss": str(agent.advantage_loss),
         "advantage_huber_delta": float(agent.advantage_huber_delta),
+        "d2cfr_enabled": bool(getattr(agent, "d2cfr_enabled", False)),
+        "d2cfr_regret_loss_weight": float(getattr(agent, "d2cfr_regret_loss_weight", 1.0)),
+        "d2cfr_state_value_loss_weight": float(getattr(agent, "d2cfr_state_value_loss_weight", 1.0)),
+        "d2cfr_action_value_loss_weight": float(getattr(agent, "d2cfr_action_value_loss_weight", 1.0)),
+        "d2cfr_reinitialize_each_iteration": bool(getattr(agent, "d2cfr_reinitialize_each_iteration", True)),
+        "d2cfr_iteration_weight_power": float(getattr(agent, "d2cfr_iteration_weight_power", 1.0)),
         "advantage_batch_size": int(agent.advantage_batch_size),
         "strategy_batch_size": int(agent.strategy_batch_size),
         "advantage_epochs": int(agent.advantage_epochs),
@@ -733,11 +790,17 @@ def _build_hu_checkpoint(agent: DeepCFRAgent, seed: int | None = None) -> dict[s
     if not bool(getattr(agent, "hu_current_policy_self_play", False)):
         raise ValueError("Полный HU checkpoint доступен только в hu_current_policy_self_play")
     advantage_nets = tuple(agent.hu_advantage_nets)
-    advantage_targets = tuple(agent.hu_advantage_target_nets)
+    d2cfr_enabled = bool(getattr(agent, "d2cfr_enabled", False))
+    advantage_targets = None if d2cfr_enabled else tuple(agent.hu_advantage_target_nets)
     advantage_optimizers = tuple(agent.hu_advantage_optimizers)
     advantage_buffers = tuple(agent.hu_advantage_buffers)
-    if not all(len(items) == 2 for items in (advantage_nets, advantage_targets, advantage_optimizers, advantage_buffers)):
+    collections = (advantage_nets, advantage_optimizers, advantage_buffers)
+    if advantage_targets is not None:
+        collections = (*collections, advantage_targets)
+    if not all(len(items) == 2 for items in collections):
         raise ValueError("HU checkpoint требует две независимые advantage-ноги")
+    if d2cfr_enabled and not all(isinstance(buffer, DuelingAdvantageBuffer) for buffer in advantage_buffers):
+        raise ValueError("HU D2CFR checkpoint требует DuelingAdvantageBuffer")
     mode = {
         "hu_current_policy_self_play": True,
         "num_players": int(agent.num_players),
@@ -749,6 +812,7 @@ def _build_hu_checkpoint(agent: DeepCFRAgent, seed: int | None = None) -> dict[s
     return {
         "checkpoint_format_version": CHECKPOINT_FORMAT_VERSION,
         "checkpoint_kind": _HU_CHECKPOINT_KIND,
+        "algorithm_variant": "d2cfr_dueling_v1" if d2cfr_enabled else "deep_cfr_action_only_v1",
         "hu_checkpoint_version": _HU_CHECKPOINT_VERSION,
         "action_space_version": ACTION_SPACE_VERSION,
         "action_labels": list(ACTION_LABELS),
@@ -757,27 +821,43 @@ def _build_hu_checkpoint(agent: DeepCFRAgent, seed: int | None = None) -> dict[s
         "seed": seed,
         "mode": mode,
         "config": {**mode, **_hu_trajectory_configuration(agent)},
-        "architecture": {
+        "architecture": ({
+            "advantage": [_network_architecture(network) for network in advantage_nets],
+            "strategy": _network_architecture(agent.strategy_net),
+        } if d2cfr_enabled else {
             "advantage": [_network_architecture(network) for network in advantage_nets],
             "advantage_target": [_network_architecture(network) for network in advantage_targets],
             "strategy": _network_architecture(agent.strategy_net),
-        },
+        }),
         "update_order": list(_HU_UPDATE_ORDER),
-        "advantage_legs": [
-            {
-                "network": network.state_dict(),
-                "target_network": target.state_dict(),
-                "optimizer": optimizer.state_dict(),
-                "buffer": _advantage_buffer_payload(buffer),
-            }
-            for network, target, optimizer, buffer in zip(
-                advantage_nets,
-                advantage_targets,
-                advantage_optimizers,
-                advantage_buffers,
-                strict=True,
-            )
-        ],
+        "advantage_legs": (
+            [
+                {
+                    "network": network.state_dict(),
+                    "optimizer": optimizer.state_dict(),
+                    "buffer": _d2cfr_advantage_buffer_payload(buffer),
+                }
+                for network, optimizer, buffer in zip(
+                    advantage_nets, advantage_optimizers, advantage_buffers, strict=True
+                )
+            ]
+            if d2cfr_enabled
+            else [
+                {
+                    "network": network.state_dict(),
+                    "target_network": target.state_dict(),
+                    "optimizer": optimizer.state_dict(),
+                    "buffer": _advantage_buffer_payload(buffer),
+                }
+                for network, target, optimizer, buffer in zip(
+                    advantage_nets,
+                    advantage_targets,
+                    advantage_optimizers,
+                    advantage_buffers,
+                    strict=True,
+                )
+            ]
+        ),
         "strategy": {
             "network": agent.strategy_net.state_dict(),
             "optimizer": agent.strategy_optimizer.state_dict(),
@@ -792,6 +872,10 @@ def _validate_hu_checkpoint(agent: DeepCFRAgent, checkpoint: object) -> dict[str
         raise ValueError("Для HU resume требуется полный HU checkpoint")
     if checkpoint.get("hu_checkpoint_version") != _HU_CHECKPOINT_VERSION:
         raise ValueError("HU checkpoint имеет несовместимую версию")
+    d2cfr_enabled = bool(getattr(agent, "d2cfr_enabled", False))
+    expected_variant = "d2cfr_dueling_v1" if d2cfr_enabled else "deep_cfr_action_only_v1"
+    if checkpoint.get("algorithm_variant") != expected_variant:
+        raise ValueError("HU checkpoint имеет несовместимый algorithm variant")
     if checkpoint.get("checkpoint_format_version") != CHECKPOINT_FORMAT_VERSION:
         raise ValueError("HU checkpoint имеет несовместимый общий формат")
     if checkpoint.get("action_space_version") != ACTION_SPACE_VERSION or checkpoint.get("num_actions") != NUM_ACTIONS:
@@ -835,17 +919,25 @@ def _validate_hu_checkpoint(agent: DeepCFRAgent, checkpoint: object) -> dict[str
         raise ValueError("HU checkpoint не содержит полный набор training state")
     expected_architecture = {
         "advantage": [_network_architecture(network) for network in agent.hu_advantage_nets],
-        "advantage_target": [_network_architecture(network) for network in agent.hu_advantage_target_nets],
         "strategy": _network_architecture(agent.strategy_net),
     }
-    architecture = _normalize_hu_architecture(
-        checkpoint.get("architecture"),
-        expected_architecture,
-    )
+    if not d2cfr_enabled:
+        assert agent.hu_advantage_target_nets is not None
+        expected_architecture["advantage_target"] = [
+            _network_architecture(network) for network in agent.hu_advantage_target_nets
+        ]
+        architecture = _normalize_hu_architecture(
+            checkpoint.get("architecture"), expected_architecture
+        )
+    else:
+        architecture = checkpoint.get("architecture")
     if architecture != expected_architecture:
         raise ValueError("HU checkpoint имеет несовместимую архитектуру")
     for leg in advantage_legs:
-        if not isinstance(leg, dict) or any(key not in leg for key in ("network", "target_network", "optimizer", "buffer")):
+        leg_keys = ("network", "optimizer", "buffer") if d2cfr_enabled else (
+            "network", "target_network", "optimizer", "buffer"
+        )
+        if not isinstance(leg, dict) or any(key not in leg for key in leg_keys):
             raise ValueError("HU checkpoint содержит неполную advantage-ногу")
     if any(key not in strategy for key in ("network", "optimizer", "buffer")):
         raise ValueError("HU checkpoint содержит неполное strategy-состояние")
@@ -861,21 +953,38 @@ def _load_hu_checkpoint(agent: DeepCFRAgent, path: str | Path) -> dict[str, Any]
     except (pickle.UnpicklingError, RuntimeError, ValueError) as error:
         raise ValueError("HU checkpoint не удалось безопасно прочитать") from error
     checkpoint = _validate_hu_checkpoint(agent, payload)
-    for leg, network, target, optimizer, buffer in zip(
-        checkpoint["advantage_legs"],
-        agent.hu_advantage_nets,
-        agent.hu_advantage_target_nets,
-        agent.hu_advantage_optimizers,
-        agent.hu_advantage_buffers,
-        strict=True,
-    ):
-        try:
-            network.load_state_dict(leg["network"], strict=True)
-            target.load_state_dict(leg["target_network"], strict=True)
-            optimizer.load_state_dict(leg["optimizer"])
-        except (RuntimeError, ValueError, KeyError) as error:
-            raise ValueError("HU checkpoint содержит несовместимые веса или optimizer") from error
-        _restore_advantage_buffer(buffer, leg["buffer"])
+    if bool(getattr(agent, "d2cfr_enabled", False)):
+        for leg, network, optimizer, buffer in zip(
+            checkpoint["advantage_legs"],
+            agent.hu_advantage_nets,
+            agent.hu_advantage_optimizers,
+            agent.hu_advantage_buffers,
+            strict=True,
+        ):
+            try:
+                network.load_state_dict(leg["network"], strict=True)
+                optimizer.load_state_dict(leg["optimizer"])
+            except (RuntimeError, ValueError, KeyError) as error:
+                raise ValueError("HU checkpoint содержит несовместимые D2CFR веса или optimizer") from error
+            assert isinstance(buffer, DuelingAdvantageBuffer)
+            _restore_d2cfr_advantage_buffer(buffer, leg["buffer"])
+    else:
+        assert agent.hu_advantage_target_nets is not None
+        for leg, network, target, optimizer, buffer in zip(
+            checkpoint["advantage_legs"],
+            agent.hu_advantage_nets,
+            agent.hu_advantage_target_nets,
+            agent.hu_advantage_optimizers,
+            agent.hu_advantage_buffers,
+            strict=True,
+        ):
+            try:
+                network.load_state_dict(leg["network"], strict=True)
+                target.load_state_dict(leg["target_network"], strict=True)
+                optimizer.load_state_dict(leg["optimizer"])
+            except (RuntimeError, ValueError, KeyError) as error:
+                raise ValueError("HU checkpoint содержит несовместимые веса или optimizer") from error
+            _restore_advantage_buffer(buffer, leg["buffer"])
     try:
         agent.strategy_net.load_state_dict(checkpoint["strategy"]["network"], strict=True)
         agent.strategy_optimizer.load_state_dict(checkpoint["strategy"]["optimizer"])
