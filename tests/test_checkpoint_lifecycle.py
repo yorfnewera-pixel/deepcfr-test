@@ -470,6 +470,23 @@ def test_checkpoint_pipeline_keeps_full_and_light_history_without_advantage_file
     assert not list(tmp_path.glob("opponent_advantage_iter_*.pt"))
 
 
+def test_hu_light_checkpoint_is_retained_next_to_hu_full_checkpoint(tmp_path):
+    """Ломается, если pruning HU удаляет light checkpoint без six-max full файла."""
+    agent = LightCheckpointAgent()
+    agent.iteration_count = 5000
+    (tmp_path / "hu_checkpoint_iter_5000.pt").touch()
+
+    path = train_mod._save_iteration_light_checkpoint(
+        agent,
+        tmp_path,
+        5000,
+        full_checkpoint_prefix="hu_checkpoint_iter_",
+    )
+
+    assert path.name == "light_checkpoint_iter_5000.pt"
+    assert path.exists()
+
+
 def test_opponent_pool_caches_full_checkpoint_strategy_state(tmp_path, monkeypatch):
     full_path = tmp_path / "multi_checkpoint_iter_1000.pt"
     torch.save(

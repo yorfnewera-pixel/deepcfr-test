@@ -42,6 +42,7 @@ from src.utils.config import (
 
 _HEAVY_CHECKPOINT_PREFIX = "multi_checkpoint_iter_"
 _LIGHT_CHECKPOINT_PREFIX = "light_checkpoint_iter_"
+_HU_HEAVY_CHECKPOINT_PREFIX = "hu_checkpoint_iter_"
 _OPPONENT_RECENT_CHECKPOINTS = 11
 _OPPONENT_HISTORICAL_CHECKPOINTS = 2
 _HU_CHECKPOINT_KIND = "hu_current_policy_self_play"
@@ -237,9 +238,12 @@ def _prune_full_checkpoints(directory: str | Path, historical_every: int) -> Non
             path.unlink(missing_ok=True)
 
 
-def _prune_light_checkpoints(directory: str | Path) -> None:
-    """Сохраняет light-checkpoint только если есть парный тяжёлый checkpoint."""
-    retained_heavy = set(_heavy_checkpoints(directory))
+def _prune_light_checkpoints(
+    directory: str | Path,
+    full_checkpoint_prefix: str = _HEAVY_CHECKPOINT_PREFIX,
+) -> None:
+    """Сохраняет light-checkpoint только при наличии full checkpoint того же режима."""
+    retained_heavy = set(_checkpoint_paths(directory, full_checkpoint_prefix))
     for path in Path(directory).glob(f"{_LIGHT_CHECKPOINT_PREFIX}*.pt"):
         iteration = _checkpoint_iteration(path, _LIGHT_CHECKPOINT_PREFIX)
         if iteration is None or iteration not in retained_heavy:
@@ -921,11 +925,12 @@ def _save_iteration_light_checkpoint(
     iteration: int,
     prefix: str = _LIGHT_CHECKPOINT_PREFIX,
     seed: int | None = None,
+    full_checkpoint_prefix: str = _HEAVY_CHECKPOINT_PREFIX,
 ) -> Path:
     """Сохраняет только усреднённую стратегию для инференса."""
     path = Path(save_dir) / f"{prefix}{int(iteration)}.pt"
     _save_light_checkpoint(agent, path, seed=seed)
-    _prune_light_checkpoints(save_dir)
+    _prune_light_checkpoints(save_dir, full_checkpoint_prefix)
     return path
 
 
@@ -1407,6 +1412,7 @@ def _train_hu_current_policy_self_play(
                     save_dir,
                     iteration,
                     seed=seed,
+                    full_checkpoint_prefix=_HU_HEAVY_CHECKPOINT_PREFIX,
                 )
                 print(f"  HU checkpoint: {checkpoint_path}")
                 print(f"  Light checkpoint: {light_checkpoint_path}")
