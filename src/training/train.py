@@ -744,7 +744,7 @@ def _optimizer_configuration(optimizer: torch.optim.Optimizer) -> list[dict[str,
 
 def _hu_trajectory_configuration(agent: DeepCFRAgent) -> dict[str, Any]:
     """Возвращает все параметры, меняющие траекторию HU обучения."""
-    return {
+    configuration = {
         "advantage_accumulation": str(agent.advantage_accumulation),
         "discount_alpha": float(agent.discount_alpha),
         "discount_gamma": float(agent.discount_gamma),
@@ -753,12 +753,6 @@ def _hu_trajectory_configuration(agent: DeepCFRAgent) -> dict[str, Any]:
         "advantage_reward_scale": float(agent.advantage_reward_scale),
         "advantage_loss": str(agent.advantage_loss),
         "advantage_huber_delta": float(agent.advantage_huber_delta),
-        "d2cfr_enabled": bool(getattr(agent, "d2cfr_enabled", False)),
-        "d2cfr_regret_loss_weight": float(getattr(agent, "d2cfr_regret_loss_weight", 1.0)),
-        "d2cfr_state_value_loss_weight": float(getattr(agent, "d2cfr_state_value_loss_weight", 1.0)),
-        "d2cfr_action_value_loss_weight": float(getattr(agent, "d2cfr_action_value_loss_weight", 1.0)),
-        "d2cfr_reinitialize_each_iteration": bool(getattr(agent, "d2cfr_reinitialize_each_iteration", True)),
-        "d2cfr_iteration_weight_power": float(getattr(agent, "d2cfr_iteration_weight_power", 1.0)),
         "advantage_batch_size": int(agent.advantage_batch_size),
         "strategy_batch_size": int(agent.strategy_batch_size),
         "advantage_epochs": int(agent.advantage_epochs),
@@ -783,6 +777,16 @@ def _hu_trajectory_configuration(agent: DeepCFRAgent) -> dict[str, Any]:
         "training_error_mode": cfg_training_error_mode(),
         "training_max_failed_traversals_per_iteration": cfg_training_max_failed_traversals_per_iteration(),
     }
+    if bool(getattr(agent, "d2cfr_enabled", False)):
+        configuration.update({
+            "d2cfr_enabled": True,
+            "d2cfr_regret_loss_weight": float(agent.d2cfr_regret_loss_weight),
+            "d2cfr_state_value_loss_weight": float(agent.d2cfr_state_value_loss_weight),
+            "d2cfr_action_value_loss_weight": float(agent.d2cfr_action_value_loss_weight),
+            "d2cfr_reinitialize_each_iteration": bool(agent.d2cfr_reinitialize_each_iteration),
+            "d2cfr_iteration_weight_power": float(agent.d2cfr_iteration_weight_power),
+        })
+    return configuration
 
 
 def _build_hu_checkpoint(agent: DeepCFRAgent, seed: int | None = None) -> dict[str, Any]:
@@ -821,6 +825,7 @@ def _build_hu_checkpoint(agent: DeepCFRAgent, seed: int | None = None) -> dict[s
         "seed": seed,
         "mode": mode,
         "config": {**mode, **_hu_trajectory_configuration(agent)},
+        **(agent._d2cfr_checkpoint_metadata() if d2cfr_enabled else {}),
         "architecture": ({
             "advantage": [_network_architecture(network) for network in advantage_nets],
             "strategy": _network_architecture(agent.strategy_net),
@@ -876,6 +881,14 @@ def _validate_hu_checkpoint(agent: DeepCFRAgent, checkpoint: object) -> dict[str
     expected_variant = "d2cfr_dueling_v1" if d2cfr_enabled else "deep_cfr_action_only_v1"
     if checkpoint.get("algorithm_variant") != expected_variant:
         raise ValueError("HU checkpoint имеет несовместимый algorithm variant")
+    if d2cfr_enabled:
+        expected_d2cfr_metadata = agent._d2cfr_checkpoint_metadata()
+        if checkpoint.get("training_target_semantics") != expected_d2cfr_metadata[
+            "training_target_semantics"
+        ]:
+            raise ValueError("HU checkpoint не содержит совместимую семантику D2CFR targets")
+        if checkpoint.get("d2cfr_config") != expected_d2cfr_metadata["d2cfr_config"]:
+            raise ValueError("HU checkpoint имеет несовместимую конфигурацию D2CFR")
     if checkpoint.get("checkpoint_format_version") != CHECKPOINT_FORMAT_VERSION:
         raise ValueError("HU checkpoint имеет несовместимый общий формат")
     if checkpoint.get("action_space_version") != ACTION_SPACE_VERSION or checkpoint.get("num_actions") != NUM_ACTIONS:

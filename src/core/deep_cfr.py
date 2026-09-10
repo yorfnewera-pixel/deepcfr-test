@@ -50,6 +50,7 @@ from src.utils.traversal_profiler import TRAVERSAL_PROFILER, profile_section
 
 
 CHECKPOINT_FORMAT_VERSION = 6
+_D2CFR_TARGET_SEMANTICS = "counterfactual_q_v_regret_q_minus_v1"
 
 
 def full_checkpoint_network_spec(checkpoint: dict) -> tuple[str, int, int]:
@@ -131,6 +132,82 @@ def full_checkpoint_network_spec(checkpoint: dict) -> tuple[str, int, int]:
                     f"{network_key} имеет несовместимую форму параметра {parameter_name}"
                 )
 
+    return architecture, input_size, hidden_size
+
+
+def dueling_checkpoint_network_spec(checkpoint: dict) -> tuple[str, int, int]:
+    """Проверяет контракт весов D2CFR до изменения runtime-сети."""
+    checkpoint_config = checkpoint.get("config", {})
+    if not isinstance(checkpoint_config, dict):
+        checkpoint_config = {}
+
+    architecture = checkpoint.get(
+        "network_architecture",
+        checkpoint_config.get("network_architecture", MONOLITHIC_ARCHITECTURE),
+    )
+    if not isinstance(architecture, str) or architecture not in NETWORK_ARCHITECTURES:
+        raise ValueError("Чекпоинт имеет некорректное значение архитектуры сети")
+    if architecture == CARD_CONTEXT_ARCHITECTURE:
+        card_feature_size = checkpoint.get(
+            "card_feature_size", checkpoint_config.get("card_feature_size")
+        )
+        if card_feature_size != CARD_FEATURE_SIZE:
+            raise ValueError("Чекпоинт имеет несовместимый размер card-признаков")
+
+    input_size = checkpoint.get("encoder_input_size")
+    if isinstance(input_size, bool) or not isinstance(input_size, int) or input_size <= 0:
+        raise ValueError("Чекпоинт имеет некорректный размер входа encoder")
+    hidden_size = checkpoint_config.get("hidden_size")
+    if isinstance(hidden_size, bool) or not isinstance(hidden_size, int) or hidden_size <= 0:
+        raise ValueError("В checkpoint отсутствует корректный hidden_size сети")
+
+    if architecture == MONOLITHIC_ARCHITECTURE:
+        trunk_shapes = {
+            "base.0.weight": (hidden_size, input_size),
+            "base.0.bias": (hidden_size,),
+            "base.2.weight": (hidden_size, hidden_size),
+            "base.2.bias": (hidden_size,),
+            "base.4.weight": (hidden_size, hidden_size),
+            "base.4.bias": (hidden_size,),
+        }
+    else:
+        context_size = input_size - CARD_FEATURE_SIZE
+        if context_size < 0:
+            raise ValueError("Чекпоинт имеет несовместимый размер входа card_context_v1")
+        trunk_shapes = {
+            "card_encoder.0.weight": (hidden_size, CARD_FEATURE_SIZE),
+            "card_encoder.0.bias": (hidden_size,),
+            "context_encoder.0.weight": (hidden_size, context_size),
+            "context_encoder.0.bias": (hidden_size,),
+        }
+
+    advantage_shapes = {
+        **trunk_shapes,
+        "state_value_head.weight": (1, hidden_size if architecture == MONOLITHIC_ARCHITECTURE else hidden_size * 2),
+        "state_value_head.bias": (1,),
+        "action_value_head.weight": (NUM_ACTIONS, hidden_size if architecture == MONOLITHIC_ARCHITECTURE else hidden_size * 2),
+        "action_value_head.bias": (NUM_ACTIONS,),
+    }
+    strategy_shapes = {
+        **trunk_shapes,
+        "action_head.weight": (NUM_ACTIONS, hidden_size if architecture == MONOLITHIC_ARCHITECTURE else hidden_size * 2),
+        "action_head.bias": (NUM_ACTIONS,),
+    }
+    for network_key, expected_shapes in (
+        ("advantage_net", advantage_shapes),
+        ("strategy_net", strategy_shapes),
+    ):
+        state_dict = checkpoint.get(network_key)
+        if not isinstance(state_dict, dict):
+            raise ValueError(f"В checkpoint отсутствуют веса {network_key}")
+        if set(state_dict) != set(expected_shapes):
+            raise ValueError(f"{network_key} имеет несовместимый набор параметров")
+        for parameter_name, expected_shape in expected_shapes.items():
+            parameter = state_dict[parameter_name]
+            if not torch.is_tensor(parameter) or tuple(parameter.shape) != expected_shape:
+                raise ValueError(
+                    f"{network_key} имеет несовместимую форму параметра {parameter_name}"
+                )
     return architecture, input_size, hidden_size
 
 
@@ -313,6 +390,22 @@ class DeepCFRAgent:
         if self.network_architecture == CARD_CONTEXT_ARCHITECTURE:
             metadata["card_feature_size"] = CARD_FEATURE_SIZE
         return metadata
+
+    def _d2cfr_checkpoint_metadata(self):
+        """Описывает воспроизводимые targets D2CFR полного checkpoint."""
+        return {
+            "training_target_semantics": _D2CFR_TARGET_SEMANTICS,
+            "d2cfr_config": {
+                "regret_loss_weight": self.d2cfr_regret_loss_weight,
+                "state_value_loss_weight": self.d2cfr_state_value_loss_weight,
+                "action_value_loss_weight": self.d2cfr_action_value_loss_weight,
+                "reinitialize_each_iteration": self.d2cfr_reinitialize_each_iteration,
+                "iteration_weight_power": self.d2cfr_iteration_weight_power,
+                "mc_correction_enabled": False,
+                "target_normalization": "shared_advantage_reward_scale",
+                "advantage_reward_scale": self.advantage_reward_scale,
+            },
+        }
 
     def _validate_checkpoint_network_metadata(self, checkpoint):
         checkpoint_config = checkpoint.get("config", {})
@@ -1951,6 +2044,59 @@ class DeepCFRAgent:
         return payload
 
     @staticmethod
+    def _d2cfr_buffer_payload(buffer):
+        count = min(buffer._cur_id, buffer.capacity)
+        return {
+            "cur_id": buffer._cur_id,
+            "count": count,
+            "states": buffer._states[:count].copy(),
+            "action_values": buffer._action_values[:count].copy(),
+            "state_values": buffer._state_values[:count].copy(),
+            "regrets": buffer._regrets[:count].copy(),
+            "masks": buffer._masks[:count].copy(),
+            "iterations": buffer._iterations[:count].copy(),
+        }
+
+    def _validated_d2cfr_buffer_payload(self, payload):
+        """Возвращает проверенные D2CFR samples, не меняя replay buffer."""
+        if not isinstance(payload, dict):
+            raise ValueError("D2CFR checkpoint имеет повреждённый replay buffer")
+        raw_count = payload.get("count", -1)
+        raw_cur_id = payload.get("cur_id", raw_count)
+        if (
+            isinstance(raw_count, bool)
+            or not isinstance(raw_count, Integral)
+            or isinstance(raw_cur_id, bool)
+            or not isinstance(raw_cur_id, Integral)
+        ):
+            raise ValueError("D2CFR checkpoint имеет некорректный replay buffer")
+        count, cur_id = int(raw_count), int(raw_cur_id)
+        assert self.d2cfr_buffer is not None
+        if count < 0 or count > self.d2cfr_buffer.capacity or cur_id < count:
+            raise ValueError("D2CFR checkpoint имеет некорректный replay buffer")
+        fields = (
+            "states", "action_values", "state_values", "regrets", "masks", "iterations"
+        )
+        arrays = {name: np.asarray(payload.get(name)) for name in fields}
+        expected_shapes = {
+            "states": (count, self.input_size),
+            "action_values": (count, NUM_ACTIONS),
+            "state_values": (count,),
+            "regrets": (count, NUM_ACTIONS),
+            "masks": (count, NUM_ACTIONS),
+            "iterations": (count,),
+        }
+        if any(arrays[key].shape != shape for key, shape in expected_shapes.items()):
+            raise ValueError("D2CFR checkpoint имеет повреждённый replay buffer")
+        if not all(np.issubdtype(value.dtype, np.number) and np.all(np.isfinite(value)) for value in arrays.values()):
+            raise ValueError("D2CFR checkpoint имеет повреждённый replay buffer")
+        if not np.all(np.isin(arrays["masks"], (0.0, 1.0))):
+            raise ValueError("D2CFR checkpoint имеет некорректную mask replay buffer")
+        if np.any(arrays["iterations"] < 1.0):
+            raise ValueError("D2CFR checkpoint имеет некорректный iteration replay buffer")
+        return count, cur_id, arrays
+
+    @staticmethod
     def _restore_buffer(buffer, payload):
         count = int(payload.get("count", 0))
         values = np.asarray(payload.get("values"))
@@ -1970,6 +2116,7 @@ class DeepCFRAgent:
 
     def _build_checkpoint(self, seed=None, extra=None):
         network_metadata = self._network_metadata()
+        algorithm_variant = "d2cfr_dueling_v1" if self.d2cfr_enabled else "deep_cfr_action_only_v1"
         checkpoint = {
             "checkpoint_format_version": CHECKPOINT_FORMAT_VERSION,
             "action_space_version": ACTION_SPACE_VERSION,
@@ -1979,9 +2126,9 @@ class DeepCFRAgent:
             "use_multi_agent_advantage": self.use_multi_agent,
             "encoding_version": self.encoding_version,
             "encoder_input_size": self.input_size,
+            "algorithm_variant": algorithm_variant,
             **network_metadata,
             "advantage_net": self.advantage_net.state_dict(),
-            "advantage_target_net": self.advantage_target_net.state_dict(),
             "strategy_net": self.strategy_net.state_dict(),
             "advantage_optimizer": self.optimizer.state_dict(),
             "strategy_optimizer": self.strategy_optimizer.state_dict(),
@@ -2000,11 +2147,26 @@ class DeepCFRAgent:
                 "strategy_distillation_lambda": self.strategy_distillation_lambda,
                 "strategy_distillation_temperature": self.strategy_distillation_temperature,
                 "strategy_distillation_anneal_iterations": self.strategy_distillation_anneal_iterations,
+                "d2cfr_enabled": self.d2cfr_enabled,
+                "d2cfr_regret_loss_weight": self.d2cfr_regret_loss_weight,
+                "d2cfr_state_value_loss_weight": self.d2cfr_state_value_loss_weight,
+                "d2cfr_action_value_loss_weight": self.d2cfr_action_value_loss_weight,
+                "d2cfr_reinitialize_each_iteration": self.d2cfr_reinitialize_each_iteration,
+                "d2cfr_iteration_weight_power": self.d2cfr_iteration_weight_power,
                 **network_metadata,
             },
         }
+        if self.d2cfr_enabled:
+            checkpoint.update(self._d2cfr_checkpoint_metadata())
+        if not self.d2cfr_enabled:
+            assert self.advantage_target_net is not None
+            checkpoint["advantage_target_net"] = self.advantage_target_net.state_dict()
         if self.save_replay_buffers_in_checkpoint:
-            checkpoint["advantage_buffer"] = self._buffer_payload(self.advantage_buffer)
+            checkpoint["advantage_buffer"] = (
+                self._d2cfr_buffer_payload(self.d2cfr_buffer)
+                if self.d2cfr_enabled
+                else self._buffer_payload(self.advantage_buffer)
+            )
             checkpoint["strategy_buffer"] = self._buffer_payload(self.strategy_buffer)
         if self.teacher_transfer_provenance is not None:
             checkpoint["teacher_transfer_provenance"] = deepcopy(
@@ -2052,6 +2214,18 @@ class DeepCFRAgent:
             )
         if checkpoint.get("action_space_version") != ACTION_SPACE_VERSION or int(checkpoint.get("num_actions", -1)) != NUM_ACTIONS:
             raise ValueError("Чекпоинт имеет другое пространство действий")
+        expected_variant = "d2cfr_dueling_v1" if self.d2cfr_enabled else "deep_cfr_action_only_v1"
+        checkpoint_variant = checkpoint.get("algorithm_variant", "deep_cfr_action_only_v1")
+        if checkpoint_variant != expected_variant:
+            raise ValueError("Чекпоинт имеет несовместимый algorithm variant")
+        if self.d2cfr_enabled:
+            expected_d2cfr_metadata = self._d2cfr_checkpoint_metadata()
+            if checkpoint.get("training_target_semantics") != expected_d2cfr_metadata[
+                "training_target_semantics"
+            ]:
+                raise ValueError("Чекпоинт не содержит совместимую семантику D2CFR targets")
+            if checkpoint.get("d2cfr_config") != expected_d2cfr_metadata["d2cfr_config"]:
+                raise ValueError("Чекпоинт имеет несовместимую конфигурацию D2CFR")
         if int(checkpoint.get("num_players", -1)) != self.num_players:
             raise ValueError("Чекпоинт имеет другое число игроков")
         checkpoint_use_multi_agent = bool(
@@ -2070,7 +2244,10 @@ class DeepCFRAgent:
             raise ValueError("Чекпоинт имеет несовместимую версию encoder")
         if int(checkpoint.get("encoder_input_size", -1)) != self.input_size:
             raise ValueError("Чекпоинт имеет несовместимый размер входа encoder")
-        for key in ("advantage_net", "advantage_target_net", "strategy_net"):
+        required_networks = ("advantage_net", "strategy_net")
+        if not self.d2cfr_enabled:
+            required_networks = ("advantage_net", "advantage_target_net", "strategy_net")
+        for key in required_networks:
             if key not in checkpoint:
                 raise ValueError(f"В checkpoint отсутствует обязательный ключ {key}")
         self._validate_checkpoint_network_metadata(checkpoint)
@@ -2082,9 +2259,19 @@ class DeepCFRAgent:
             freeze_card_encoder = provenance.get("freeze", False)
             if not isinstance(freeze_card_encoder, bool):
                 raise ValueError("Чекпоинт имеет некорректный freeze в teacher_transfer_provenance")
-        checkpoint_architecture, checkpoint_input_size, checkpoint_hidden_size = (
-            full_checkpoint_network_spec(checkpoint)
-        )
+        d2cfr_buffer_payload = None
+        if self.d2cfr_enabled:
+            checkpoint_architecture, checkpoint_input_size, checkpoint_hidden_size = (
+                dueling_checkpoint_network_spec(checkpoint)
+            )
+            if "advantage_buffer" in checkpoint:
+                d2cfr_buffer_payload = self._validated_d2cfr_buffer_payload(
+                    checkpoint["advantage_buffer"]
+                )
+        else:
+            checkpoint_architecture, checkpoint_input_size, checkpoint_hidden_size = (
+                full_checkpoint_network_spec(checkpoint)
+            )
         if checkpoint_architecture != self.network_architecture:
             raise ValueError("Чекпоинт имеет несовместимую архитектуру сети")
         if checkpoint_input_size != self.input_size:
@@ -2092,7 +2279,9 @@ class DeepCFRAgent:
         if checkpoint_hidden_size != self._network_hidden_size(self.strategy_net):
             raise ValueError("Чекпоинт имеет несовместимый hidden_size сети")
         self.advantage_net.load_state_dict(checkpoint["advantage_net"], strict=True)
-        self.advantage_target_net.load_state_dict(checkpoint["advantage_target_net"], strict=True)
+        if not self.d2cfr_enabled:
+            assert self.advantage_target_net is not None
+            self.advantage_target_net.load_state_dict(checkpoint["advantage_target_net"], strict=True)
         self.strategy_net.load_state_dict(checkpoint["strategy_net"], strict=True)
         for key, optimizer in (("advantage_optimizer", self.optimizer), ("strategy_optimizer", self.strategy_optimizer)):
             if key in checkpoint:
@@ -2101,7 +2290,20 @@ class DeepCFRAgent:
                 except (ValueError, KeyError):
                     pass
         if "advantage_buffer" in checkpoint:
-            self._restore_buffer(self.advantage_buffer, checkpoint["advantage_buffer"])
+            if self.d2cfr_enabled:
+                assert d2cfr_buffer_payload is not None
+                count, cur_id, arrays = d2cfr_buffer_payload
+                assert self.d2cfr_buffer is not None
+                self.d2cfr_buffer._states[:count] = arrays["states"]
+                self.d2cfr_buffer._action_values[:count] = arrays["action_values"]
+                self.d2cfr_buffer._state_values[:count] = arrays["state_values"]
+                self.d2cfr_buffer._regrets[:count] = arrays["regrets"]
+                self.d2cfr_buffer._masks[:count] = arrays["masks"]
+                self.d2cfr_buffer._iterations[:count] = arrays["iterations"]
+                self.d2cfr_buffer._cur_id = cur_id
+                self.d2cfr_buffer._size = count
+            else:
+                self._restore_buffer(self.advantage_buffer, checkpoint["advantage_buffer"])
         if "strategy_buffer" in checkpoint:
             self._restore_buffer(self.strategy_buffer, checkpoint["strategy_buffer"])
         self.teacher_transfer_provenance = deepcopy(provenance)
