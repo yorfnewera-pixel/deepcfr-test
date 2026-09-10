@@ -188,3 +188,19 @@ Light checkpoint остаётся strategy-only артефактом и сохр
 Критерием завершения разработки является воспроизводимый зелёный test suite и
 валидный технический HU D2 checkpoint. Критерий качества появится только в
 отдельном заранее фиксированном A/B-прогоне против HU baseline.
+
+## Технический smoke-запуск
+
+`configs/hu_d2cfr_smoke.yaml` намеренно использует один traversal на итерацию,
+`hidden_size: 16` и малые reservoir. Он проверяет только lifecycle: отдельные
+P0/P1 dueling-ноги, полный и light HU checkpoint, strict resume и six-max
+traversal. Запускать его следует так:
+
+```powershell
+python -m pytest -q tests/test_d2cfr_smoke.py
+```
+
+Результат этого smoke не является показателем игровой силы и не даёт основания
+выбирать checkpoint по training loss. Сравнение D2CFR с baseline требует
+отдельно зафиксированного A/B-протокола с одинаковым wall-clock и несколькими
+seed.

@@ -1661,6 +1661,7 @@ class DeepCFRAgent:
         del player_id
         if not self.d2cfr_enabled or not isinstance(self.d2cfr_buffer, DuelingAdvantageBuffer):
             raise RuntimeError("D2CFR обучение доступно только при d2cfr_enabled")
+        self.last_advantage_target_stats = None
         batch_size = int(batch_size or self.advantage_batch_size)
         epochs = int(epochs or self.advantage_epochs)
         count = len(self.d2cfr_buffer)

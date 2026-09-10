@@ -1371,6 +1371,7 @@ def _create_hu_current_policy_coordinator(
         return next_state
 
     advantage_losses = [0.0, 0.0]
+    d2cfr_component_losses: list[dict[str, float]] = [{}, {}]
     strategy_losses: list[float] = []
 
     def train_advantage(player_id: int, network, target_network, optimizer, buffer) -> float:
@@ -1396,6 +1397,10 @@ def _create_hu_current_policy_coordinator(
             agent.hu_coordinator.advantage_nets = tuple(advantage_nets)
             agent.hu_coordinator.advantage_optimizers = tuple(advantage_optimizers)
             advantage_losses[player_id] = float(loss)
+            if agent.d2cfr_enabled:
+                d2cfr_component_losses[player_id] = dict(
+                    agent.last_advantage_target_stats or {}
+                )
             return float(loss)
         finally:
             if agent.d2cfr_enabled:
@@ -1451,8 +1456,42 @@ def _create_hu_current_policy_coordinator(
         d2cfr_enabled=agent.d2cfr_enabled,
     )
     coordinator.training_losses = (advantage_losses, strategy_losses)
+    coordinator.d2cfr_component_losses = d2cfr_component_losses
     agent.hu_coordinator = coordinator
     return coordinator
+
+
+def _print_d2cfr_startup_contract() -> None:
+    """Явно фиксирует математический режим, чтобы лог не путал его с baseline."""
+    print(
+        "Алгоритм: D2CFR dueling; targets: V(I), Q(I,a), regret=Q-V; "
+        "MC correction: выключен."
+    )
+    print(
+        "В D2CFR не используются advantage_accumulation, discount_alpha, "
+        "discount_gamma, advantage_loss и advantage_huber_delta."
+    )
+
+
+def _log_d2cfr_component_losses(
+    component_losses: list[dict[str, float]] | tuple[dict[str, float], ...],
+    writer,
+    iteration: int,
+) -> None:
+    """Выводит самостоятельные loss трёх D2CFR целей для каждой HU-ноги."""
+    metric_keys = ("regret_loss", "state_value_loss", "action_value_loss")
+    for player_id, values in enumerate(component_losses):
+        if not values:
+            continue
+        metrics = {key: float(values.get(key, 0.0)) for key in metric_keys}
+        print(
+            f"  D2CFR P{player_id}: d2cfr_regret_loss={metrics['regret_loss']:.6f} | "
+            f"d2cfr_state_value_loss={metrics['state_value_loss']:.6f} | "
+            f"d2cfr_action_value_loss={metrics['action_value_loss']:.6f}"
+        )
+        if writer is not None:
+            for key, value in metrics.items():
+                writer.add_scalar(f"Loss/D2CFR/P{player_id}/d2cfr_{key}", value, iteration)
 
 
 def _prepare_hu_current_policy_iteration(agent: DeepCFRAgent) -> None:
@@ -1513,6 +1552,8 @@ def _train_hu_current_policy_self_play(
             "Старт HU current-policy self-play: "
             f"итераций={num_iterations}, обходов/итерацию={traversals_per_iteration}, device={agent.device}"
         )
+        if bool(getattr(agent, "d2cfr_enabled", False)):
+            _print_d2cfr_startup_contract()
         print(
             "Порядок фаз HU: обе фазы обходов P0/P1 на frozen snapshots -> "
             "обучение advantage P0/P1 -> обучение shared strategy."
@@ -1545,6 +1586,10 @@ def _train_hu_current_policy_self_play(
             advantage_losses, strategy_losses = coordinator.training_losses
             advantage_loss = float(sum(advantage_losses) / len(advantage_losses))
             strategy_loss = float(strategy_losses[-1]) if strategy_losses else 0.0
+            if bool(getattr(agent, "d2cfr_enabled", False)):
+                _log_d2cfr_component_losses(
+                    coordinator.d2cfr_component_losses, writer, iteration
+                )
             if writer is not None:
                 writer.add_scalar("Loss/Advantage", advantage_loss, iteration)
                 writer.add_scalar("Loss/Strategy", strategy_loss, iteration)
@@ -1732,6 +1777,8 @@ def train_self_play_multi(
             f"Старт обучения: итераций={num_iterations}, "
             f"обходов/итерацию={traversals_per_iteration}, device={device}"
         )
+        if bool(getattr(agent, "d2cfr_enabled", False)):
+            _print_d2cfr_startup_contract()
         for iteration in range(start_iteration, start_iteration + int(num_iterations)):
             iteration_started = time.perf_counter()
             agent.iteration_count = iteration
@@ -1826,6 +1873,10 @@ def train_self_play_multi(
             with _training_thread_limit(training_threads):
                 advantage_loss = agent.train_advantage_network_multi()
                 strategy_loss = agent.train_strategy_network()
+            if bool(getattr(agent, "d2cfr_enabled", False)):
+                _log_d2cfr_component_losses(
+                    [dict(agent.last_advantage_target_stats or {})], writer, iteration
+                )
             if writer is not None:
                 writer.add_scalar("Loss/Advantage", advantage_loss, iteration)
                 writer.add_scalar("Loss/Strategy", strategy_loss, iteration)

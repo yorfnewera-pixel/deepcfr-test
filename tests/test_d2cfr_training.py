@@ -80,6 +80,21 @@ def test_d2cfr_training_uses_three_masked_counterfactual_losses(d2_agent):
     }
 
 
+def test_d2cfr_empty_buffer_clears_loss_stats_instead_of_reusing_previous_values(d2_agent):
+    d2_agent.last_advantage_target_stats = {
+        "regret_loss": 1.0,
+        "state_value_loss": 2.0,
+        "action_value_loss": 3.0,
+        "total_loss": 6.0,
+    }
+
+    loss = d2_agent.train_d2cfr_advantage_network_multi()
+
+    assert loss == 0.0
+    assert d2_agent.last_advantage_train_steps == 0
+    assert d2_agent.last_advantage_target_stats is None
+
+
 def test_d2cfr_reinitializes_network_and_optimizer_without_target_bootstrap(d2_agent):
     d2_agent.iteration_count = 1
     previous_network = d2_agent.advantage_net
