@@ -4,11 +4,25 @@ import pytest
 import torch
 
 from src.core.action_space import NUM_ACTIONS, legal_action_mask
+from src.core import deep_cfr as deep_cfr_mod
 from src.core.deep_cfr import DeepCFRAgent
 from src.core.model import CARD_CONTEXT_ARCHITECTURE, CARD_FEATURE_SIZE
 from src.evaluation.blueprint_policy import FrozenBlueprintPolicy
 from src.evaluation.paired_harness import evaluate_paired
 from src.utils import config as config_mod
+
+
+@pytest.fixture(autouse=True)
+def _isolate_action_only_blueprint_checkpoints(monkeypatch):
+    """Blueprint tests создают action-only checkpoint и не тестируют D2CFR."""
+    original_cfg_get = deep_cfr_mod.cfg_get
+
+    def cfg_get_for_action_only_tests(key, default=None):
+        if key == "d2cfr_enabled":
+            return False
+        return original_cfg_get(key, default)
+
+    monkeypatch.setattr(deep_cfr_mod, "cfg_get", cfg_get_for_action_only_tests)
 
 
 def test_frozen_policy_exposes_six_legal_probabilities(tmp_path):

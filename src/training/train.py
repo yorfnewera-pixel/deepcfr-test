@@ -1124,14 +1124,62 @@ def _format_iteration_summary(
     advantage_loss: float,
     strategy_loss: float,
     opponent_setup_elapsed: float = 0.0,
+    advantage_training_elapsed: float = 0.0,
+    strategy_training_elapsed: float = 0.0,
+    advantage_player_elapsed: tuple[float, ...] | None = None,
 ) -> str:
-    return (
+    training_elapsed = advantage_training_elapsed + strategy_training_elapsed
+    timing_summary = (
         f"Time/Iteration={iteration_elapsed:.1f}s | "
         f"Time/Traversal={traversal_elapsed:.1f}s | "
         f"Time/OpponentPoolSetup={opponent_setup_elapsed:.1f}s | "
+        f"Time/Advantage={advantage_training_elapsed:.1f}s | "
+        f"Time/Strategy={strategy_training_elapsed:.1f}s | "
+        f"Time/Training={training_elapsed:.1f}s | "
         f"Loss/Advantage={advantage_loss:.6f} | "
         f"Loss/Strategy={strategy_loss:.6f}"
     )
+    if advantage_player_elapsed is None:
+        return timing_summary
+    player_timing = " | ".join(
+        f"Time/Advantage/P{player_id}={elapsed:.1f}s"
+        for player_id, elapsed in enumerate(advantage_player_elapsed)
+    )
+    return f"{timing_summary} | {player_timing}" if player_timing else timing_summary
+
+
+def _log_training_time_metrics(
+    writer,
+    *,
+    iteration: int,
+    advantage_training_elapsed: float,
+    strategy_training_elapsed: float,
+    advantage_player_elapsed: tuple[float, ...] | None = None,
+) -> None:
+    """Публикует wall-clock обучения без traversal и setup opponent pool."""
+    if writer is None:
+        return
+    writer.add_scalar("Time/Advantage", advantage_training_elapsed, iteration)
+    writer.add_scalar("Time/Strategy", strategy_training_elapsed, iteration)
+    writer.add_scalar(
+        "Time/Training",
+        advantage_training_elapsed + strategy_training_elapsed,
+        iteration,
+    )
+    if advantage_player_elapsed is not None:
+        for player_id, elapsed in enumerate(advantage_player_elapsed):
+            writer.add_scalar(f"Time/Advantage/P{player_id}", elapsed, iteration)
+
+
+def _hu_traversal_phase_elapsed(
+    *,
+    iteration_phase_elapsed: float,
+    advantage_player_elapsed: tuple[float, ...] | list[float],
+    strategy_training_elapsed: float,
+) -> float:
+    """Исключает callbacks обучения из wall-clock HU traversal-фазы."""
+    training_elapsed = sum(advantage_player_elapsed) + strategy_training_elapsed
+    return max(0.0, iteration_phase_elapsed - training_elapsed)
 
 
 @contextmanager
@@ -1371,8 +1419,10 @@ def _create_hu_current_policy_coordinator(
         return next_state
 
     advantage_losses = [0.0, 0.0]
+    advantage_training_elapsed = [0.0, 0.0]
     d2cfr_component_losses: list[dict[str, float]] = [{}, {}]
     strategy_losses: list[float] = []
+    strategy_training_elapsed = [0.0]
 
     def train_advantage(player_id: int, network, target_network, optimizer, buffer) -> float:
         previous = (
@@ -1388,8 +1438,10 @@ def _create_hu_current_policy_coordinator(
             agent.optimizer = optimizer
             agent.advantage_buffer = buffer
             agent.d2cfr_buffer = buffer if agent.d2cfr_enabled else None
+            training_started = time.perf_counter()
             with _training_thread_limit(cfg_get("training_torch_threads")):
                 loss = agent.train_advantage_network_multi(player_id=player_id)
+            advantage_training_elapsed[player_id] = time.perf_counter() - training_started
             advantage_nets[player_id] = agent.advantage_net
             advantage_optimizers[player_id] = agent.optimizer
             agent.hu_advantage_nets = tuple(advantage_nets)
@@ -1419,8 +1471,10 @@ def _create_hu_current_policy_coordinator(
                 ) = previous
 
     def train_strategy(_network, _optimizer, _buffer) -> float:
+        training_started = time.perf_counter()
         with _training_thread_limit(cfg_get("training_torch_threads")):
             loss = agent.train_strategy_network()
+        strategy_training_elapsed[0] = time.perf_counter() - training_started
         strategy_losses.append(float(loss))
         return float(loss)
 
@@ -1456,6 +1510,7 @@ def _create_hu_current_policy_coordinator(
         d2cfr_enabled=agent.d2cfr_enabled,
     )
     coordinator.training_losses = (advantage_losses, strategy_losses)
+    coordinator.training_timings = (advantage_training_elapsed, strategy_training_elapsed)
     coordinator.d2cfr_component_losses = d2cfr_component_losses
     agent.hu_coordinator = coordinator
     return coordinator
@@ -1582,8 +1637,20 @@ def _train_hu_current_policy_self_play(
                 on_traversal_success=agent.record_traversal_success,
                 handle_traversal_failure=handle_traversal_failure,
             )
-            traversal_elapsed = time.perf_counter() - traversal_started
+            iteration_phase_elapsed = time.perf_counter() - traversal_started
             advantage_losses, strategy_losses = coordinator.training_losses
+            advantage_player_elapsed, strategy_elapsed_values = getattr(
+                coordinator,
+                "training_timings",
+                ([0.0, 0.0], [0.0]),
+            )
+            advantage_training_elapsed = float(sum(advantage_player_elapsed))
+            strategy_training_elapsed = float(strategy_elapsed_values[-1])
+            traversal_elapsed = _hu_traversal_phase_elapsed(
+                iteration_phase_elapsed=iteration_phase_elapsed,
+                advantage_player_elapsed=advantage_player_elapsed,
+                strategy_training_elapsed=strategy_training_elapsed,
+            )
             advantage_loss = float(sum(advantage_losses) / len(advantage_losses))
             strategy_loss = float(strategy_losses[-1]) if strategy_losses else 0.0
             if bool(getattr(agent, "d2cfr_enabled", False)):
@@ -1595,6 +1662,13 @@ def _train_hu_current_policy_self_play(
                 writer.add_scalar("Loss/Strategy", strategy_loss, iteration)
                 writer.add_scalar("Time/Traversal", traversal_elapsed, iteration)
                 writer.add_scalar("Train/AdvantageLearningRate", agent.optimizer.param_groups[0]["lr"], iteration)
+            _log_training_time_metrics(
+                writer,
+                iteration=iteration,
+                advantage_training_elapsed=advantage_training_elapsed,
+                strategy_training_elapsed=strategy_training_elapsed,
+                advantage_player_elapsed=tuple(advantage_player_elapsed),
+            )
             if evaluate_every and iteration % int(evaluate_every) == 0:
                 evaluation = evaluate_against_random(
                     agent, evaluation_games, num_players, return_stats=True
@@ -1623,7 +1697,14 @@ def _train_hu_current_policy_self_play(
             if writer is not None:
                 writer.add_scalar("Time/Iteration", iteration_elapsed, iteration)
             print(_format_iteration_summary(
-                iteration_elapsed, traversal_elapsed, advantage_loss, strategy_loss, 0.0
+                iteration_elapsed,
+                traversal_elapsed,
+                advantage_loss,
+                strategy_loss,
+                0.0,
+                advantage_training_elapsed,
+                strategy_training_elapsed,
+                tuple(advantage_player_elapsed),
             ))
     finally:
         if writer is not None:
@@ -1871,8 +1952,12 @@ def train_self_play_multi(
 
             training_threads = cfg_get("training_torch_threads")
             with _training_thread_limit(training_threads):
+                advantage_training_started = time.perf_counter()
                 advantage_loss = agent.train_advantage_network_multi()
+                advantage_training_elapsed = time.perf_counter() - advantage_training_started
+                strategy_training_started = time.perf_counter()
                 strategy_loss = agent.train_strategy_network()
+                strategy_training_elapsed = time.perf_counter() - strategy_training_started
             if bool(getattr(agent, "d2cfr_enabled", False)):
                 _log_d2cfr_component_losses(
                     [dict(agent.last_advantage_target_stats or {})], writer, iteration
@@ -1883,6 +1968,12 @@ def train_self_play_multi(
                 writer.add_scalar("Time/Traversal", traversal_elapsed, iteration)
                 writer.add_scalar("Time/OpponentPoolSetup", opponent_setup_elapsed, iteration)
                 writer.add_scalar("Train/AdvantageLearningRate", agent.optimizer.param_groups[0]["lr"], iteration)
+            _log_training_time_metrics(
+                writer,
+                iteration=iteration,
+                advantage_training_elapsed=advantage_training_elapsed,
+                strategy_training_elapsed=strategy_training_elapsed,
+            )
             if evaluate_every and iteration % int(evaluate_every) == 0:
                 evaluation = evaluate_against_random(
                     agent, evaluation_games, num_players, return_stats=True
@@ -1909,7 +2000,13 @@ def train_self_play_multi(
             if writer is not None:
                 writer.add_scalar("Time/Iteration", iteration_elapsed, iteration)
             print(_format_iteration_summary(
-                iteration_elapsed, traversal_elapsed, advantage_loss, strategy_loss, opponent_setup_elapsed
+                iteration_elapsed,
+                traversal_elapsed,
+                advantage_loss,
+                strategy_loss,
+                opponent_setup_elapsed,
+                advantage_training_elapsed,
+                strategy_training_elapsed,
             ))
     finally:
         if writer is not None:

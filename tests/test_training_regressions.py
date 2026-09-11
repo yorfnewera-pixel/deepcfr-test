@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from pathlib import Path
 
 from src.core.action_space import ACTION_SPACE_VERSION, NUM_ACTIONS
+from src.core import deep_cfr as deep_cfr_mod
 from src.core.deep_cfr import CHECKPOINT_FORMAT_VERSION, DeepCFRAgent
 from src.core.model import MONOLITHIC_ARCHITECTURE
 from src.core.traversal_errors import TraversalFailure, TraversalFailureContext
@@ -26,16 +27,17 @@ from src.training import train as train_mod
 
 
 @pytest.fixture(autouse=True)
-def _disable_hu_current_policy_mode(monkeypatch):
-    """Сохраняет unit-тесты обычного training path независимыми от config.yaml."""
+def _isolate_action_only_training_mode(monkeypatch):
+    """Изолирует unit-тесты обычного пути от выбранного runtime режима config.yaml."""
     original_cfg_get = train_mod.cfg_get
 
-    def cfg_get_without_hu_mode(key, default=None):
-        if key == "hu_current_policy_self_play":
+    def cfg_get_for_action_only_tests(key, default=None):
+        if key in {"hu_current_policy_self_play", "d2cfr_enabled"}:
             return False
         return original_cfg_get(key, default)
 
-    monkeypatch.setattr(train_mod, "cfg_get", cfg_get_without_hu_mode)
+    monkeypatch.setattr(train_mod, "cfg_get", cfg_get_for_action_only_tests)
+    monkeypatch.setattr(deep_cfr_mod, "cfg_get", cfg_get_for_action_only_tests)
 
 
 def _traversal_failure_context(reason="Превышена допустимая глубина обхода"):
@@ -356,6 +358,61 @@ def test_iteration_summary_includes_opponent_pool_setup_time():
     )
 
     assert "Time/OpponentPoolSetup=0.3s" in summary
+
+
+def test_iteration_summary_separates_advantage_and_strategy_training_time():
+    summary = train_mod._format_iteration_summary(
+        iteration_elapsed=10.0,
+        traversal_elapsed=4.0,
+        advantage_loss=0.1,
+        strategy_loss=0.2,
+        advantage_training_elapsed=2.5,
+        strategy_training_elapsed=1.5,
+        advantage_player_elapsed=(1.0, 1.5),
+    )
+
+    assert "Time/Advantage=2.5s" in summary
+    assert "Time/Advantage/P0=1.0s" in summary
+    assert "Time/Advantage/P1=1.5s" in summary
+    assert "Time/Strategy=1.5s" in summary
+    assert "Time/Training=4.0s" in summary
+
+
+def test_training_timing_metrics_are_written_to_tensorboard_per_hu_leg():
+    class Writer:
+        def __init__(self):
+            self.scalars = []
+
+        def add_scalar(self, name, value, iteration):
+            self.scalars.append((name, value, iteration))
+
+    writer = Writer()
+
+    train_mod._log_training_time_metrics(
+        writer,
+        iteration=7,
+        advantage_training_elapsed=2.5,
+        strategy_training_elapsed=1.5,
+        advantage_player_elapsed=(1.0, 1.5),
+    )
+
+    assert writer.scalars == [
+        ("Time/Advantage", 2.5, 7),
+        ("Time/Strategy", 1.5, 7),
+        ("Time/Training", 4.0, 7),
+        ("Time/Advantage/P0", 1.0, 7),
+        ("Time/Advantage/P1", 1.5, 7),
+    ]
+
+
+def test_hu_traversal_time_excludes_advantage_and_strategy_training():
+    traversal_elapsed = train_mod._hu_traversal_phase_elapsed(
+        iteration_phase_elapsed=10.0,
+        advantage_player_elapsed=(2.5, 1.5),
+        strategy_training_elapsed=2.0,
+    )
+
+    assert traversal_elapsed == 4.0
 
 
 def test_training_uses_configured_advantage_learning_rate_from_first_iteration(monkeypatch, tmp_path):

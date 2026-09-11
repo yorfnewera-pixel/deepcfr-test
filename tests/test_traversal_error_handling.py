@@ -4,6 +4,7 @@ import pytest
 import torch
 
 from src.core.action_space import NUM_ACTIONS
+from src.core import deep_cfr as deep_cfr_mod
 from src.core.buffers import StrategyBuffer
 from src.core.deep_cfr import DeepCFRAgent
 from src.core.traversal_errors import TraversalFailure, TraversalFailureContext
@@ -35,6 +36,19 @@ def _restore_strict_checking():
     settings.set_strict_checking(False)
     yield
     settings.set_strict_checking(original)
+
+
+@pytest.fixture(autouse=True)
+def _isolate_action_only_traversal_buffers(monkeypatch):
+    """Этот модуль проверяет контракт AdvantageBuffer, а не D2 reservoir."""
+    original_cfg_get = deep_cfr_mod.cfg_get
+
+    def cfg_get_for_action_only_tests(key, default=None):
+        if key == "d2cfr_enabled":
+            return False
+        return original_cfg_get(key, default)
+
+    monkeypatch.setattr(deep_cfr_mod, "cfg_get", cfg_get_for_action_only_tests)
 
 
 def _state():

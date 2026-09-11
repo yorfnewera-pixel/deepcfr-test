@@ -1,10 +1,25 @@
 import numpy as np
+import pytest
 import torch
 
+from src.core import deep_cfr as deep_cfr_mod
 from src.core.deep_cfr import DeepCFRAgent
 from src.core.model import CARD_CONTEXT_ARCHITECTURE
 from src.utils import config as config_mod
 from tools import checkpoint_tools
+
+
+@pytest.fixture(autouse=True)
+def _isolate_action_only_checkpoint_tools(monkeypatch):
+    """Эти проверки строят legacy action-only full checkpoint намеренно."""
+    original_cfg_get = deep_cfr_mod.cfg_get
+
+    def cfg_get_for_action_only_tests(key, default=None):
+        if key == "d2cfr_enabled":
+            return False
+        return original_cfg_get(key, default)
+
+    monkeypatch.setattr(deep_cfr_mod, "cfg_get", cfg_get_for_action_only_tests)
 
 
 def _light_checkpoint(path):
