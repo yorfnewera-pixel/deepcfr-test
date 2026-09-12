@@ -18,10 +18,6 @@ from src.core.deep_cfr import DeepCFRAgent
 from src.core.action_space import resolve_action
 from src.core.model import set_verbose
 from src.agents.random_agent import RandomAgent
-from src.agents.legacy_starting_opponent import (
-    LegacyStartingOpponent,
-    is_legacy_starting_opponent_checkpoint,
-)
 from policy_runtime.core import PolicyRuntimeAgent
 
 class PolicyRuntimeAdapter:
@@ -41,9 +37,6 @@ class PolicyRuntimeAdapter:
 def create_playing_agent(model_path, player_id, device):
     """Загружает модель в адаптер, совместимый с игровым движком GUI."""
     checkpoint = torch.load(model_path, map_location="cpu", weights_only=False)
-    if is_legacy_starting_opponent_checkpoint(checkpoint):
-        return LegacyStartingOpponent(model_path, device=str(device))
-
     is_inference = (
         "strategy_net" in checkpoint
         and checkpoint.get("action_space_version") == "six_fixed_v2"

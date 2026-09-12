@@ -48,12 +48,14 @@ _DEFAULTS = {
     "advantage_loss": "mse",
     "advantage_huber_delta": 1.0,
     "d2cfr_enabled": False,
-    "d2cfr_regret_loss_weight": 1.0,
-    "d2cfr_state_value_loss_weight": 1.0,
-    "d2cfr_action_value_loss_weight": 1.0,
+    "d2cfr_loss_mode": "anchored",
+    "d2cfr_loss_function": "huber",
+    "d2cfr_state_value_loss_weight": 0.5,
+    "d2cfr_huber_delta": 1.0,
     "d2cfr_reinitialize_each_iteration": True,
-    "d2cfr_iteration_weight_power": 1.0,
+    "d2cfr_iteration_weight_mode": "batch_mean_1",
     "d2cfr_mc_correction_enabled": False,
+    "traversal_baseline_enabled": False,
     "policy_runtime_min_action_prob": 0.0,
     "checkpoint_save_every": 1000,
     "hu_checkpoint_save_every": 5000,
@@ -82,44 +84,60 @@ _config = None
 _raw_config = {}
 
 
-def _validate_d2cfr_configuration(config: Mapping[str, object]) -> None:
+def _validate_d2cfr_configuration(
+    config: Mapping[str, object], raw_config: Mapping[str, object] | None = None
+) -> None:
     """Отклоняет ещё не реализованные либо математически несогласованные D2 режимы."""
     for key in (
         "d2cfr_enabled",
         "d2cfr_reinitialize_each_iteration",
         "d2cfr_mc_correction_enabled",
+        "traversal_baseline_enabled",
     ):
         if not isinstance(config[key], bool):
             raise ValueError(f"{key} должен быть bool")
     if not config["d2cfr_enabled"]:
         return
+    if not config["d2cfr_reinitialize_each_iteration"]:
+        raise ValueError("D2CFR требует d2cfr_reinitialize_each_iteration=true")
+    explicitly_configured = {} if raw_config is None else raw_config
+    obsolete_d2cfr_keys = (
+        "d2cfr_regret_loss_weight",
+        "d2cfr_action_value_loss_weight",
+        "d2cfr_iteration_weight_power",
+    )
+    for key in obsolete_d2cfr_keys:
+        if key in explicitly_configured:
+            raise ValueError(f"{key} заменён утверждённым D2CFR loss-контрактом")
+    for key in ("discount_alpha", "discount_gamma", "advantage_accumulation"):
+        if key in explicitly_configured:
+            raise ValueError(f"{key} несовместим с D2CFR")
     if config["d2cfr_mc_correction_enabled"]:
-        raise ValueError("D2CFR MC correction пока не реализован")
+        raise ValueError("D2CFR MC correction заблокирован до реализации belief")
+    if config["traversal_baseline_enabled"]:
+        raise ValueError("D2CFR traversal baseline пока не реализован")
     if config["advantage_regret_clip"] is not None:
         raise ValueError("D2CFR несовместим с advantage_regret_clip")
 
-    weights = []
-    for key in (
-        "d2cfr_regret_loss_weight",
-        "d2cfr_state_value_loss_weight",
-        "d2cfr_action_value_loss_weight",
-    ):
-        try:
-            value = float(config[key])
-        except (TypeError, ValueError) as error:
-            raise ValueError(f"{key} должен быть числом") from error
-        if value < 0.0 or not value < float("inf"):
-            raise ValueError(f"{key} должен быть конечным числом >= 0")
-        weights.append(value)
-    if not any(weight > 0.0 for weight in weights):
-        raise ValueError("Для D2CFR хотя бы один loss weight должен быть > 0")
-
+    loss_mode = config["d2cfr_loss_mode"]
+    if loss_mode not in {"literal", "anchored"}:
+        raise ValueError("d2cfr_loss_mode должен быть literal или anchored")
+    loss_function = config["d2cfr_loss_function"]
+    if loss_function not in {"mse", "huber"}:
+        raise ValueError("d2cfr_loss_function должен быть mse или huber")
     try:
-        iteration_weight_power = float(config["d2cfr_iteration_weight_power"])
+        state_value_weight = float(config["d2cfr_state_value_loss_weight"])
+        huber_delta = float(config["d2cfr_huber_delta"])
     except (TypeError, ValueError) as error:
-        raise ValueError("d2cfr_iteration_weight_power должен быть числом") from error
-    if iteration_weight_power < 0.0 or not iteration_weight_power < float("inf"):
-        raise ValueError("d2cfr_iteration_weight_power должен быть конечным числом >= 0")
+        raise ValueError("D2CFR loss-параметры должны быть числами") from error
+    if state_value_weight < 0.0 or not state_value_weight < float("inf"):
+        raise ValueError("d2cfr_state_value_loss_weight должен быть конечным числом >= 0")
+    if huber_delta <= 0.0 or not huber_delta < float("inf"):
+        raise ValueError("d2cfr_huber_delta должен быть конечным числом > 0")
+    if loss_mode == "literal" and (loss_function != "mse" or state_value_weight != 0.0):
+        raise ValueError("D2CFR literal требует mse и d2cfr_state_value_loss_weight=0")
+    if config["d2cfr_iteration_weight_mode"] not in {"raw_t", "batch_mean_1"}:
+        raise ValueError("d2cfr_iteration_weight_mode должен быть raw_t или batch_mean_1")
 
 
 def _deep_merge(base, override):
@@ -146,7 +164,7 @@ def load_config(path=None):
         if not isinstance(loaded, dict):
             raise ValueError("config.yaml должен содержать YAML-словарь")
         candidate_config = _deep_merge(_DEFAULTS, loaded)
-        _validate_d2cfr_configuration(candidate_config)
+        _validate_d2cfr_configuration(candidate_config, loaded)
         _raw_config = loaded.copy()
         _config = candidate_config
         if int(_config["num_actions"]) != NUM_ACTIONS:

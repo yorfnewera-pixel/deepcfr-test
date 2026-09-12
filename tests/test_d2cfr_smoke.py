@@ -2,6 +2,7 @@
 from pathlib import Path
 
 import numpy as np
+import pytest
 import torch
 
 from src.training import train as train_mod
@@ -64,24 +65,37 @@ def test_hu_d2_smoke_creates_full_and_light_checkpoint_and_resumes(tmp_path, cap
         config_mod.load_config("config.yaml")
 
 
-def test_six_max_d2_smoke_traverses_and_trains_without_hu_coordinator(tmp_path):
+def test_six_max_d2cfr_is_rejected_until_stage_two(tmp_path):
     config_mod.load_config(_SMOKE_CONFIG)
     try:
-        agent = train_mod.train_self_play_multi(
-            num_iterations=1,
-            traversals_per_iteration=1,
-            evaluate_every=0,
-            save_dir=tmp_path,
-            num_players=6,
-            trainable_players=1,
-            hu_current_policy_self_play=False,
-            seed=20260910,
-        )
-        assert not hasattr(agent, "hu_coordinator")
-        output = agent.advantage_net.forward_components(
-            torch.zeros((1, agent.input_size), dtype=torch.float32)
-        )
-        assert output.action_values.shape == (1, 6)
-        assert torch.isfinite(output.regrets).all()
+        with pytest.raises(ValueError, match="только HU"):
+            train_mod.train_self_play_multi(
+                num_iterations=1,
+                traversals_per_iteration=1,
+                evaluate_every=0,
+                save_dir=tmp_path,
+                num_players=6,
+                trainable_players=1,
+                hu_current_policy_self_play=False,
+                seed=20260910,
+            )
+    finally:
+        config_mod.load_config("config.yaml")
+
+
+def test_heads_up_d2cfr_requires_current_policy_self_play(tmp_path):
+    config_mod.load_config(_SMOKE_CONFIG)
+    try:
+        with pytest.raises(ValueError, match="current-policy self-play"):
+            train_mod.train_self_play_multi(
+                num_iterations=1,
+                traversals_per_iteration=1,
+                evaluate_every=0,
+                save_dir=tmp_path,
+                num_players=2,
+                trainable_players=1,
+                hu_current_policy_self_play=False,
+                seed=20260910,
+            )
     finally:
         config_mod.load_config("config.yaml")

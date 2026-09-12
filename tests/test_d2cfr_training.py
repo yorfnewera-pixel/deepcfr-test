@@ -18,12 +18,14 @@ def d2_agent(tmp_path):
                 "num_players: 2",
                 "hidden_size: 8",
                 "d2cfr_enabled: true",
-                "d2cfr_regret_loss_weight: 1.0",
-                "d2cfr_state_value_loss_weight: 1.0",
-                "d2cfr_action_value_loss_weight: 1.0",
+                "d2cfr_loss_mode: anchored",
+                "d2cfr_loss_function: mse",
+                "d2cfr_state_value_loss_weight: 0.5",
+                "d2cfr_huber_delta: 1.0",
                 "d2cfr_reinitialize_each_iteration: true",
-                "d2cfr_iteration_weight_power: 1.0",
+                "d2cfr_iteration_weight_mode: raw_t",
                 "d2cfr_mc_correction_enabled: false",
+                "traversal_baseline_enabled: false",
                 "advantage_reward_scale: 200",
                 "advantage_train_steps: 1",
                 "training_preload_to_device: false",
@@ -55,7 +57,7 @@ def test_d2cfr_targets_share_one_scale_and_preserve_q_minus_v(d2_agent):
     assert np.allclose(q_targets[:2] - state_value_target, regret_targets[:2])
 
 
-def test_d2cfr_training_uses_three_masked_counterfactual_losses(d2_agent):
+def test_d2cfr_anchored_training_uses_regret_and_state_value_losses_only(d2_agent):
     d2_agent.iteration_count = 2
     for parameter_group in d2_agent.optimizer.param_groups:
         parameter_group["lr"] = 0.0
@@ -71,12 +73,11 @@ def test_d2cfr_training_uses_three_masked_counterfactual_losses(d2_agent):
 
     loss = d2_agent.train_d2cfr_advantage_network_multi(batch_size=1)
 
-    assert loss == pytest.approx(20.0)
+    assert loss == pytest.approx(11.0)
     assert d2_agent.last_advantage_target_stats == {
-        "regret_loss": pytest.approx(1.0),
-        "state_value_loss": pytest.approx(9.0),
-        "action_value_loss": pytest.approx(10.0),
-        "total_loss": pytest.approx(20.0),
+        "regret_loss": pytest.approx(2.0),
+        "state_value_loss": pytest.approx(18.0),
+        "total_loss": pytest.approx(11.0),
     }
 
 
@@ -84,8 +85,7 @@ def test_d2cfr_empty_buffer_clears_loss_stats_instead_of_reusing_previous_values
     d2_agent.last_advantage_target_stats = {
         "regret_loss": 1.0,
         "state_value_loss": 2.0,
-        "action_value_loss": 3.0,
-        "total_loss": 6.0,
+        "total_loss": 3.0,
     }
 
     loss = d2_agent.train_d2cfr_advantage_network_multi()
@@ -144,7 +144,7 @@ def test_d2cfr_record_keeps_q_v_and_r_atomically_in_traversal_collector(d2_agent
     assert recorded_iterations.tolist() == [3.0]
 
 
-def test_d2cfr_masked_loss_weights_each_legal_action_not_each_infoset():
+def test_d2cfr_masked_loss_preserves_raw_iteration_weight_scale():
     predictions = torch.zeros(2, NUM_ACTIONS)
     targets = torch.tensor(
         [[2, 0, 0, 0, 0, 0], [1, 1, 0, 0, 0, 0]], dtype=torch.float32
@@ -154,9 +154,16 @@ def test_d2cfr_masked_loss_weights_each_legal_action_not_each_infoset():
     )
     weights = torch.tensor([0.5, 1.0], dtype=torch.float32)
 
-    loss = DeepCFRAgent._d2cfr_masked_weighted_mse(predictions, targets, masks, weights)
+    loss = DeepCFRAgent._d2cfr_masked_weighted_loss(
+        predictions,
+        targets,
+        masks,
+        weights,
+        "mse",
+        1.0,
+    )
 
-    assert loss.item() == pytest.approx(1.6)
+    assert loss.item() == pytest.approx(4.0 / 3.0)
 
 
 def test_d2cfr_record_rejects_regrets_inconsistent_with_q_minus_v(d2_agent):

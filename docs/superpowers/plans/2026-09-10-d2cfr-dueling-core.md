@@ -397,7 +397,7 @@ Run: `python -m pytest -q tests/test_d2cfr_model_and_buffer.py tests/test_d2cfr_
 
 Expected: PASS.
 
-Run: `python -m pytest -q --ignore=tests/test_legacy_checkpoint_detection.py --ignore=tests/test_legacy_starting_opponent.py`
+Run: `python -m pytest -q`
 
 Expected: PASS; записать число passed/skipped и длительность в итоговом отчёте.
 

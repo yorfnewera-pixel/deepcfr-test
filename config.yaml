@@ -40,22 +40,21 @@ strategy_buffer_reservoir: true
 clear_strategy_buffer_each_iteration: false
 save_replay_buffers_in_checkpoint: true
 
-discount_alpha: 2.0
-discount_gamma: 2.0
-advantage_accumulation: dcfr_plus
 advantage_regret_norm: none
 advantage_regret_clip: null
 advantage_reward_scale: 200
 advantage_loss: mse
 advantage_huber_delta: 1.0
-# Opt-in dueling D2CFR: совместим с HU и six-max, но не включает MC correction.
+# Практический D2CFR-anchored для HU; MC correction заблокирован до belief.
 d2cfr_enabled: true
-d2cfr_regret_loss_weight: 1.0
-d2cfr_state_value_loss_weight: 1.0
-d2cfr_action_value_loss_weight: 1.0
+d2cfr_loss_mode: anchored
+d2cfr_loss_function: huber
+d2cfr_state_value_loss_weight: 0.5
+d2cfr_huber_delta: 1.0
 d2cfr_reinitialize_each_iteration: true
-d2cfr_iteration_weight_power: 1.0
+d2cfr_iteration_weight_mode: batch_mean_1
 d2cfr_mc_correction_enabled: false
+traversal_baseline_enabled: false
 
 policy_runtime_min_action_prob: 0.05
 big_blind: 2.0

@@ -122,15 +122,34 @@ def test_dueling_buffer_is_exported_as_public_buffer_contract():
     assert "DuelingAdvantageBuffer" in buffers_mod.__all__
 
 
+def test_d2cfr_defaults_to_anchored_loss_contract(tmp_path):
+    config_path = tmp_path / "d2cfr-defaults.yaml"
+    config_path.write_text("num_actions: 6\nd2cfr_enabled: true\n", encoding="utf-8")
+
+    try:
+        config_mod.load_config(config_path)
+
+        assert config_mod.cfg_get("d2cfr_loss_mode") == "anchored"
+        assert config_mod.cfg_get("d2cfr_loss_function") == "huber"
+        assert config_mod.cfg_get("d2cfr_state_value_loss_weight") == pytest.approx(0.5)
+        assert config_mod.cfg_get("d2cfr_iteration_weight_mode") == "batch_mean_1"
+    finally:
+        config_mod.load_config("config.yaml")
+
+
 @pytest.mark.parametrize(
     "contents,message",
     (
         ("d2cfr_enabled: true\nd2cfr_mc_correction_enabled: true\n", "MC correction"),
         ("d2cfr_enabled: true\nadvantage_regret_clip: 1.0\n", "clip"),
         (
-            "d2cfr_enabled: true\nd2cfr_regret_loss_weight: 0\n"
-            "d2cfr_state_value_loss_weight: 0\nd2cfr_action_value_loss_weight: 0\n",
-            "хотя бы один",
+            "d2cfr_enabled: true\nd2cfr_action_value_loss_weight: 1\n",
+            "d2cfr_action_value_loss_weight",
+        ),
+        ("d2cfr_enabled: true\ndiscount_gamma: 1.0\n", "discount_gamma"),
+        (
+            "d2cfr_enabled: true\nd2cfr_reinitialize_each_iteration: false\n",
+            "reinitialize_each_iteration",
         ),
     ),
 )

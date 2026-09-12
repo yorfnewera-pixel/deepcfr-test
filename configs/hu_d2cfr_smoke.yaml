@@ -27,12 +27,14 @@ save_replay_buffers_in_checkpoint: true
 advantage_reward_scale: 200
 advantage_regret_clip: null
 d2cfr_enabled: true
-d2cfr_regret_loss_weight: 1.0
-d2cfr_state_value_loss_weight: 1.0
-d2cfr_action_value_loss_weight: 1.0
+d2cfr_loss_mode: anchored
+d2cfr_loss_function: huber
+d2cfr_state_value_loss_weight: 0.5
+d2cfr_huber_delta: 1.0
 d2cfr_reinitialize_each_iteration: true
-d2cfr_iteration_weight_power: 1.0
+d2cfr_iteration_weight_mode: batch_mean_1
 d2cfr_mc_correction_enabled: false
+traversal_baseline_enabled: false
 
 hu_checkpoint_save_every: 1
 checkpoint_save_every: 1

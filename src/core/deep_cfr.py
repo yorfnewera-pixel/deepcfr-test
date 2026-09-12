@@ -263,13 +263,18 @@ class DeepCFRAgent:
         )
 
         self.d2cfr_enabled = bool(cfg_get("d2cfr_enabled", False))
-        self.d2cfr_regret_loss_weight = float(cfg_get("d2cfr_regret_loss_weight", 1.0))
-        self.d2cfr_state_value_loss_weight = float(cfg_get("d2cfr_state_value_loss_weight", 1.0))
-        self.d2cfr_action_value_loss_weight = float(cfg_get("d2cfr_action_value_loss_weight", 1.0))
+        self.d2cfr_loss_mode = str(cfg_get("d2cfr_loss_mode", "anchored"))
+        self.d2cfr_loss_function = str(cfg_get("d2cfr_loss_function", "huber"))
+        self.d2cfr_state_value_loss_weight = float(
+            cfg_get("d2cfr_state_value_loss_weight", 0.5)
+        )
+        self.d2cfr_huber_delta = float(cfg_get("d2cfr_huber_delta", 1.0))
         self.d2cfr_reinitialize_each_iteration = bool(
             cfg_get("d2cfr_reinitialize_each_iteration", True)
         )
-        self.d2cfr_iteration_weight_power = float(cfg_get("d2cfr_iteration_weight_power", 1.0))
+        self.d2cfr_iteration_weight_mode = str(
+            cfg_get("d2cfr_iteration_weight_mode", "batch_mean_1")
+        )
         self.advantage_hidden_size = hidden_size
         self.advantage_lr = float(cfg_get("advantage_lr", 1e-4))
         self.advantage_weight_decay = float(cfg_get("advantage_weight_decay", 1e-5))
@@ -396,11 +401,12 @@ class DeepCFRAgent:
         return {
             "training_target_semantics": _D2CFR_TARGET_SEMANTICS,
             "d2cfr_config": {
-                "regret_loss_weight": self.d2cfr_regret_loss_weight,
+                "loss_mode": self.d2cfr_loss_mode,
+                "loss_function": self.d2cfr_loss_function,
                 "state_value_loss_weight": self.d2cfr_state_value_loss_weight,
-                "action_value_loss_weight": self.d2cfr_action_value_loss_weight,
+                "huber_delta": self.d2cfr_huber_delta,
                 "reinitialize_each_iteration": self.d2cfr_reinitialize_each_iteration,
-                "iteration_weight_power": self.d2cfr_iteration_weight_power,
+                "iteration_weight_mode": self.d2cfr_iteration_weight_mode,
                 "mc_correction_enabled": False,
                 "target_normalization": "shared_advantage_reward_scale",
                 "advantage_reward_scale": self.advantage_reward_scale,
@@ -1647,15 +1653,34 @@ class DeepCFRAgent:
         )
 
     @staticmethod
-    def _d2cfr_masked_weighted_mse(predictions, targets, masks, weights):
-        weighted_masks = masks * weights.unsqueeze(1)
-        squared_error = (predictions - targets).square() * weighted_masks
-        return squared_error.sum() / weighted_masks.sum().clamp_min(1e-12)
+    def _d2cfr_masked_weighted_loss(predictions, targets, masks, weights, loss_function, huber_delta):
+        if loss_function == "mse":
+            element_loss = (predictions - targets).square()
+        elif loss_function == "huber":
+            element_loss = F.huber_loss(
+                predictions,
+                targets,
+                reduction="none",
+                delta=huber_delta,
+            )
+        else:
+            raise ValueError(f"Неизвестная D2CFR loss-функция: {loss_function}")
+        return (element_loss * masks * weights.unsqueeze(1)).sum() / masks.sum().clamp_min(1e-12)
 
     @staticmethod
-    def _d2cfr_weighted_mse(predictions, targets, weights):
-        squared_error = (predictions - targets).square()
-        return (squared_error * weights).sum() / weights.sum().clamp_min(1e-12)
+    def _d2cfr_weighted_loss(predictions, targets, weights, loss_function, huber_delta):
+        if loss_function == "mse":
+            element_loss = (predictions - targets).square()
+        elif loss_function == "huber":
+            element_loss = F.huber_loss(
+                predictions,
+                targets,
+                reduction="none",
+                delta=huber_delta,
+            )
+        else:
+            raise ValueError(f"Неизвестная D2CFR loss-функция: {loss_function}")
+        return (element_loss * weights).mean()
 
     def train_d2cfr_advantage_network_multi(self, batch_size=None, epochs=None, player_id=0):
         del player_id
@@ -1680,8 +1705,7 @@ class DeepCFRAgent:
         states, action_values, state_values, regrets, masks, iterations = samples
         self.advantage_net.train()
         total_loss, steps = 0.0, 0
-        loss_totals = {"regret_loss": 0.0, "state_value_loss": 0.0, "action_value_loss": 0.0}
-        iteration_now = max(int(self.iteration_count), 1)
+        loss_totals = {"regret_loss": 0.0, "state_value_loss": 0.0}
         configured_steps = self.advantage_train_steps
         preloaded = self._preload_training_arrays(
             (states, action_values, state_values, regrets, masks, iterations),
@@ -1717,24 +1741,26 @@ class DeepCFRAgent:
                     batch = tuple(value.index_select(0, index_t) for value in preloaded_values)
             state_t, action_target_t, state_target_t, regret_target_t, mask_t, source_iteration_t = batch
             source_iteration_t = source_iteration_t.to(dtype=torch.float32)
-            iteration_weights = (source_iteration_t / float(iteration_now)).pow(
-                self.d2cfr_iteration_weight_power
-            )
+            iteration_weights = source_iteration_t
+            if self.d2cfr_iteration_weight_mode == "batch_mean_1":
+                iteration_weights = iteration_weights / iteration_weights.mean().clamp_min(1e-12)
             components = self.advantage_net.forward_components(state_t)
-            regret_loss = self._d2cfr_masked_weighted_mse(
-                components.regrets, regret_target_t, mask_t, iteration_weights
+            regret_loss = self._d2cfr_masked_weighted_loss(
+                components.regrets,
+                regret_target_t,
+                mask_t,
+                iteration_weights,
+                self.d2cfr_loss_function,
+                self.d2cfr_huber_delta,
             )
-            state_value_loss = self._d2cfr_weighted_mse(
-                components.state_values.squeeze(1), state_target_t, iteration_weights
+            state_value_loss = self._d2cfr_weighted_loss(
+                components.state_values.squeeze(1),
+                state_target_t,
+                iteration_weights,
+                self.d2cfr_loss_function,
+                self.d2cfr_huber_delta,
             )
-            action_value_loss = self._d2cfr_masked_weighted_mse(
-                components.action_values, action_target_t, mask_t, iteration_weights
-            )
-            loss = (
-                self.d2cfr_regret_loss_weight * regret_loss
-                + self.d2cfr_state_value_loss_weight * state_value_loss
-                + self.d2cfr_action_value_loss_weight * action_value_loss
-            )
+            loss = regret_loss + self.d2cfr_state_value_loss_weight * state_value_loss
             parameters = tuple(self.advantage_net.parameters())
             self.optimizer.zero_grad()
             self._assert_finite_training_tensors(
@@ -1744,12 +1770,12 @@ class DeepCFRAgent:
             self._assert_finite_training_tensors(
                 loss, parameters, self.optimizer, "обучения D2CFR сети преимуществ"
             )
-            torch.nn.utils.clip_grad_norm_(parameters, max_norm=1.0)
+            if self.d2cfr_loss_mode == "anchored":
+                torch.nn.utils.clip_grad_norm_(parameters, max_norm=1.0)
             self.optimizer.step()
             total_loss += float(loss.item())
             loss_totals["regret_loss"] += float(regret_loss.item())
             loss_totals["state_value_loss"] += float(state_value_loss.item())
-            loss_totals["action_value_loss"] += float(action_value_loss.item())
             steps += 1
         self._synchronize_training_device()
         train_seconds = time.perf_counter() - started
@@ -2149,11 +2175,12 @@ class DeepCFRAgent:
                 "strategy_distillation_temperature": self.strategy_distillation_temperature,
                 "strategy_distillation_anneal_iterations": self.strategy_distillation_anneal_iterations,
                 "d2cfr_enabled": self.d2cfr_enabled,
-                "d2cfr_regret_loss_weight": self.d2cfr_regret_loss_weight,
+                "d2cfr_loss_mode": self.d2cfr_loss_mode,
+                "d2cfr_loss_function": self.d2cfr_loss_function,
                 "d2cfr_state_value_loss_weight": self.d2cfr_state_value_loss_weight,
-                "d2cfr_action_value_loss_weight": self.d2cfr_action_value_loss_weight,
+                "d2cfr_huber_delta": self.d2cfr_huber_delta,
                 "d2cfr_reinitialize_each_iteration": self.d2cfr_reinitialize_each_iteration,
-                "d2cfr_iteration_weight_power": self.d2cfr_iteration_weight_power,
+                "d2cfr_iteration_weight_mode": self.d2cfr_iteration_weight_mode,
                 **network_metadata,
             },
         }

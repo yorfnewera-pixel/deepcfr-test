@@ -780,11 +780,12 @@ def _hu_trajectory_configuration(agent: DeepCFRAgent) -> dict[str, Any]:
     if bool(getattr(agent, "d2cfr_enabled", False)):
         configuration.update({
             "d2cfr_enabled": True,
-            "d2cfr_regret_loss_weight": float(agent.d2cfr_regret_loss_weight),
+            "d2cfr_loss_mode": str(agent.d2cfr_loss_mode),
+            "d2cfr_loss_function": str(agent.d2cfr_loss_function),
             "d2cfr_state_value_loss_weight": float(agent.d2cfr_state_value_loss_weight),
-            "d2cfr_action_value_loss_weight": float(agent.d2cfr_action_value_loss_weight),
+            "d2cfr_huber_delta": float(agent.d2cfr_huber_delta),
             "d2cfr_reinitialize_each_iteration": bool(agent.d2cfr_reinitialize_each_iteration),
-            "d2cfr_iteration_weight_power": float(agent.d2cfr_iteration_weight_power),
+            "d2cfr_iteration_weight_mode": str(agent.d2cfr_iteration_weight_mode),
         })
     return configuration
 
@@ -1533,16 +1534,15 @@ def _log_d2cfr_component_losses(
     writer,
     iteration: int,
 ) -> None:
-    """Выводит самостоятельные loss трёх D2CFR целей для каждой HU-ноги."""
-    metric_keys = ("regret_loss", "state_value_loss", "action_value_loss")
+    """Выводит loss regret и опционального anchored state value для HU-ног."""
+    metric_keys = ("regret_loss", "state_value_loss")
     for player_id, values in enumerate(component_losses):
         if not values:
             continue
         metrics = {key: float(values.get(key, 0.0)) for key in metric_keys}
         print(
             f"  D2CFR P{player_id}: d2cfr_regret_loss={metrics['regret_loss']:.6f} | "
-            f"d2cfr_state_value_loss={metrics['state_value_loss']:.6f} | "
-            f"d2cfr_action_value_loss={metrics['action_value_loss']:.6f}"
+            f"d2cfr_state_value_loss={metrics['state_value_loss']:.6f}"
         )
         if writer is not None:
             for key, value in metrics.items():
@@ -1795,6 +1795,11 @@ def train_self_play_multi(
         hu_current_policy_self_play=hu_current_policy_enabled,
         teacher_strategy_checkpoint=teacher_strategy_checkpoint,
     )
+    if bool(cfg_get("d2cfr_enabled", False)):
+        if int(num_players) != 2:
+            raise ValueError("D2CFR этапа 1 поддерживает только HU с двумя игроками")
+        if not hu_current_policy_enabled:
+            raise ValueError("D2CFR этапа 1 требует HU current-policy self-play")
     agent = DeepCFRAgent(
         player_id=0,
         num_players=num_players,
