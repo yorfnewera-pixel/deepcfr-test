@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Deep CFR: алгоритмический разбор</title>
+<base href="https://github.com/yorfnewera-pixel/deepcfr-test/blob/fc39d558f8251826288b2f9d9ad51820a131c80d/" target="_blank">
+<style>
+*{box-sizing:border-box}body{background:#f6f3ed;color:#192d32;font:16px/1.6 system-ui,sans-serif;margin:0}main{max-width:1180px;padding:42px;margin:auto}header{border-bottom:2px solid #192d32;padding-bottom:20px}small{color:#64706c;font-size:12px}h1{font:42px/1.15 Georgia,serif;margin:12px 0}h2{font-size:19px;margin:0 0 8px}p{margin:8px 0}a{color:#286b75;text-decoration:none;border-bottom:1px solid #b3c6c6}code{font-size:.88em;background:#e7ece5;padding:2px 4px;overflow-wrap:anywhere}.grid{display:grid;grid-template-columns:1fr 1fr;gap:32px;margin-top:26px}section{padding:20px 0;border-top:1px solid #d1d9d2}.label{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:#a83926;margin-bottom:8px}.good{color:#3b6c5d}.refs{font-size:12px;overflow-wrap:anywhere}.verdict{background:#e5ede5;padding:20px;margin-top:22px}footer{margin-top:16px;font-size:12px;color:#64706c}ul{padding-left:20px}li{margin:6px 0}@media(max-width:740px){main{padding:24px 20px}.grid{grid-template-columns:1fr;gap:0}h1{font-size:33px}}
+</style>
+</head>
+<body><main>
+<header><small>DEEP CFR · ТОТ ЖЕ СНИМОК ИСХОДНИКОВ · ТОЛЬКО ЧТЕНИЕ</small><h1>По алгоритму: не всё подтверждено.</h1><p>В текущем <strong>HU/D2CFR</strong> явной ошибки в базовых формулах обхода и regret matching не нашёл. Но сказать «весь <code>deep_cfr.py</code> корректен» нельзя.</p></header>
+<div class="grid">
+<div>
+<section><div class="label">Конкретная ошибка · не активный HU</div><h2>Усреднение стратегии в обычном обходе</h2>
+<p><code>_cfr_traverse_multi</code> записывает strategy на узлах traverser, где собственные действия полностью перебираются. При обучении есть вес итерации, но нет поправки на вероятность достижения узла собственными предыдущими действиями.</p>
+<p>Для средней CFR-стратегии нужны веса <code>w(t) × own_reach(t, I)</code>. Здесь посещаемость traverser-узлов их не обеспечивает, поэтому итоговая average strategy в общем случае смещена.</p>
+<p class="refs"><a href="src/core/deep_cfr.py#L1450-L1538">deep_cfr.py:1450–1538</a> · <a href="src/core/deep_cfr.py#L1963-L1965">1963–1965</a></p>
+<p><strong>Текущий HU эту ветку не использует:</strong> в его external-sampling обходе strategy записывается на узлах другого игрока, до выборки действия. Это правильное место для такого сбора в HU.</p>
+<p class="refs"><a href="src/core/hu_self_play.py#L450-L464">hu_self_play.py:450–464</a> · <a href="src/training/train.py#L1482-L1511">train.py:1482–1511</a></p></section>
+<section><div class="label">Другой алгоритмический вариант</div><h2>Обычная ветка не канонический Deep CFR</h2>
+<p>При выключенном D2CFR targets строятся через <code>previous + regret</code> либо discounted positive previous. Это накопительная аппроксимация, а не стандартное обучение на исторических sampled regrets. Само по себе не доказывает ошибку, но гарантии исходного Deep CFR нельзя переносить автоматически.</p>
+<p class="refs"><a href="src/core/deep_cfr.py#L1859-L1870">deep_cfr.py:1859–1870</a></p></section>
+</div>
+<div>
+<section><div class="label good">Что выглядит согласованно · активный HU</div><h2>Основная схема обучения</h2>
+<ul><li>Все действия traverser перебираются, действие оппонента сэмплируется.</li><li><code>V = Σ σ(a)Q(a)</code>, <code>R(a) = Q(a) − V</code>; Q, V и R нормализуются одним масштабом.</li><li>Regret matching использует положительные regrets, иначе равномерную legal-policy.</li><li>Для P0/P1 фиксируются snapshots до обеих фаз; обучение идёт после обходов.</li><li>D2CFR сохраняет reservoir-историю и обучается с весами итераций.</li></ul>
+<p class="refs"><a href="src/core/deep_cfr.py#L687-L693">deep_cfr.py:687–693</a> · <a href="src/core/deep_cfr.py#L1224-L1239">1224–1239</a> · <a href="src/core/deep_cfr.py#L1742-L1763">1742–1763</a> · <a href="src/core/hu_self_play.py#L292-L301">hu_self_play.py:292–301</a> · <a href="src/core/hu_self_play.py#L406-L464">406–464</a> · <a href="src/core/hu_self_play.py#L485-L536">485–536</a></p></section>
+<section><div class="label">Риски, а не доказанные сбои</div><h2>Huber и обучение с нуля</h2>
+<p><strong>Huber-loss:</strong> при асимметричном шуме и ошибках за пределами квадратичной области его оптимум не обязан совпадать со средним regret. Для CFR это существенное отличие от MSE. <code>anchored + Huber</code> здесь экспериментальный вариант; ухудшение игры по одному коду не доказано.</p>
+<p><strong>75 шагов после переинициализации:</strong> сеть и optimizer создаются заново каждую итерацию. Хватает ли этого для аппроксимации targets на большом replay-буфере, без измерений определить нельзя.</p>
+<p class="refs"><a href="src/core/deep_cfr.py#L1656-L1668">deep_cfr.py:1656–1668</a> · <a href="src/core/deep_cfr.py#L1697-L1719">1697–1719</a> · <a href="config.yaml#L21">config.yaml:21</a></p></section>
+</div>
+</div>
+<div class="verdict"><strong>Вывод:</strong> ядро активного HU выглядит разумно по коду, но это не подтверждение сходимости или близости к равновесию. В обычном обходе есть конкретная ошибка average strategy. Ранее найденные ошибки игрового движка остаются отдельным препятствием даже при правильных CFR-формулах.</div>
+<footer>Файлы проекта не изменялись. Код, обучение и проверки не запускались. Анализ выборочный; снимок дерева fc39d558f825…</footer>
+</main></body></html>
