@@ -114,10 +114,18 @@ def test_hu_full_checkpoint_round_trip_restores_all_training_state_and_rng(tmp_p
     assert restored.iteration_count == 7
     checkpoint = train_mod._build_hu_checkpoint(source, seed=91)
     assert checkpoint["config"]["hu_current_policy_self_play"] is True
-    assert checkpoint["hu_checkpoint_version"] == 2
+    assert checkpoint["hu_checkpoint_version"] == 3
+    assert checkpoint["game_rules_version"] == "holdem_standard_hu_v2"
     assert checkpoint["update_order"] == [
         "traverse_p0", "traverse_p1", "train_advantage_p0", "train_advantage_p1", "train_strategy"
     ]
+    for leg in checkpoint["advantage_legs"]:
+        assert leg["buffer"]["buffer_type"] == "advantage"
+        assert leg["buffer"]["size"] == 1
+        assert leg["buffer"]["total_seen"] == 1
+    assert checkpoint["strategy"]["buffer"]["buffer_type"] == "hu_strategy"
+    assert checkpoint["strategy"]["buffer"]["size"] == 1
+    assert checkpoint["strategy"]["buffer"]["total_seen"] == 1
     for expected, network in zip(expected_advantage, restored.hu_advantage_nets, strict=True):
         assert all(torch.equal(value, network.state_dict()[key]) for key, value in expected.items())
     for expected, network in zip(expected_target, restored.hu_advantage_target_nets, strict=True):
@@ -218,6 +226,16 @@ def test_hu_resume_rejects_legacy_or_incompatible_checkpoint(tmp_path, payload, 
     torch.save(payload, path)
 
     with pytest.raises(ValueError, match=message):
+        train_mod._load_hu_checkpoint(_hu_runtime(), path)
+
+
+def test_hu_resume_rejects_checkpoint_without_current_game_rules_version(tmp_path):
+    checkpoint = train_mod._build_hu_checkpoint(_hu_runtime())
+    checkpoint.pop("game_rules_version")
+    path = tmp_path / "pre-hu-rules.pt"
+    torch.save(checkpoint, path)
+
+    with pytest.raises(ValueError, match="исправления правил"):
         train_mod._load_hu_checkpoint(_hu_runtime(), path)
 
 

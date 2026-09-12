@@ -6,20 +6,62 @@ import numpy as np
 from src.core.action_space import NUM_ACTIONS
 
 
-class AdvantageBuffer:
+class _BufferAccounting:
+    """Хранит отдельно число валидных строк и число всех увиденных samples."""
+
+    def _initialize_accounting(self, capacity: int) -> None:
+        self.capacity = int(capacity)
+        if self.capacity <= 0:
+            raise ValueError("Ёмкость replay-буфера должна быть положительной")
+        self._size = 0
+        self._total_seen = 0
+
+    @property
+    def _cur_id(self) -> int:
+        """Совместимое read-only имя для внешней диагностики до удаления legacy API."""
+        return self._total_seen
+
+    @_cur_id.setter
+    def _cur_id(self, value: int) -> None:
+        self._total_seen = int(value)
+
+    def _next_reservoir_slot(self) -> tuple[int | None, str]:
+        self._total_seen += 1
+        if self._size < self.capacity:
+            position = self._size
+            self._size += 1
+            return position, "recorded"
+
+        position = int(np.random.randint(0, self._total_seen))
+        if position >= self.capacity:
+            return None, "skipped"
+        return position, "evicted"
+
+    def _next_fifo_slot(self) -> tuple[int, str]:
+        self._total_seen += 1
+        if self._size < self.capacity:
+            position = self._size
+            self._size += 1
+            return position, "recorded"
+        return (self._total_seen - 1) % self.capacity, "evicted"
+
+    def _clear_samples(self) -> None:
+        self._size = 0
+        self._total_seen = 0
+
+
+class AdvantageBuffer(_BufferAccounting):
     """Reservoir буфер ``(state, regrets[6], legal_mask[6], iteration)``."""
 
     def __init__(self, capacity, state_dim, num_actions=NUM_ACTIONS):
         if int(num_actions) != NUM_ACTIONS:
             raise ValueError(f"AdvantageBuffer требует ровно {NUM_ACTIONS} действий")
-        self.capacity = int(capacity)
+        self._initialize_accounting(capacity)
         self.num_actions = NUM_ACTIONS
         self._states = np.empty((self.capacity, state_dim), dtype=np.float32)
         self._regrets = np.empty((self.capacity, NUM_ACTIONS), dtype=np.float32)
         self._masks = np.empty((self.capacity, NUM_ACTIONS), dtype=np.float32)
         self._iterations = np.empty(self.capacity, dtype=np.float32)
-        self._cur_id = 0
-        self._size = 0
         self.eviction_count = 0
         self.skip_count = 0
 
@@ -28,26 +70,20 @@ class AdvantageBuffer:
         mask = np.asarray(mask, dtype=np.float32)
         if regrets.shape != (NUM_ACTIONS,) or mask.shape != (NUM_ACTIONS,):
             raise ValueError("Regret и mask должны содержать ровно шесть действий")
-        if self._cur_id < self.capacity:
-            position, status = self._cur_id, "recorded"
-        else:
-            position = np.random.randint(0, self._cur_id + 1)
-            if position >= self.capacity:
-                self._cur_id += 1
-                self.skip_count += 1
-                return "skipped"
-            status = "evicted"
+        position, status = self._next_reservoir_slot()
+        if position is None:
+            self.skip_count += 1
+            return status
+        if status == "evicted":
             self.eviction_count += 1
         self._states[position] = state
         self._regrets[position] = regrets
         self._masks[position] = mask
         self._iterations[position] = float(iteration)
-        self._cur_id += 1
-        self._size = min(self._size + 1, self.capacity)
         return status
 
     def sample(self, num_samples=-1):
-        length = min(self._cur_id, self.capacity)
+        length = self._size
         if num_samples < 0 or num_samples > length:
             num_samples = length
         if num_samples <= 0:
@@ -61,22 +97,19 @@ class AdvantageBuffer:
         )
 
     def clear(self):
-        self._cur_id = 0
-        self._size = 0
+        self._clear_samples()
 
     def __len__(self):
-        return min(self._cur_id, self.capacity)
+        return self._size
 
 
-class DuelingAdvantageBuffer:
+class DuelingAdvantageBuffer(_BufferAccounting):
     """Reservoir буфер ``(state, Q[6], V, regrets[6], legal_mask[6], iteration)``."""
 
     def __init__(self, capacity, state_dim, num_actions=NUM_ACTIONS):
         if int(num_actions) != NUM_ACTIONS:
             raise ValueError(f"DuelingAdvantageBuffer требует ровно {NUM_ACTIONS} действий")
-        if int(capacity) <= 0:
-            raise ValueError("Ёмкость DuelingAdvantageBuffer должна быть положительной")
-        self.capacity = int(capacity)
+        self._initialize_accounting(capacity)
         self.num_actions = NUM_ACTIONS
         self._states = np.empty((self.capacity, int(state_dim)), dtype=np.float32)
         self._action_values = np.empty((self.capacity, NUM_ACTIONS), dtype=np.float32)
@@ -84,8 +117,6 @@ class DuelingAdvantageBuffer:
         self._regrets = np.empty((self.capacity, NUM_ACTIONS), dtype=np.float32)
         self._masks = np.empty((self.capacity, NUM_ACTIONS), dtype=np.float32)
         self._iterations = np.empty(self.capacity, dtype=np.float32)
-        self._cur_id = 0
-        self._size = 0
         self.eviction_count = 0
         self.skip_count = 0
 
@@ -114,15 +145,11 @@ class DuelingAdvantageBuffer:
         if not np.isfinite(iteration_value) or iteration_value < 1.0:
             raise ValueError("iteration DuelingAdvantageBuffer должен быть не меньше 1")
 
-        if self._cur_id < self.capacity:
-            position, status = self._cur_id, "recorded"
-        else:
-            position = np.random.randint(0, self._cur_id + 1)
-            if position >= self.capacity:
-                self._cur_id += 1
-                self.skip_count += 1
-                return "skipped"
-            status = "evicted"
+        position, status = self._next_reservoir_slot()
+        if position is None:
+            self.skip_count += 1
+            return status
+        if status == "evicted":
             self.eviction_count += 1
         self._states[position] = state_array
         self._action_values[position] = action_values_array
@@ -130,12 +157,10 @@ class DuelingAdvantageBuffer:
         self._regrets[position] = regrets_array
         self._masks[position] = mask_array
         self._iterations[position] = iteration_value
-        self._cur_id += 1
-        self._size = min(self._size + 1, self.capacity)
         return status
 
     def sample(self, num_samples=-1):
-        length = min(self._cur_id, self.capacity)
+        length = self._size
         if num_samples < 0 or num_samples > length:
             num_samples = length
         if num_samples <= 0:
@@ -151,27 +176,25 @@ class DuelingAdvantageBuffer:
         )
 
     def clear(self):
-        self._cur_id = 0
-        self._size = 0
+        self._clear_samples()
 
     def __len__(self):
-        return min(self._cur_id, self.capacity)
+        return self._size
 
 
-class StrategyBuffer:
+class StrategyBuffer(_BufferAccounting):
     """Буфер ``(state, policy[6], legal_mask[6], iteration)`` с FIFO или reservoir."""
 
     def __init__(self, capacity, state_dim, num_actions=NUM_ACTIONS, reservoir=False):
         if int(num_actions) != NUM_ACTIONS:
             raise ValueError(f"StrategyBuffer требует ровно {NUM_ACTIONS} действий")
-        self.capacity = int(capacity)
+        self._initialize_accounting(capacity)
         self.num_actions = NUM_ACTIONS
         self.reservoir = bool(reservoir)
         self._states = np.empty((self.capacity, state_dim), dtype=np.float32)
         self._policies = np.empty((self.capacity, NUM_ACTIONS), dtype=np.float32)
         self._masks = np.empty((self.capacity, NUM_ACTIONS), dtype=np.float32)
         self._iterations = np.empty(self.capacity, dtype=np.float32)
-        self._cur_id = 0
         self.eviction_count = 0
         self.skip_count = 0
 
@@ -180,30 +203,23 @@ class StrategyBuffer:
         mask = np.asarray(mask, dtype=np.float32)
         if policy.shape != (NUM_ACTIONS,) or mask.shape != (NUM_ACTIONS,):
             raise ValueError("Policy и mask должны содержать ровно шесть действий")
-        if self._cur_id < self.capacity:
-            position = self._cur_id
-            status = "recorded"
-        elif self.reservoir:
-            position = np.random.randint(0, self._cur_id + 1)
-            if position >= self.capacity:
-                self._cur_id += 1
+        if self.reservoir:
+            position, status = self._next_reservoir_slot()
+            if position is None:
                 self.skip_count += 1
-                return "skipped"
-            status = "evicted"
-            self.eviction_count += 1
+                return status
         else:
-            position = self._cur_id % self.capacity
-            status = "evicted"
+            position, status = self._next_fifo_slot()
+        if status == "evicted":
             self.eviction_count += 1
         self._states[position] = state
         self._policies[position] = policy
         self._masks[position] = mask
         self._iterations[position] = float(iteration)
-        self._cur_id += 1
         return status
 
     def sample(self, num_samples=-1):
-        length = min(self._cur_id, self.capacity)
+        length = self._size
         if num_samples < 0 or num_samples > length:
             num_samples = length
         if num_samples <= 0:
@@ -217,12 +233,12 @@ class StrategyBuffer:
         )
 
     def clear(self):
-        self._cur_id = 0
+        self._clear_samples()
         self.eviction_count = 0
         self.skip_count = 0
 
     def __len__(self):
-        return min(self._cur_id, self.capacity)
+        return self._size
 
 
 __all__ = ["AdvantageBuffer", "DuelingAdvantageBuffer", "StrategyBuffer"]

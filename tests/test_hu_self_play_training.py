@@ -222,6 +222,47 @@ def test_legacy_training_does_not_use_hu_coordinator(monkeypatch, tmp_path):
     assert calls == ["opponent_pool", "legacy_prepare", "legacy_traverse"]
 
 
+def test_generic_multiplayer_prepares_replay_once_before_all_traversers(monkeypatch, tmp_path):
+    prepared = []
+    traversed = []
+    agent = _HuAgent()
+    agent.num_players = 3
+    agent.num_trainable_players = 2
+    agent.prepare_iteration = lambda iteration, traversing_player: prepared.append(
+        (iteration, traversing_player)
+    )
+    agent.record_traversal_attempt = lambda: None
+    agent.record_traversal_success = lambda: None
+    agent.record_traversal_failure = lambda _error: None
+    agent.cfr_traverse_multi = lambda _state, _iteration, traversing_player, **_kwargs: traversed.append(
+        traversing_player
+    )
+    agent.train_advantage_network_multi = lambda: 0.0
+    agent.train_strategy_network = lambda: 0.0
+    agent.advantage_buffer = []
+    agent.strategy_buffer = []
+    agent.strategy_net = SimpleNamespace(state_dict=lambda: {"weight": torch.tensor([1.0])})
+    monkeypatch.setattr(train_mod, "DeepCFRAgent", lambda **_kwargs: agent)
+    monkeypatch.setattr(train_mod, "cfg_get", _cfg)
+    monkeypatch.setattr(train_mod, "_create_writer", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(train_mod, "_new_hand", lambda *_args: None)
+    monkeypatch.setattr(train_mod, "_log_multi_cfr_diagnostics", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(train_mod, "_configure_strategy_opponent_pool", lambda *_args, **_kwargs: [])
+
+    train_mod.train_self_play_multi(
+        num_iterations=1,
+        traversals_per_iteration=1,
+        evaluate_every=0,
+        save_dir=tmp_path,
+        num_players=3,
+        trainable_players=2,
+        hu_current_policy_self_play=False,
+    )
+
+    assert prepared == [(1, None)]
+    assert traversed == [0, 1]
+
+
 def test_hu_failure_handler_ispolzuet_skip_limit_i_diagnostics(monkeypatch):
     diagnostics = []
     agent = _HuAgent()

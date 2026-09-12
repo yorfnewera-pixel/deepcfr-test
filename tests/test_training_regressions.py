@@ -1447,3 +1447,24 @@ def test_checkpoint_opponent_strategy_uses_strategy_net_not_advantage_net(monkey
 
     assert chosen_slots == [1]
     assert agent.action_decision_count == 1
+    assert len(agent.strategy_buffer) == 1
+
+
+def test_generic_traverser_nodes_do_not_create_strategy_targets():
+    """Ломается, если full-branch traverser node загрязняет average strategy replay."""
+    state = pkrs.State.from_seed(
+        n_players=2, button=0, sb=1.0, bb=2.0, stake=200.0, seed=17
+    )
+    agent = DeepCFRAgent(player_id=0, num_players=2, device="cpu")
+    agent.get_legal_action_mask = lambda _state: np.array(
+        [1, 0, 0, 0, 0, 0], dtype=np.float32
+    )
+    agent.action_type_to_pokers_action = lambda _slot, _state: pkrs.Action(pkrs.ActionEnum.Fold)
+
+    agent.cfr_traverse_multi(
+        state,
+        iteration=1,
+        traversing_player=int(state.current_player),
+    )
+
+    assert len(agent.strategy_buffer) == 0

@@ -26,6 +26,7 @@ from src.training.train import (
     _HU_RUNTIME_CONFIG_ALLOWLIST,
     _HU_UPDATE_ORDER,
 )
+from src.core.deep_cfr import GAME_RULES_VERSION
 
 
 _HU_INPUT_SIZE = encoder_input_size(2, HISTORY_SUMMARY_V3_ENCODING_VERSION)
@@ -85,6 +86,20 @@ _TRAJECTORY_CONFIG_KEYS = frozenset({
     "training_error_mode",
     "training_max_failed_traversals_per_iteration",
 })
+_D2CFR_TRAJECTORY_CONFIG_KEYS = (
+    _TRAJECTORY_CONFIG_KEYS - {"advantage_accumulation", "discount_alpha", "discount_gamma"}
+) | frozenset({
+    "d2cfr_enabled",
+    "d2cfr_historical_advantage_reservoir",
+    "d2cfr_loss_mode",
+    "d2cfr_loss_function",
+    "d2cfr_state_value_loss_weight",
+    "d2cfr_huber_delta",
+    "d2cfr_reinitialize_each_iteration",
+    "d2cfr_iteration_weight_mode",
+})
+_D2CFR_VARIANT = "d2cfr_dueling_v1"
+_ACTION_ONLY_VARIANT = "deep_cfr_action_only_v1"
 
 
 @dataclass(frozen=True, slots=True)
@@ -97,6 +112,7 @@ class CardEncoderWarmstartProvenance:
     checksum_sha256: str
     source_architecture: str
     source_encoding_version: str
+    source_game_rules_version: str
     teacher_num_players: int
     freeze: bool
 
@@ -128,6 +144,7 @@ def transfer_card_encoder_from_hu_checkpoint(
         checksum_sha256=checksum,
         source_architecture=source_metadata["architecture"],
         source_encoding_version=source_metadata["encoding_version"],
+        source_game_rules_version=source_metadata["game_rules_version"],
         teacher_num_players=source_metadata["num_players"],
         freeze=bool(freeze),
     )
@@ -157,9 +174,14 @@ def _validated_source_card_encoder(
 ) -> tuple[dict[str, torch.Tensor], dict[str, Any]]:
     _validate_hu_checkpoint_header(checkpoint)
     mode = _validate_hu_mode(checkpoint)
-    _validate_hu_config(checkpoint, mode)
-    strategy_architecture = _validate_hu_architecture(checkpoint)
-    strategy_state = _validate_hu_full_training_state(checkpoint, strategy_architecture)
+    algorithm_variant = checkpoint["algorithm_variant"]
+    _validate_hu_config(checkpoint, mode, algorithm_variant)
+    if algorithm_variant == _D2CFR_VARIANT:
+        strategy_architecture = _validate_hu_d2cfr_architecture(checkpoint)
+        strategy_state = _validate_hu_d2cfr_strategy_state(checkpoint, strategy_architecture)
+    else:
+        strategy_architecture = _validate_hu_architecture(checkpoint)
+        strategy_state = _validate_hu_full_training_state(checkpoint, strategy_architecture)
 
     return (
         {
@@ -172,6 +194,7 @@ def _validated_source_card_encoder(
             "architecture": CARD_CONTEXT_ARCHITECTURE,
             "encoding_version": mode["encoding_version"],
             "num_players": mode["num_players"],
+            "game_rules_version": GAME_RULES_VERSION,
         },
     )
 
@@ -183,6 +206,10 @@ def _validate_hu_checkpoint_header(checkpoint: dict[str, Any]) -> None:
         raise ValueError("HU checkpoint имеет несовместимую версию")
     if checkpoint.get("checkpoint_format_version") != CHECKPOINT_FORMAT_VERSION:
         raise ValueError("HU checkpoint имеет несовместимый общий формат")
+    if checkpoint.get("game_rules_version") != GAME_RULES_VERSION:
+        raise ValueError("HU checkpoint создан до исправления правил; перенос небезопасен")
+    if checkpoint.get("algorithm_variant") not in {_ACTION_ONLY_VARIANT, _D2CFR_VARIANT}:
+        raise ValueError("HU checkpoint имеет неизвестный algorithm variant")
     if (
         checkpoint.get("action_space_version") != ACTION_SPACE_VERSION
         or checkpoint.get("num_actions") != NUM_ACTIONS
@@ -212,13 +239,26 @@ def _validate_hu_mode(checkpoint: dict[str, Any]) -> dict[str, Any]:
     return mode
 
 
-def _validate_hu_config(checkpoint: dict[str, Any], mode: dict[str, Any]) -> None:
+def _validate_hu_config(
+    checkpoint: dict[str, Any],
+    mode: dict[str, Any],
+    algorithm_variant: str,
+) -> None:
     config = checkpoint.get("config")
     if not isinstance(config, dict) or any(config.get(key) != value for key, value in mode.items()):
         raise ValueError("HU checkpoint имеет несовместимую конфигурацию")
-    required_keys = set(mode) | _TRAJECTORY_CONFIG_KEYS
+    trajectory_keys = (
+        _D2CFR_TRAJECTORY_CONFIG_KEYS
+        if algorithm_variant == _D2CFR_VARIANT
+        else _TRAJECTORY_CONFIG_KEYS
+    )
+    required_keys = set(mode) | trajectory_keys
     unsupported_keys = set(config) - required_keys - _HU_RUNTIME_CONFIG_ALLOWLIST
-    if not required_keys.issubset(config) or unsupported_keys:
+    if (
+        not required_keys.issubset(config)
+        or unsupported_keys
+        or (algorithm_variant == _D2CFR_VARIANT and config.get("d2cfr_enabled") is not True)
+    ):
         raise ValueError("HU checkpoint имеет неполную конфигурацию")
 
 
@@ -254,6 +294,19 @@ def _validate_hu_full_training_state(
     _validate_strategy_buffer(strategy["buffer"], config["strategy_buffer_capacity"])
     _validate_rng_state(checkpoint.get("rng"))
     return strategy_state
+
+
+def _validate_hu_d2cfr_strategy_state(
+    checkpoint: dict[str, Any],
+    strategy_architecture: dict[str, Any],
+) -> dict[str, torch.Tensor]:
+    """Проверяет только contract strategy, нужный для безопасного card warm-start."""
+    strategy = checkpoint.get("strategy")
+    if not isinstance(strategy, dict) or set(strategy) != {"network", "optimizer", "buffer"}:
+        raise ValueError("HU D2CFR checkpoint не содержит strategy training state")
+    return _validate_network_state(
+        strategy["network"], _HU_STRATEGY_INPUT_SIZE, strategy_architecture["hidden_size"], "strategy"
+    )
 
 
 def _validate_network_state(
@@ -380,6 +433,7 @@ def _nonnegative_float(value: object) -> bool:
 def _validate_advantage_buffer(payload: object, capacity: object) -> None:
     _validate_replay_buffer(
         payload,
+        "advantage",
         capacity,
         _HU_INPUT_SIZE,
         {
@@ -394,6 +448,7 @@ def _validate_advantage_buffer(payload: object, capacity: object) -> None:
 def _validate_strategy_buffer(payload: object, capacity: object) -> None:
     _validate_replay_buffer(
         payload,
+        "hu_strategy",
         capacity,
         _HU_INPUT_SIZE,
         {
@@ -411,33 +466,44 @@ def _validate_strategy_buffer(payload: object, capacity: object) -> None:
 
 def _validate_replay_buffer(
     payload: object,
+    expected_buffer_type: str,
     configured_capacity: object,
     state_dim: int,
     arrays: dict[str, tuple[int | None, torch.dtype]],
 ) -> None:
-    required_keys = {"capacity", "state_dim", "cur_id", "count", "eviction_count", "skip_count", *arrays}
+    required_keys = {
+        "buffer_type",
+        "capacity",
+        "state_dim",
+        "size",
+        "total_seen",
+        "eviction_count",
+        "skip_count",
+        *arrays,
+    }
     if not isinstance(payload, dict) or set(payload) != required_keys:
         raise ValueError("HU checkpoint содержит повреждённый replay-буфер")
     if isinstance(configured_capacity, bool) or not isinstance(configured_capacity, int):
         raise ValueError("HU checkpoint имеет некорректную конфигурацию replay-буферов")
-    for key in ("capacity", "state_dim", "cur_id", "count", "eviction_count", "skip_count"):
+    for key in ("capacity", "state_dim", "size", "total_seen", "eviction_count", "skip_count"):
         if isinstance(payload[key], bool) or not isinstance(payload[key], int):
             raise ValueError("HU checkpoint содержит повреждённый replay-буфер")
-    count = payload["count"]
+    size = payload["size"]
     if (
-        payload["capacity"] != configured_capacity
+        payload["buffer_type"] != expected_buffer_type
+        or payload["capacity"] != configured_capacity
         or payload["capacity"] <= 0
         or payload["state_dim"] != state_dim
-        or count < 0
-        or count > payload["capacity"]
-        or payload["cur_id"] < count
+        or size < 0
+        or size > payload["capacity"]
+        or payload["total_seen"] < size
         or payload["eviction_count"] < 0
         or payload["skip_count"] < 0
     ):
         raise ValueError("HU checkpoint содержит повреждённый replay-буфер")
     for key, (width, dtype) in arrays.items():
         value = payload[key]
-        expected_shape = (count,) if width is None else (count, width)
+        expected_shape = (size,) if width is None else (size, width)
         if (
             not torch.is_tensor(value)
             or tuple(value.shape) != expected_shape
@@ -554,6 +620,25 @@ def _validate_hu_architecture(checkpoint: dict[str, Any]) -> dict[str, Any]:
             raise ValueError("HU checkpoint имеет несовместимую архитектуру advantage-сетей")
         for schema in group:
             _validate_network_architecture(schema, _HU_INPUT_SIZE, hidden_size)
+    return strategy
+
+
+def _validate_hu_d2cfr_architecture(checkpoint: dict[str, Any]) -> dict[str, Any]:
+    """Проверяет D2CFR topology, не требуя legacy target-сети."""
+    architecture = checkpoint.get("architecture")
+    if not isinstance(architecture, dict) or set(architecture) != {"advantage", "strategy"}:
+        raise ValueError("HU D2CFR checkpoint не содержит полное описание архитектуры")
+    strategy = architecture["strategy"]
+    hidden_size = _positive_int(
+        strategy.get("hidden_size") if isinstance(strategy, dict) else None,
+        "hidden_size",
+    )
+    _validate_network_architecture(strategy, _HU_STRATEGY_INPUT_SIZE, hidden_size)
+    advantages = architecture["advantage"]
+    if not isinstance(advantages, list) or len(advantages) != 2:
+        raise ValueError("HU D2CFR checkpoint имеет несовместимую архитектуру advantage-сетей")
+    for schema in advantages:
+        _validate_network_architecture(schema, _HU_INPUT_SIZE, hidden_size)
     return strategy
 
 

@@ -2,11 +2,13 @@
 
 Экспериментальный проект покерного ИИ для **No-Limit Texas Hold'em** на основе Deep Counterfactual Regret Minimization (Deep CFR).
 
-Проект обучает стратегию self-play для шести игроков, поддерживает исторический пул checkpoint-оппонентов, сохранение моделей и запуск игры против обученных агентов.
+Активный режим — HU D2CFR anchored: две независимые advantage-ноги собирают
+historical reservoir, затем общая actor-conditioned strategy-сеть обучает
+среднюю policy. Six-max остаётся экспериментальной multiplayer-адаптацией.
 
 ## Возможности
 
-- Deep CFR / DCFR для 6-max Texas Hold'em;
+- HU D2CFR anchored для Texas Hold'em;
 - фиксированное пространство из шести действий: fold, check, call, raise 0.5 pot, raise pot, all-in;
 - self-play с checkpoint-оппонентами;
 - TensorBoard-логи и сохранение checkpoint-файлов;
@@ -33,7 +35,7 @@ python -m pip install ./pokers
 
 ## Быстрый старт
 
-Запуск короткого обучения на CPU:
+Запуск короткого HU smoke на CPU (настройки HU D2CFR находятся в `config.yaml`):
 
 ```bash
 python -m src.training.train --self-play-multi --iterations 10 --traversals 10 --save-dir models
@@ -45,10 +47,19 @@ python -m src.training.train --self-play-multi --iterations 10 --traversals 10 -
 python -m src.training.train --self-play-multi --device cuda
 ```
 
-Продолжение обучения из полного checkpoint:
+Full checkpoint сохраняет training state; light checkpoint содержит только
+strategy и предназначен для runtime. После исправления правил HU начинайте
+новое обучение, а не продолжайте модели, созданные до этих изменений.
+
+Переход HU → 6-max — это новый запуск с пустыми replay-буферами. Разрешён
+только warm-start `card_encoder` через `teacher_transfer_checkpoint`; HU
+replay, optimizers, strategy head и номер итерации не переносятся.
+
+Пример six-max запуска с HU teacher:
 
 ```bash
-python -m src.training.train --self-play-multi --initial-checkpoint models/multi_checkpoint_iter_1000.pt
+python -m src.training.train --self-play-multi --num-players 6 --trainable-players 6 \
+  --teacher-transfer-enabled --teacher-transfer-checkpoint models/hu_checkpoint_final.pt
 ```
 
 ## Игра и оценка

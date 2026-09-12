@@ -50,6 +50,7 @@ _DEFAULTS = {
     "advantage_loss": "mse",
     "advantage_huber_delta": 1.0,
     "d2cfr_enabled": False,
+    "algorithm_variant": None,
     "d2cfr_loss_mode": "anchored",
     "d2cfr_loss_function": "huber",
     "d2cfr_state_value_loss_weight": 0.5,
@@ -98,6 +99,15 @@ def _validate_d2cfr_configuration(
     ):
         if not isinstance(config[key], bool):
             raise ValueError(f"{key} должен быть bool")
+    algorithm_variant = config["algorithm_variant"]
+    if algorithm_variant is not None and algorithm_variant not in {
+        "d2cfr_anchored", "legacy_dcfr_plus"
+    }:
+        raise ValueError("algorithm_variant должен быть d2cfr_anchored или legacy_dcfr_plus")
+    if algorithm_variant == "d2cfr_anchored" and not config["d2cfr_enabled"]:
+        raise ValueError("algorithm_variant=d2cfr_anchored требует d2cfr_enabled=true")
+    if algorithm_variant == "legacy_dcfr_plus" and config["d2cfr_enabled"]:
+        raise ValueError("algorithm_variant=legacy_dcfr_plus несовместим с d2cfr_enabled=true")
     if not config["d2cfr_enabled"]:
         return
     strategy_train_every = config["strategy_train_every"]
@@ -141,8 +151,8 @@ def _validate_d2cfr_configuration(
         raise ValueError("D2CFR несовместим с advantage_regret_clip")
 
     loss_mode = config["d2cfr_loss_mode"]
-    if loss_mode not in {"literal", "anchored"}:
-        raise ValueError("d2cfr_loss_mode должен быть literal или anchored")
+    if loss_mode != "anchored":
+        raise ValueError("Активный D2CFR поддерживает только d2cfr_loss_mode=anchored")
     loss_function = config["d2cfr_loss_function"]
     if loss_function not in {"mse", "huber"}:
         raise ValueError("d2cfr_loss_function должен быть mse или huber")
@@ -155,8 +165,6 @@ def _validate_d2cfr_configuration(
         raise ValueError("d2cfr_state_value_loss_weight должен быть конечным числом >= 0")
     if huber_delta <= 0.0 or not huber_delta < float("inf"):
         raise ValueError("d2cfr_huber_delta должен быть конечным числом > 0")
-    if loss_mode == "literal" and (loss_function != "mse" or state_value_weight != 0.0):
-        raise ValueError("D2CFR literal требует mse и d2cfr_state_value_loss_weight=0")
     if config["d2cfr_iteration_weight_mode"] not in {"raw_t", "batch_mean_1"}:
         raise ValueError("d2cfr_iteration_weight_mode должен быть raw_t или batch_mean_1")
 

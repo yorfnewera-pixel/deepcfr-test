@@ -120,12 +120,22 @@ impl State {
             });
         }
 
+        let (small_blind_player, big_blind_player, preflop_player) = if n_players == 2 {
+            (button, (button + 1) % n_players, button)
+        } else {
+            (
+                (button + 1) % n_players,
+                (button + 2) % n_players,
+                (button + 3) % n_players,
+            )
+        };
+
         let mut players_state: Vec<PlayerState> = Vec::new();
         for i in 0..n_players {
             let player = (button + i + 1) % n_players;
-            let chips = match i {
-                _ if player == (button + 1) % n_players => sb,
-                _ if player == (button + 2) % n_players => bb,
+            let chips = match player {
+                _ if player == small_blind_player => sb,
+                _ if player == big_blind_player => bb,
                 _ => 0.0,
             };
 
@@ -145,7 +155,7 @@ impl State {
         players_state.sort_by_key(|ps| ps.player);
 
         let mut state = State {
-            current_player: (button + 3) % n_players,
+            current_player: preflop_player,
             players_state: players_state,
             public_cards: Vec::new(),
             stage: Stage::Preflop,
@@ -598,11 +608,9 @@ fn legal_actions(state: &State) -> Vec<ActionEnum> {
         illegal_actions.push(ActionEnum::Fold);
     }
 
-    if state.min_bet <= CHIP_EPSILON {
+    if call_amount <= CHIP_EPSILON {
         illegal_actions.push(ActionEnum::Call);
-    }
-
-    if state.min_bet > CHIP_EPSILON {
+    } else {
         illegal_actions.push(ActionEnum::Check);
     }
 
@@ -658,7 +666,7 @@ fn runout_forced_checkdown(state: &mut State) {
 }
 
 // Modified to accept state parameter for verbose control
-fn rank_hand(state: &State, private_cards: (Card, Card), public_cards: &Vec<Card>) -> (u64, u64, u64) {
+fn rank_hand(_state: &State, private_cards: (Card, Card), public_cards: &Vec<Card>) -> (u64, u64, u64) {
     let mut cards = public_cards.clone();
     cards.append(&mut vec![private_cards.0, private_cards.1]);
 
@@ -723,7 +731,7 @@ fn rank_card_combination(cards: Vec<Card>) -> (u64, u64, u64) {
     }
     // Straight flush: Five cards in a sequence, all in the same suit.
     if ranks_in_sequence && suit_duplicates[0].0 == 5 {
-        return (2, high_card_value(&ranks), 0_u64);
+        return (2, high_card_value(&vec![straight_high_rank(&ranks)]), 0_u64);
     }
     // 3. Four of a kind: All four cards of the same rank.
     if rank_duplicates[0].0 == 4 {
@@ -741,7 +749,7 @@ fn rank_card_combination(cards: Vec<Card>) -> (u64, u64, u64) {
     }
     // 6. Straight: Five cards in a sequence, but not of the same suit.
     if ranks_in_sequence {
-        return (6, high_card_value(&ranks), 0_u64);
+        return (6, high_card_value(&vec![straight_high_rank(&ranks)]), 0_u64);
     }
     // 7. Three of a kind: Three cards of the same rank.
     if rank_duplicates[0].0 == 3 {
@@ -761,6 +769,22 @@ fn rank_card_combination(cards: Vec<Card>) -> (u64, u64, u64) {
 
     // 10. High Card: When you haven't made any of the hands above, the highest card plays.
     (10, high_card_value(&ranks), 0_u64)
+}
+
+fn straight_high_rank(ranks: &[CardRank]) -> CardRank {
+    if ranks
+        == [
+            CardRank::R2,
+            CardRank::R3,
+            CardRank::R4,
+            CardRank::R5,
+            CardRank::RA,
+        ]
+    {
+        CardRank::R5
+    } else {
+        *ranks.iter().max().expect("straight требует пять карт")
+    }
 }
 
 fn high_card_value(ranks: &Vec<CardRank>) -> u64 {
@@ -888,5 +912,98 @@ mod tests {
                 }
             };
         }
+    }
+
+    #[cfg(test)]
+    fn card(suit: CardSuit, rank: CardRank) -> Card {
+        Card { suit, rank }
+    }
+
+    #[cfg(test)]
+    fn heads_up_state(button: u64) -> State {
+        match State::from_seed(2, button, 1.0, 2.0, 100.0, 17, false) {
+            Ok(state) => state,
+            Err(error) => panic!("не удалось создать HU-состояние: {}", error.msg),
+        }
+    }
+
+    #[cfg(test)]
+    #[test]
+    fn heads_up_button_posts_small_blind_and_acts_first_preflop() {
+        for button in 0..2 {
+            let state = heads_up_state(button);
+            let other_player = (button + 1) % 2;
+
+            assert_eq!(state.players_state[button as usize].bet_chips, state.sb);
+            assert_eq!(state.players_state[other_player as usize].bet_chips, state.bb);
+            assert_eq!(state.current_player, button);
+        }
+    }
+
+    #[cfg(test)]
+    #[test]
+    fn heads_up_big_blind_checks_after_button_limp_and_acts_first_postflop() {
+        for button in 0..2 {
+            let state = heads_up_state(button);
+            let big_blind = (button + 1) % 2;
+            let after_limp = state.apply_action(Action::new(ActionEnum::Call, 0.0));
+
+            assert_eq!(after_limp.current_player, big_blind);
+            assert!(after_limp.legal_actions.contains(&ActionEnum::Check));
+            assert!(!after_limp.legal_actions.contains(&ActionEnum::Call));
+
+            let flop = after_limp.apply_action(Action::new(ActionEnum::Check, 0.0));
+            assert_eq!(flop.stage, Stage::Flop);
+            assert_eq!(flop.current_player, big_blind);
+        }
+    }
+
+    #[cfg(test)]
+    #[test]
+    fn six_max_blinds_and_preflop_actor_remain_unchanged() {
+        let state = match State::from_seed(6, 0, 1.0, 2.0, 100.0, 17, false) {
+            Ok(state) => state,
+            Err(error) => panic!("не удалось создать six-max состояние: {}", error.msg),
+        };
+
+        assert_eq!(state.players_state[1].bet_chips, state.sb);
+        assert_eq!(state.players_state[2].bet_chips, state.bb);
+        assert_eq!(state.current_player, 3);
+    }
+
+    #[cfg(test)]
+    #[test]
+    fn wheel_is_weaker_than_six_high_straight_and_straight_flush() {
+        let wheel = vec![
+            card(CardSuit::Clubs, CardRank::R2),
+            card(CardSuit::Diamonds, CardRank::R3),
+            card(CardSuit::Hearts, CardRank::R4),
+            card(CardSuit::Spades, CardRank::R5),
+            card(CardSuit::Clubs, CardRank::RA),
+        ];
+        let six_high = vec![
+            card(CardSuit::Clubs, CardRank::R2),
+            card(CardSuit::Diamonds, CardRank::R3),
+            card(CardSuit::Hearts, CardRank::R4),
+            card(CardSuit::Spades, CardRank::R5),
+            card(CardSuit::Clubs, CardRank::R6),
+        ];
+        let wheel_flush = vec![
+            card(CardSuit::Hearts, CardRank::R2),
+            card(CardSuit::Hearts, CardRank::R3),
+            card(CardSuit::Hearts, CardRank::R4),
+            card(CardSuit::Hearts, CardRank::R5),
+            card(CardSuit::Hearts, CardRank::RA),
+        ];
+        let six_high_flush = vec![
+            card(CardSuit::Spades, CardRank::R2),
+            card(CardSuit::Spades, CardRank::R3),
+            card(CardSuit::Spades, CardRank::R4),
+            card(CardSuit::Spades, CardRank::R5),
+            card(CardSuit::Spades, CardRank::R6),
+        ];
+
+        assert!(rank_card_combination(wheel) > rank_card_combination(six_high));
+        assert!(rank_card_combination(wheel_flush) > rank_card_combination(six_high_flush));
     }
 }

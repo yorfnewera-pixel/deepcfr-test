@@ -1,9 +1,5 @@
-"""
-Training utilities and scripts for DeepCFR Poker AI.
-"""
+"""Публичная точка входа актуального контура обучения DeepCFR."""
 
-__all__ = [
-    'train_deep_cfr',
-    'train_deep_cfr_with_opponent_modeling',
-    'train_mixed_with_opponent_modeling'
-]
+from src.training.train import train_deep_cfr
+
+__all__ = ["train_deep_cfr"]

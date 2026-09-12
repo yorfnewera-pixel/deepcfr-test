@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from src.core.action_space import NUM_ACTIONS
-from src.core.buffers import AdvantageBuffer, StrategyBuffer
+from src.core.buffers import AdvantageBuffer, DuelingAdvantageBuffer, StrategyBuffer
 
 
 @pytest.mark.parametrize("buffer_type,values", [
@@ -59,3 +59,48 @@ def test_strategy_buffer_reservoir_can_keep_old_sample_when_full(monkeypatch):
     assert second_status == "skipped"
     assert sorted(iterations.tolist()) == [2.0, 3.0]
     assert sorted(states.reshape(-1).tolist()) == [2.0, 3.0]
+
+
+@pytest.mark.parametrize("buffer_type", (AdvantageBuffer, DuelingAdvantageBuffer))
+def test_advantage_reservoir_tracks_valid_size_separately_from_total_seen(
+    buffer_type, monkeypatch
+):
+    buffer = buffer_type(capacity=2, state_dim=1)
+    mask = np.array([1, 1, 0, 0, 0, 0], dtype=np.float32)
+    choices = iter([0, 3])
+    monkeypatch.setattr(np.random, "randint", lambda *_args: next(choices))
+
+    for iteration in range(1, 5):
+        state = np.array([float(iteration)], dtype=np.float32)
+        if isinstance(buffer, DuelingAdvantageBuffer):
+            status = buffer.add(
+                state,
+                np.zeros(NUM_ACTIONS, dtype=np.float32),
+                0.0,
+                np.zeros(NUM_ACTIONS, dtype=np.float32),
+                mask,
+                iteration,
+            )
+        else:
+            status = buffer.add(state, np.zeros(NUM_ACTIONS, dtype=np.float32), mask, iteration)
+
+    assert status == "skipped"
+    assert len(buffer) == 2
+    assert buffer._size == 2
+    assert buffer._total_seen == 4
+
+
+def test_strategy_reservoir_tracks_valid_size_separately_from_total_seen(monkeypatch):
+    buffer = StrategyBuffer(capacity=2, state_dim=1, reservoir=True)
+    policy = np.full(NUM_ACTIONS, 1.0 / NUM_ACTIONS, dtype=np.float32)
+    mask = np.ones(NUM_ACTIONS, dtype=np.float32)
+    choices = iter([0, 3])
+    monkeypatch.setattr(np.random, "randint", lambda *_args: next(choices))
+
+    for iteration in range(1, 5):
+        status = buffer.add(np.array([float(iteration)], dtype=np.float32), policy, mask, iteration)
+
+    assert status == "skipped"
+    assert len(buffer) == 2
+    assert buffer._size == 2
+    assert buffer._total_seen == 4

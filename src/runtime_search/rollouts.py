@@ -147,14 +147,18 @@ def evaluate_root_actions(
             ))
 
     failures: list[str] = []
-    rewards_by_action: list[list[float]] = [[] for _ in root_actions]
+    rewards = np.full((len(root_actions), len(particles)), np.nan, dtype=np.float64)
+    success = np.zeros((len(root_actions), len(particles)), dtype=bool)
     evolved_root_states = pkrs.parallel_apply_action(root_states, root_batch_actions)
     active_scenarios: list[_Scenario] = []
     for scenario, evolved in zip(scenarios, evolved_root_states):
         if evolved.status != pkrs.StateStatus.Ok:
             failures.append(_failure_message(scenario, "root action rejected by engine"))
         elif evolved.final_state:
-            rewards_by_action[scenario.action_index].append(float(evolved.players_state[hero_id].reward))
+            rewards[scenario.action_index, scenario.particle_index] = float(
+                evolved.players_state[hero_id].reward
+            )
+            success[scenario.action_index, scenario.particle_index] = True
         else:
             scenario.state = evolved
             active_scenarios.append(scenario)
@@ -186,7 +190,10 @@ def evaluate_root_actions(
             if evolved.status != pkrs.StateStatus.Ok:
                 failures.append(_failure_message(scenario, "continuation action rejected by engine"))
             elif evolved.final_state:
-                rewards_by_action[scenario.action_index].append(float(evolved.players_state[hero_id].reward))
+                rewards[scenario.action_index, scenario.particle_index] = float(
+                    evolved.players_state[hero_id].reward
+                )
+                success[scenario.action_index, scenario.particle_index] = True
             else:
                 scenario.state = evolved
                 active_scenarios.append(scenario)
@@ -194,20 +201,23 @@ def evaluate_root_actions(
     for scenario in active_scenarios:
         failures.append(_failure_message(scenario, f"max_depth={max_depth} reached before terminal state"))
 
-    successful_rollouts = np.asarray([len(rewards) for rewards in rewards_by_action], dtype=np.int64)
+    successful_rollouts = success.sum(axis=1, dtype=np.int64)
     raw_ev_mean = np.asarray([
-        float(np.mean(rewards)) if rewards else np.nan
-        for rewards in rewards_by_action
+        float(np.mean(rewards[action_index, success[action_index]]))
+        if successful_rollouts[action_index] else np.nan
+        for action_index in range(len(root_actions))
     ], dtype=np.float64)
     raw_ev_std = np.asarray([
-        float(np.std(rewards, ddof=1)) if len(rewards) > 1 else 0.0 if rewards else np.nan
-        for rewards in rewards_by_action
+        float(np.std(rewards[action_index, success[action_index]], ddof=1))
+        if successful_rollouts[action_index] > 1
+        else 0.0 if successful_rollouts[action_index] else np.nan
+        for action_index in range(len(root_actions))
     ], dtype=np.float64)
     raw_ev_se = np.asarray([
         value / np.sqrt(count) if count > 0 else np.nan
         for value, count in zip(raw_ev_std, successful_rollouts)
     ], dtype=np.float64)
-    best_gap, best_gap_se, best_gap_zscore = _root_signal_statistics(rewards_by_action)
+    best_gap, best_gap_se, best_gap_zscore = _root_signal_statistics(rewards, success)
     total_scenarios = len(root_actions) * len(particles)
     return RolloutEvaluation(
         raw_ev_mean=raw_ev_mean,
@@ -223,23 +233,33 @@ def evaluate_root_actions(
     )
 
 
-def _root_signal_statistics(rewards_by_action: Sequence[Sequence[float]]) -> tuple[float, float, float]:
+def _root_signal_statistics(
+    rewards: np.ndarray,
+    success: np.ndarray,
+) -> tuple[float, float, float]:
     """Возвращает CRN-correct gap лучшего и второго root action."""
-    if len(rewards_by_action) < 2:
+    rewards = np.asarray(rewards, dtype=np.float64)
+    success = np.asarray(success, dtype=bool)
+    if rewards.ndim != 2 or rewards.shape != success.shape:
+        raise ValueError("rewards и success должны быть двумерными массивами одинаковой формы")
+    if rewards.shape[0] < 2 or rewards.shape[1] < 2:
         return np.nan, np.nan, np.nan
-    lengths = {len(rewards) for rewards in rewards_by_action}
-    if len(lengths) != 1 or lengths == {0}:
-        return np.nan, np.nan, np.nan
-    rewards = np.asarray(rewards_by_action, dtype=np.float64)
     split_index = rewards.shape[1] // 2
-    if split_index == 0 or split_index == rewards.shape[1]:
+    selection_mask = np.all(success[:, :split_index], axis=0)
+    if not np.any(selection_mask):
         return np.nan, np.nan, np.nan
-    means = rewards[:, :split_index].mean(axis=1)
+    means = rewards[:, :split_index][:, selection_mask].mean(axis=1)
     best_index = int(np.argmax(means))
     runner_values = means.copy()
     runner_values[best_index] = -np.inf
     runner_index = int(np.argmax(runner_values))
-    differences = rewards[best_index, split_index:] - rewards[runner_index, split_index:]
+    paired_mask = success[best_index, split_index:] & success[runner_index, split_index:]
+    differences = (
+        rewards[best_index, split_index:][paired_mask]
+        - rewards[runner_index, split_index:][paired_mask]
+    )
+    if differences.size == 0:
+        return np.nan, np.nan, np.nan
     gap = float(differences.mean())
     if differences.size <= 1:
         return gap, np.nan, np.nan

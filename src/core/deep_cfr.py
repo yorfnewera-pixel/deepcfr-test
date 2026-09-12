@@ -49,7 +49,8 @@ from src.utils.logging import log_game_error
 from src.utils.traversal_profiler import TRAVERSAL_PROFILER, profile_section
 
 
-CHECKPOINT_FORMAT_VERSION = 6
+CHECKPOINT_FORMAT_VERSION = 7
+GAME_RULES_VERSION = "holdem_standard_hu_v2"
 _D2CFR_TARGET_SEMANTICS = "counterfactual_q_v_regret_q_minus_v1"
 
 
@@ -1546,7 +1547,6 @@ class DeepCFRAgent:
             else:
                 regrets = self._normalise_regrets(regrets, state, applied_slots)
                 self._record_advantage_sample(encoded, regrets, applied_mask, iteration)
-            self._record_strategy_sample(encoded, strategy, applied_mask, iteration)
             return ev
 
         self.traversal_opponent_decision_nodes += 1
@@ -1591,6 +1591,7 @@ class DeepCFRAgent:
                 "advantage_net",
             )
         weights = strategy[legal_slots]
+        self._record_strategy_sample(encoded, strategy, mask, iteration)
         try:
             slot = int(np.random.choice(legal_slots, p=weights / weights.sum()))
         except (TypeError, ValueError) as error:
@@ -2116,9 +2117,16 @@ class DeepCFRAgent:
 
     @staticmethod
     def _buffer_payload(buffer):
-        count = min(buffer._cur_id, buffer.capacity)
+        count = len(buffer)
+        buffer_type = "advantage" if isinstance(buffer, AdvantageBuffer) else "strategy"
         payload = {
-            "cur_id": buffer._cur_id, "count": count,
+            "buffer_type": buffer_type,
+            "capacity": int(buffer.capacity),
+            "state_dim": int(buffer._states.shape[1]),
+            "size": int(count),
+            "total_seen": int(buffer._total_seen),
+            "eviction_count": int(buffer.eviction_count),
+            "skip_count": int(buffer.skip_count),
             "states": buffer._states[:count].copy(),
             "masks": buffer._masks[:count].copy(),
             "iterations": buffer._iterations[:count].copy(),
@@ -2131,10 +2139,15 @@ class DeepCFRAgent:
 
     @staticmethod
     def _d2cfr_buffer_payload(buffer):
-        count = min(buffer._cur_id, buffer.capacity)
+        count = len(buffer)
         return {
-            "cur_id": buffer._cur_id,
-            "count": count,
+            "buffer_type": "dueling_advantage",
+            "capacity": int(buffer.capacity),
+            "state_dim": int(buffer._states.shape[1]),
+            "size": int(count),
+            "total_seen": int(buffer._total_seen),
+            "eviction_count": int(buffer.eviction_count),
+            "skip_count": int(buffer.skip_count),
             "states": buffer._states[:count].copy(),
             "action_values": buffer._action_values[:count].copy(),
             "state_values": buffer._state_values[:count].copy(),
@@ -2145,20 +2158,34 @@ class DeepCFRAgent:
 
     def _validated_d2cfr_buffer_payload(self, payload):
         """Возвращает проверенные D2CFR samples, не меняя replay buffer."""
-        if not isinstance(payload, dict):
+        required_fields = {
+            "buffer_type", "capacity", "state_dim", "size", "total_seen",
+            "eviction_count", "skip_count", "states", "action_values", "state_values",
+            "regrets", "masks", "iterations",
+        }
+        if not isinstance(payload, dict) or set(payload) != required_fields:
             raise ValueError("D2CFR checkpoint имеет повреждённый replay buffer")
-        raw_count = payload.get("count", -1)
-        raw_cur_id = payload.get("cur_id", raw_count)
+        raw_size = payload["size"]
+        raw_total_seen = payload["total_seen"]
         if (
-            isinstance(raw_count, bool)
-            or not isinstance(raw_count, Integral)
-            or isinstance(raw_cur_id, bool)
-            or not isinstance(raw_cur_id, Integral)
+            any(isinstance(payload[key], bool) or not isinstance(payload[key], Integral) for key in (
+                "capacity", "state_dim", "size", "total_seen", "eviction_count", "skip_count",
+            ))
         ):
             raise ValueError("D2CFR checkpoint имеет некорректный replay buffer")
-        count, cur_id = int(raw_count), int(raw_cur_id)
+        count, total_seen = int(raw_size), int(raw_total_seen)
         assert self.d2cfr_buffer is not None
-        if count < 0 or count > self.d2cfr_buffer.capacity or cur_id < count:
+        if int(payload["capacity"]) != self.d2cfr_buffer.capacity:
+            raise ValueError("Replay capacity differs. Use a new run or explicit migration.")
+        if (
+            payload["buffer_type"] != "dueling_advantage"
+            or int(payload["state_dim"]) != self.input_size
+            or count < 0
+            or count > self.d2cfr_buffer.capacity
+            or total_seen < count
+            or int(payload["eviction_count"]) < 0
+            or int(payload["skip_count"]) < 0
+        ):
             raise ValueError("D2CFR checkpoint имеет некорректный replay buffer")
         fields = (
             "states", "action_values", "state_values", "regrets", "masks", "iterations"
@@ -2180,31 +2207,57 @@ class DeepCFRAgent:
             raise ValueError("D2CFR checkpoint имеет некорректную mask replay buffer")
         if np.any(arrays["iterations"] < 1.0):
             raise ValueError("D2CFR checkpoint имеет некорректный iteration replay buffer")
-        return count, cur_id, arrays
+        return count, total_seen, arrays
 
     @staticmethod
     def _restore_buffer(buffer, payload):
-        count = int(payload.get("count", 0))
+        expected_type = "advantage" if isinstance(buffer, AdvantageBuffer) else "strategy"
+        if not isinstance(payload, dict) or payload.get("buffer_type") != expected_type:
+            raise ValueError("Replay buffer checkpoint имеет несовместимый тип")
+        integer_fields = ("capacity", "state_dim", "size", "total_seen", "eviction_count", "skip_count")
+        if any(
+            isinstance(payload.get(key), bool) or not isinstance(payload.get(key), Integral)
+            for key in integer_fields
+        ):
+            raise ValueError("Replay buffer checkpoint имеет некорректные счётчики")
+        count = int(payload["size"])
+        total_seen = int(payload["total_seen"])
         values = np.asarray(payload.get("values"))
         states = np.asarray(payload.get("states"))
         masks = np.asarray(payload.get("masks"))
         iterations = np.asarray(payload.get("iterations"))
         target = buffer._regrets if isinstance(buffer, AdvantageBuffer) else buffer._policies
-        if count <= 0 or count > buffer.capacity or states.shape != (count, *buffer._states.shape[1:]) or values.shape != (count, *target.shape[1:]) or masks.shape != (count, *buffer._masks.shape[1:]) or iterations.shape != (count,):
-            return
+        if (
+            payload.get("capacity") != buffer.capacity
+            or payload.get("state_dim") != buffer._states.shape[1]
+            or count < 0
+            or count > buffer.capacity
+            or total_seen < count
+            or int(payload["eviction_count"]) < 0
+            or int(payload["skip_count"]) < 0
+            or states.shape != (count, *buffer._states.shape[1:])
+            or values.shape != (count, *target.shape[1:])
+            or masks.shape != (count, *buffer._masks.shape[1:])
+            or iterations.shape != (count,)
+        ):
+            raise ValueError(
+                "Replay capacity differs. Use a new run or explicit migration."
+            )
         buffer._states[:count] = states
         target[:count] = values
         buffer._masks[:count] = masks
         buffer._iterations[:count] = iterations
-        buffer._cur_id = max(count, int(payload.get("cur_id", count)))
-        if hasattr(buffer, "_size"):
-            buffer._size = count
+        buffer._total_seen = total_seen
+        buffer._size = count
+        buffer.eviction_count = int(payload["eviction_count"])
+        buffer.skip_count = int(payload["skip_count"])
 
     def _build_checkpoint(self, seed=None, extra=None):
         network_metadata = self._network_metadata()
         algorithm_variant = "d2cfr_dueling_v1" if self.d2cfr_enabled else "deep_cfr_action_only_v1"
         checkpoint = {
             "checkpoint_format_version": CHECKPOINT_FORMAT_VERSION,
+            "game_rules_version": GAME_RULES_VERSION,
             "action_space_version": ACTION_SPACE_VERSION,
             "action_labels": list(ACTION_LABELS),
             "iteration": int(self.iteration_count), "seed": seed,
@@ -2273,9 +2326,20 @@ class DeepCFRAgent:
     def build_light_checkpoint(self, seed=None):
         """Возвращает inference-артефакт только с усреднённой стратегией."""
         network_metadata = self._network_metadata()
+        if self.strategy_net.architecture == CARD_CONTEXT_ARCHITECTURE:
+            strategy_input_size = int(
+                self.strategy_net.card_encoder[0].in_features
+                + self.strategy_net.context_encoder[0].in_features
+            )
+        else:
+            strategy_input_size = int(self.strategy_net.base[0].in_features)
+        strategy_actor_conditioned = (
+            self.num_players == 2 and strategy_input_size == self.input_size + 2
+        )
         return {
             "checkpoint_format_version": CHECKPOINT_FORMAT_VERSION,
-            "checkpoint_kind": "strategy_only",
+            "game_rules_version": GAME_RULES_VERSION,
+            "checkpoint_kind": "hu_strategy_only" if strategy_actor_conditioned else "strategy_only",
             "action_space_version": ACTION_SPACE_VERSION,
             "action_labels": list(ACTION_LABELS),
             "iteration": int(self.iteration_count),
@@ -2284,6 +2348,10 @@ class DeepCFRAgent:
             "num_actions": NUM_ACTIONS,
             "encoding_version": self.encoding_version,
             "encoder_input_size": self.input_size,
+            "base_encoder_input_size": self.input_size,
+            "strategy_input_size": strategy_input_size,
+            "strategy_actor_conditioned": strategy_actor_conditioned,
+            "strategy_actor_count": 2 if strategy_actor_conditioned else 0,
             **network_metadata,
             "strategy_net": self.strategy_net.state_dict(),
             "config": {
@@ -2294,6 +2362,10 @@ class DeepCFRAgent:
                 "use_multi_agent_advantage": self.use_multi_agent,
                 "encoding_version": self.encoding_version,
                 "encoder_input_size": self.input_size,
+                "base_encoder_input_size": self.input_size,
+                "strategy_input_size": strategy_input_size,
+                "strategy_actor_conditioned": strategy_actor_conditioned,
+                "strategy_actor_count": 2 if strategy_actor_conditioned else 0,
                 **network_metadata,
             },
         }
@@ -2305,6 +2377,10 @@ class DeepCFRAgent:
                 "Чекпоинт несовместим: требуется новый запуск обучения с форматом "
                 f"{CHECKPOINT_FORMAT_VERSION} ({ACTION_SPACE_VERSION}); старый encoder "
                 "не переносится на history_summary_v3."
+            )
+        if checkpoint.get("game_rules_version") != GAME_RULES_VERSION:
+            raise ValueError(
+                "Чекпоинт создан до исправления правил HU; начните новое обучение"
             )
         if checkpoint.get("action_space_version") != ACTION_SPACE_VERSION or int(checkpoint.get("num_actions", -1)) != NUM_ACTIONS:
             raise ValueError("Чекпоинт имеет другое пространство действий")
@@ -2386,7 +2462,7 @@ class DeepCFRAgent:
         if "advantage_buffer" in checkpoint:
             if self.d2cfr_enabled:
                 assert d2cfr_buffer_payload is not None
-                count, cur_id, arrays = d2cfr_buffer_payload
+                count, total_seen, arrays = d2cfr_buffer_payload
                 assert self.d2cfr_buffer is not None
                 self.d2cfr_buffer._states[:count] = arrays["states"]
                 self.d2cfr_buffer._action_values[:count] = arrays["action_values"]
@@ -2394,8 +2470,10 @@ class DeepCFRAgent:
                 self.d2cfr_buffer._regrets[:count] = arrays["regrets"]
                 self.d2cfr_buffer._masks[:count] = arrays["masks"]
                 self.d2cfr_buffer._iterations[:count] = arrays["iterations"]
-                self.d2cfr_buffer._cur_id = cur_id
+                self.d2cfr_buffer._total_seen = total_seen
                 self.d2cfr_buffer._size = count
+                self.d2cfr_buffer.eviction_count = int(checkpoint["advantage_buffer"]["eviction_count"])
+                self.d2cfr_buffer.skip_count = int(checkpoint["advantage_buffer"]["skip_count"])
             else:
                 self._restore_buffer(self.advantage_buffer, checkpoint["advantage_buffer"])
         if "strategy_buffer" in checkpoint:

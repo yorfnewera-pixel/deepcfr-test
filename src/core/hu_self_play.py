@@ -12,7 +12,7 @@ from torch import nn
 from torch.optim import Optimizer
 
 from src.core.action_space import NUM_ACTIONS
-from src.core.buffers import AdvantageBuffer, DuelingAdvantageBuffer
+from src.core.buffers import AdvantageBuffer, DuelingAdvantageBuffer, _BufferAccounting
 from src.core.traversal_errors import TraversalFailure, TraversalFailureContext
 
 
@@ -35,20 +35,17 @@ class HuTraversalAdapter(Generic[StateT]):
     ] | None = None
 
 
-class HuStrategyBuffer:
+class HuStrategyBuffer(_BufferAccounting):
     """Общий reservoir-буфер strategy с явным actor_id для условной сети."""
 
     def __init__(self, capacity: int, state_dim: int):
-        self.capacity = int(capacity)
-        if self.capacity <= 0:
-            raise ValueError("Ёмкость HU strategy-буфера должна быть положительной")
+        self._initialize_accounting(capacity)
         self.state_dim = int(state_dim)
         self._states = np.empty((self.capacity, self.state_dim), dtype=np.float32)
         self._actor_ids = np.empty(self.capacity, dtype=np.int64)
         self._policies = np.empty((self.capacity, NUM_ACTIONS), dtype=np.float32)
         self._masks = np.empty((self.capacity, NUM_ACTIONS), dtype=np.float32)
         self._iterations = np.empty(self.capacity, dtype=np.float32)
-        self._cur_id = 0
         self.eviction_count = 0
         self.skip_count = 0
 
@@ -83,22 +80,17 @@ class HuStrategyBuffer:
         if not np.isclose(policy[legal].sum(), 1.0, atol=1e-6, rtol=0.0):
             raise ValueError("HU strategy policy должна быть нормирована")
 
-        if self._cur_id < self.capacity:
-            position, status = self._cur_id, "recorded"
-        else:
-            position = np.random.randint(0, self._cur_id + 1)
-            if position >= self.capacity:
-                self._cur_id += 1
-                self.skip_count += 1
-                return "skipped"
-            status = "evicted"
+        position, status = self._next_reservoir_slot()
+        if position is None:
+            self.skip_count += 1
+            return status
+        if status == "evicted":
             self.eviction_count += 1
         self._states[position] = state
         self._actor_ids[position] = actor
         self._policies[position] = policy
         self._masks[position] = mask
         self._iterations[position] = float(iteration)
-        self._cur_id += 1
         return status
 
     def sample(self, num_samples: int = -1):
@@ -131,10 +123,10 @@ class HuStrategyBuffer:
         return conditioned_states, policies, masks, iterations
 
     def clear(self) -> None:
-        self._cur_id = 0
+        self._clear_samples()
 
     def __len__(self) -> int:
-        return min(self._cur_id, self.capacity)
+        return self._size
 
 
 class HuCurrentPolicySelfPlayCoordinator(Generic[StateT]):

@@ -112,6 +112,40 @@ def _hu_card_checkpoint(path: Path, *, step_optimizers: bool = True):
     return source.strategy_net
 
 
+def _hu_d2cfr_card_checkpoint(path: Path, config_path: Path):
+    """Сохраняет настоящий D2CFR HU teacher для переноса в six-max."""
+    config_path.write_text(
+        "\n".join((
+            "num_actions: 6",
+            "num_players: 2",
+            "num_trainable_players: 2",
+            "hu_current_policy_self_play: true",
+            "hidden_size: 8",
+            "d2cfr_enabled: true",
+            "d2cfr_mc_correction_enabled: false",
+            "advantage_memory_size: 3",
+            "strategy_memory_size: 3",
+        )) + "\n",
+        encoding="utf-8",
+    )
+    config_mod.load_config(config_path)
+    try:
+        source = DeepCFRAgent(
+            player_id=0,
+            num_players=2,
+            device="cpu",
+            network_architecture=CARD_CONTEXT_ARCHITECTURE,
+        )
+        train_mod._create_hu_current_policy_coordinator(source)
+        with torch.no_grad():
+            source.strategy_net.card_encoder[0].weight.fill_(23.0)
+            source.strategy_net.card_encoder[0].bias.fill_(-7.0)
+        torch.save(train_mod._build_hu_checkpoint(source), path)
+        return source.strategy_net
+    finally:
+        config_mod.load_config("config.yaml")
+
+
 def _six_max_student():
     return DeepCFRAgent(player_id=0, num_players=6, device="cpu", hidden_size=8,
                         network_architecture=CARD_CONTEXT_ARCHITECTURE)
@@ -163,6 +197,26 @@ def test_transfer_accepts_genuine_hu_checkpoint_with_empty_adamw_state(tmp_path)
     student.load_card_encoder_from_hu_checkpoint(checkpoint_path)
 
     assert torch.equal(student.strategy_net.card_encoder[0].weight, source_network.card_encoder[0].weight)
+
+
+def test_transfer_accepts_genuine_hu_d2cfr_checkpoint(tmp_path):
+    """Ломается, если активный D2CFR HU teacher нельзя перенести в six-max."""
+    checkpoint_path = tmp_path / "hu-d2cfr-card.pt"
+    source_network = _hu_d2cfr_card_checkpoint(checkpoint_path, tmp_path / "hu-d2cfr.yaml")
+    student = _six_max_student()
+    context_before = {
+        name: parameter.detach().clone()
+        for name, parameter in student.strategy_net.context_encoder.named_parameters()
+    }
+
+    provenance = student.load_card_encoder_from_hu_checkpoint(checkpoint_path)
+
+    assert provenance.teacher_num_players == 2
+    assert torch.equal(student.strategy_net.card_encoder[0].weight, source_network.card_encoder[0].weight)
+    assert all(
+        torch.equal(parameter, context_before[name])
+        for name, parameter in student.strategy_net.context_encoder.named_parameters()
+    )
 
 
 def test_transfer_rejects_partial_valid_adamw_state_before_student_mutation(tmp_path):

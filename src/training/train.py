@@ -20,7 +20,7 @@ import torch
 from src.agents.random_agent import RandomAgent
 from src.core.action_space import ACTION_LABELS, ACTION_SPACE_VERSION, NUM_ACTIONS
 from src.core.buffers import AdvantageBuffer, DuelingAdvantageBuffer
-from src.core.deep_cfr import CHECKPOINT_FORMAT_VERSION, DeepCFRAgent
+from src.core.deep_cfr import CHECKPOINT_FORMAT_VERSION, GAME_RULES_VERSION, DeepCFRAgent
 from src.core.hu_self_play import (
     HuCurrentPolicySelfPlayCoordinator,
     HuStrategyBuffer,
@@ -46,7 +46,7 @@ _HU_HEAVY_CHECKPOINT_PREFIX = "hu_checkpoint_iter_"
 _OPPONENT_RECENT_CHECKPOINTS = 11
 _OPPONENT_HISTORICAL_CHECKPOINTS = 2
 _HU_CHECKPOINT_KIND = "hu_current_policy_self_play"
-_HU_CHECKPOINT_VERSION = 2
+_HU_CHECKPOINT_VERSION = 3
 _HU_UPDATE_ORDER = [
     "traverse_p0",
     "traverse_p1",
@@ -77,6 +77,7 @@ def _teacher_transfer_provenance_payload(provenance: object) -> dict[str, object
         "checksum_sha256": str(provenance.checksum_sha256),
         "source_architecture": str(provenance.source_architecture),
         "source_encoding_version": str(provenance.source_encoding_version),
+        "source_game_rules_version": str(provenance.source_game_rules_version),
         "teacher_num_players": int(provenance.teacher_num_players),
         "freeze": bool(provenance.freeze),
     }
@@ -589,10 +590,11 @@ def _restore_rng_state(payload: dict[str, Any]) -> None:
 def _advantage_buffer_payload(buffer: AdvantageBuffer) -> dict[str, Any]:
     count = len(buffer)
     return {
+        "buffer_type": "advantage",
         "capacity": int(buffer.capacity),
         "state_dim": int(buffer._states.shape[1]),
-        "cur_id": int(buffer._cur_id),
-        "count": int(count),
+        "size": int(count),
+        "total_seen": int(buffer._total_seen),
         "eviction_count": int(buffer.eviction_count),
         "skip_count": int(buffer.skip_count),
         "states": torch.from_numpy(buffer._states[:count].copy()),
@@ -605,10 +607,11 @@ def _advantage_buffer_payload(buffer: AdvantageBuffer) -> dict[str, Any]:
 def _d2cfr_advantage_buffer_payload(buffer: DuelingAdvantageBuffer) -> dict[str, Any]:
     count = len(buffer)
     return {
+        "buffer_type": "dueling_advantage",
         "capacity": int(buffer.capacity),
         "state_dim": int(buffer._states.shape[1]),
-        "cur_id": int(buffer._cur_id),
-        "count": int(count),
+        "size": int(count),
+        "total_seen": int(buffer._total_seen),
         "eviction_count": int(buffer.eviction_count),
         "skip_count": int(buffer.skip_count),
         "states": torch.from_numpy(buffer._states[:count].copy()),
@@ -623,10 +626,11 @@ def _d2cfr_advantage_buffer_payload(buffer: DuelingAdvantageBuffer) -> dict[str,
 def _strategy_buffer_payload(buffer: HuStrategyBuffer) -> dict[str, Any]:
     count = len(buffer)
     return {
+        "buffer_type": "hu_strategy",
         "capacity": int(buffer.capacity),
         "state_dim": int(buffer.state_dim),
-        "cur_id": int(buffer._cur_id),
-        "count": int(count),
+        "size": int(count),
+        "total_seen": int(buffer._total_seen),
         "eviction_count": int(buffer.eviction_count),
         "skip_count": int(buffer.skip_count),
         "states": torch.from_numpy(buffer._states[:count].copy()),
@@ -637,14 +641,20 @@ def _strategy_buffer_payload(buffer: HuStrategyBuffer) -> dict[str, Any]:
     }
 
 
-def _buffer_count(payload: dict[str, Any], capacity: int) -> tuple[int, int]:
-    if not isinstance(payload, dict) or int(payload.get("capacity", -1)) != int(capacity):
+def _buffer_count(
+    payload: dict[str, Any], capacity: int, buffer_type: str
+) -> tuple[int, int]:
+    if (
+        not isinstance(payload, dict)
+        or payload.get("buffer_type") != buffer_type
+        or int(payload.get("capacity", -1)) != int(capacity)
+    ):
         raise ValueError("HU checkpoint имеет несовместимую ёмкость replay-буфера")
-    count = int(payload.get("count", -1))
-    cur_id = int(payload.get("cur_id", -1))
-    if count < 0 or count > capacity or cur_id < count:
+    size = int(payload.get("size", -1))
+    total_seen = int(payload.get("total_seen", -1))
+    if size < 0 or size > capacity or total_seen < size:
         raise ValueError("HU checkpoint имеет некорректное состояние replay-буфера")
-    return count, cur_id
+    return size, total_seen
 
 
 def _checkpoint_array(payload: dict[str, Any], key: str) -> np.ndarray:
@@ -655,7 +665,7 @@ def _checkpoint_array(payload: dict[str, Any], key: str) -> np.ndarray:
 
 
 def _restore_advantage_buffer(buffer: AdvantageBuffer, payload: dict[str, Any]) -> None:
-    count, cur_id = _buffer_count(payload, buffer.capacity)
+    count, total_seen = _buffer_count(payload, buffer.capacity, "advantage")
     state_dim = int(buffer._states.shape[1])
     if int(payload.get("state_dim", -1)) != state_dim:
         raise ValueError("HU checkpoint имеет несовместимый размер advantage-буфера")
@@ -672,14 +682,14 @@ def _restore_advantage_buffer(buffer: AdvantageBuffer, payload: dict[str, Any]) 
     buffer._regrets[:count] = arrays["regrets"]
     buffer._masks[:count] = arrays["masks"]
     buffer._iterations[:count] = arrays["iterations"]
-    buffer._cur_id = cur_id
+    buffer._total_seen = total_seen
     buffer._size = count
     buffer.eviction_count = int(payload.get("eviction_count", 0))
     buffer.skip_count = int(payload.get("skip_count", 0))
 
 
 def _restore_d2cfr_advantage_buffer(buffer: DuelingAdvantageBuffer, payload: dict[str, Any]) -> None:
-    count, cur_id = _buffer_count(payload, buffer.capacity)
+    count, total_seen = _buffer_count(payload, buffer.capacity, "dueling_advantage")
     state_dim = int(buffer._states.shape[1])
     if int(payload.get("state_dim", -1)) != state_dim:
         raise ValueError("HU checkpoint имеет несовместимый размер D2CFR advantage-буфера")
@@ -702,14 +712,14 @@ def _restore_d2cfr_advantage_buffer(buffer: DuelingAdvantageBuffer, payload: dic
     buffer._regrets[:count] = arrays["regrets"]
     buffer._masks[:count] = arrays["masks"]
     buffer._iterations[:count] = arrays["iterations"]
-    buffer._cur_id = cur_id
+    buffer._total_seen = total_seen
     buffer._size = count
     buffer.eviction_count = int(payload.get("eviction_count", 0))
     buffer.skip_count = int(payload.get("skip_count", 0))
 
 
 def _restore_strategy_buffer(buffer: HuStrategyBuffer, payload: dict[str, Any]) -> None:
-    count, cur_id = _buffer_count(payload, buffer.capacity)
+    count, total_seen = _buffer_count(payload, buffer.capacity, "hu_strategy")
     if int(payload.get("state_dim", -1)) != int(buffer.state_dim):
         raise ValueError("HU checkpoint имеет несовместимый размер strategy-буфера")
     fields = {
@@ -729,7 +739,8 @@ def _restore_strategy_buffer(buffer: HuStrategyBuffer, payload: dict[str, Any]) 
     buffer._policies[:count] = arrays["policies"]
     buffer._masks[:count] = arrays["masks"]
     buffer._iterations[:count] = arrays["iterations"]
-    buffer._cur_id = cur_id
+    buffer._total_seen = total_seen
+    buffer._size = count
     buffer.eviction_count = int(payload.get("eviction_count", 0))
     buffer.skip_count = int(payload.get("skip_count", 0))
 
@@ -822,6 +833,7 @@ def _build_hu_checkpoint(agent: DeepCFRAgent, seed: int | None = None) -> dict[s
     }
     return {
         "checkpoint_format_version": CHECKPOINT_FORMAT_VERSION,
+        "game_rules_version": GAME_RULES_VERSION,
         "checkpoint_kind": _HU_CHECKPOINT_KIND,
         "algorithm_variant": "d2cfr_dueling_v1" if d2cfr_enabled else "deep_cfr_action_only_v1",
         "hu_checkpoint_version": _HU_CHECKPOINT_VERSION,
@@ -898,6 +910,8 @@ def _validate_hu_checkpoint(agent: DeepCFRAgent, checkpoint: object) -> dict[str
             raise ValueError("HU checkpoint имеет несовместимую конфигурацию D2CFR")
     if checkpoint.get("checkpoint_format_version") != CHECKPOINT_FORMAT_VERSION:
         raise ValueError("HU checkpoint имеет несовместимый общий формат")
+    if checkpoint.get("game_rules_version") != GAME_RULES_VERSION:
+        raise ValueError("HU checkpoint создан до исправления правил; нужен новый запуск")
     if checkpoint.get("action_space_version") != ACTION_SPACE_VERSION or checkpoint.get("num_actions") != NUM_ACTIONS:
         raise ValueError("HU checkpoint имеет другое пространство действий")
     if checkpoint.get("action_labels") != list(ACTION_LABELS):
@@ -1526,12 +1540,12 @@ def _create_hu_current_policy_coordinator(
 def _print_d2cfr_startup_contract() -> None:
     """Явно фиксирует математический режим, чтобы лог не путал его с baseline."""
     print(
-        "Алгоритм: D2CFR dueling; targets: V(I), Q(I,a), regret=Q-V; "
-        "MC correction: выключен."
+        "Алгоритм: D2CFR anchored; advantage history: historical reservoir; "
+        "advantage target network: выключен; DCFR bootstrap: выключен."
     )
     print(
-        "В D2CFR не используются advantage_accumulation, discount_alpha, "
-        "discount_gamma, advantage_loss и advantage_huber_delta."
+        "discount_alpha: не поддерживается; negative regret target clamp: выключен; "
+        "regret-matching positive clamp: включён; strategy history: historical reservoir."
     )
 
 
@@ -1940,6 +1954,7 @@ def train_self_play_multi(
             with _traversal_thread_limit(bool(cfg_get("traversal_single_thread", True))):
                 failed_traversals = 0
                 agent.reset_traversal_stats()
+                iteration_prepared = False
                 for traversing_player in traversing_players:
                     max_opponents = max(0, agent.num_players - 1)
                     strategy_count = min(
@@ -1981,7 +1996,9 @@ def train_self_play_multi(
                         _print_current_strategy_opponents(strategy_count)
                     if opponent_checkpoints:
                         _print_opponent_checkpoints(opponent_checkpoints, traversing_player)
-                    agent.prepare_iteration(iteration, traversing_player=traversing_player)
+                    if not iteration_prepared:
+                        agent.prepare_iteration(iteration, traversing_player=None)
+                        iteration_prepared = True
                     if trainable_player_count == 1:
                         print(f"  Запускаю {traversals_per_iteration} обходов...")
                     else:

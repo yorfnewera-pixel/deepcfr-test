@@ -50,9 +50,10 @@ advantage_reward_scale: 200
 advantage_loss: mse
 advantage_huber_delta: 1.0
 # Практический D2CFR-anchored для HU; MC correction заблокирован до belief.
+algorithm_variant: d2cfr_anchored
 d2cfr_enabled: true
 d2cfr_loss_mode: anchored
-d2cfr_loss_function: huber
+d2cfr_loss_function: mse
 d2cfr_state_value_loss_weight: 0.5
 d2cfr_huber_delta: 1.0
 d2cfr_reinitialize_each_iteration: true

@@ -233,6 +233,22 @@ def test_strategy_buffer_otdaet_actor_conditioned_batch_dlya_obshchey_seti():
     assert iterations.tolist() == [1.0]
 
 
+def test_hu_strategy_reservoir_tracks_size_separately_from_total_seen(monkeypatch):
+    buffer = HuStrategyBuffer(capacity=2, state_dim=1)
+    choices = iter([0, 3])
+    monkeypatch.setattr(np.random, "randint", lambda *_args: next(choices))
+    policy = np.array([1, 0, 0, 0, 0, 0], dtype=np.float32)
+    mask = np.array([1, 1, 0, 0, 0, 0], dtype=np.float32)
+
+    for iteration in range(1, 5):
+        status = buffer.add(0, np.array([iteration], dtype=np.float32), policy, mask, iteration)
+
+    assert status == "skipped"
+    assert len(buffer) == 2
+    assert buffer._size == 2
+    assert buffer._total_seen == 4
+
+
 def test_target_policy_tozhdestvenna_policy_sampling_do_vybora_deystviya():
     observed = []
 

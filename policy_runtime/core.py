@@ -14,7 +14,8 @@ from typing import Protocol, runtime_checkable, Optional
 
 LEGACY_ENCODING_VERSION = "legacy_v2"
 HISTORY_SUMMARY_V3_ENCODING_VERSION = "history_summary_v3"
-CHECKPOINT_FORMAT_VERSION = 6
+CHECKPOINT_FORMAT_VERSION = 7
+GAME_RULES_VERSION = "holdem_standard_hu_v2"
 INPUT_SIZE = 157
 NUM_ACTIONS = 6
 DEFAULT_HIDDEN = 256
@@ -401,6 +402,8 @@ class PolicyRuntimeAgent:
 
         if checkpoint.get('checkpoint_format_version') != CHECKPOINT_FORMAT_VERSION:
             raise ValueError("Нужен checkpoint формата history_summary_v3")
+        if checkpoint.get('game_rules_version') != GAME_RULES_VERSION:
+            raise ValueError("Checkpoint создан до исправления правил HU")
         if checkpoint.get('action_space_version') != 'six_fixed_v2':
             raise ValueError("Checkpoint имеет другое пространство действий")
 
@@ -445,9 +448,26 @@ class PolicyRuntimeAgent:
             'encoding_version', cfg.get('encoding_version'))
         if not isinstance(self.encoding_version, str):
             raise ValueError("Checkpoint не содержит версию encoder")
-        expected_input_size = encoder_input_size(
+        self.base_input_size = encoder_input_size(
             self.num_players, self.encoding_version, self.use_multi_agent)
-        if self.input_size != expected_input_size or int(checkpoint.get('encoder_input_size', -1)) != expected_input_size:
+        self.strategy_actor_conditioned = bool(checkpoint.get(
+            'strategy_actor_conditioned', cfg.get('strategy_actor_conditioned', False)
+        ))
+        self.strategy_actor_count = int(checkpoint.get(
+            'strategy_actor_count', cfg.get('strategy_actor_count', 0)
+        ))
+        if self.strategy_actor_conditioned:
+            if self.num_players != 2 or self.strategy_actor_count != 2:
+                raise ValueError("HU strategy actor-conditioning требует ровно двух игроков")
+        elif self.strategy_actor_count != 0:
+            raise ValueError("Checkpoint содержит actor_count без actor-conditioning")
+        expected_input_size = self.base_input_size + self.strategy_actor_count
+        if (
+            self.input_size != expected_input_size
+            or int(checkpoint.get('encoder_input_size', -1)) != self.base_input_size
+            or int(checkpoint.get('base_encoder_input_size', self.base_input_size)) != self.base_input_size
+            or int(checkpoint.get('strategy_input_size', self.input_size)) != self.input_size
+        ):
             raise ValueError("Checkpoint имеет несовместимый размер входа encoder")
 
         self.iteration = int(checkpoint.get('iteration', 0))
@@ -473,11 +493,7 @@ class PolicyRuntimeAgent:
     def validate(self) -> list[str]:
         errors = []
 
-        expected_size = encoder_input_size(
-            self.num_players,
-            self.encoding_version,
-            self.use_multi_agent,
-        )
+        expected_size = self.base_input_size + self.strategy_actor_count
         if self.input_size != expected_size:
             errors.append(
                 f"input_size={self.input_size}, ожидалось {expected_size}. "
@@ -537,6 +553,13 @@ class PolicyRuntimeAgent:
             one_hot = np.zeros(len(state.players_state), dtype=np.float32)
             one_hot[int(player_id)] = 1.0
             state_vec = np.concatenate([state_vec, one_hot], dtype=np.float32)
+        if self.strategy_actor_conditioned:
+            actor = int(player_id)
+            if actor < 0 or actor >= self.strategy_actor_count:
+                raise ValueError("player_id не входит в actor-conditioning strategy")
+            actor_one_hot = np.zeros(self.strategy_actor_count, dtype=np.float32)
+            actor_one_hot[actor] = 1.0
+            state_vec = np.concatenate([state_vec, actor_one_hot], dtype=np.float32)
         state_tensor = torch.FloatTensor(state_vec).unsqueeze(0).to(self.device)
         mask_tensor = torch.FloatTensor(legal_mask).unsqueeze(0).to(self.device)
 
@@ -582,12 +605,15 @@ class PolicyRuntimeAgent:
     def export_spec(self, path: Optional[str] = None) -> dict:
         spec = {
             "input_size": self.input_size,
+            "base_input_size": self.base_input_size,
             "num_players": self.num_players,
             "encoding_version": self.encoding_version,
             "num_actions": NUM_ACTIONS,
             "hidden_size": self.hidden_size,
             "action_labels": ["fold", "check", "call", "raise_0.5pot", "raise_1pot", "all_in"],
             "iteration": self.iteration,
+            "strategy_actor_conditioned": self.strategy_actor_conditioned,
+            "strategy_actor_count": self.strategy_actor_count,
             "normalization": "100*bb",
             "feature_layout": FEATURE_SPEC,
             "per_player_layout": PER_PLAYER_SPEC,

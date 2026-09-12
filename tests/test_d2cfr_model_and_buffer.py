@@ -155,10 +155,23 @@ def test_d2cfr_defaults_to_anchored_loss_contract(tmp_path):
             "d2cfr_enabled: true\nd2cfr_reinitialize_each_iteration: false\n",
             "reinitialize_each_iteration",
         ),
+        (
+            "d2cfr_enabled: true\nd2cfr_loss_mode: literal\n"
+            "d2cfr_loss_function: mse\nd2cfr_state_value_loss_weight: 0\n",
+            "anchored",
+        ),
         ("d2cfr_enabled: true\nstrategy_train_every: 0\n", "strategy_train_every"),
         (
             "d2cfr_enabled: true\nstrategy_final_train_steps: 0\n",
             "strategy_final_train_steps",
+        ),
+        (
+            "algorithm_variant: d2cfr_anchored\nd2cfr_enabled: false\n",
+            "algorithm_variant=d2cfr_anchored",
+        ),
+        (
+            "algorithm_variant: legacy_dcfr_plus\nd2cfr_enabled: true\n",
+            "algorithm_variant=legacy_dcfr_plus",
         ),
     ),
 )

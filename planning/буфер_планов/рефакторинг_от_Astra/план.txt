@@ -1,0 +1,1279 @@
+Ниже итоговый план, который можно отдать агенту практически как техническое задание. Он исходит из решения:
+
+> Основной алгоритм проекта — исторический D2CFR anchored. PDDCFR/DCFR+ bootstrap больше не является активным режимом. HU используется для обучения teacher, затем в 6-max переносится только совместимая часть encoder, а не HU training state.
+> 
+
+---
+
+# Итоговый план исправлений DeepCFR/D2CFR
+
+## Цели
+
+1. Исправить правила покера, чтобы D2CFR обучался в стандартном HU.
+2. Зафиксировать единую семантику historical D2CFR без PDDCFR-bootstrap.
+3. Убрать очистку historical replay-буферов.
+4. Исправить checkpoint/resume и запретить небезопасное изменение capacity.
+5. Сделать корректный HU light-checkpoint и runtime.
+6. Исправить pairing частиц в runtime search.
+7. Подготовить безопасный переход HU → 6-max.
+8. Исправить generic multiplayer-контур до начала 6-max обучения.
+9. Добавить тесты, которые не позволят этим ошибкам вернуться.
+
+---
+
+# Этап 0. Зафиксировать алгоритмический контракт
+
+## 0.1. Явно определить активный алгоритм
+
+Активный режим:
+
+```
+HU external-sampling D2CFR anchored
+```
+
+Его обязательные свойства:
+
+```
+две независимые HU advantage-ноги P0/P1;
+frozen snapshots до обеих traversal-фаз;
+полное ветвление на узлах traverser;
+одно sampled action на узлах оппонента;
+targets Q, V и R=Q−V;
+historical advantage reservoir;
+historical strategy reservoir;
+никакого advantage target-network bootstrap;
+никакого discount_alpha;
+никакого target-clamp;
+positive clamp только в regret matching;
+переинициализация D2 advantage-сетей по итерациям;
+strategy training по расписанию.
+```
+
+## 0.2. Перестать смешивать параметры PDDCFR и D2CFR
+
+При активном D2CFR не должны участвовать:
+
+```yaml
+advantage_accumulation
+discount_alpha
+advantage_target_net
+advantage_regret_clip
+clear_advantage_buffer_each_iteration
+```
+
+Для D2CFR должны оставаться:
+
+```yaml
+d2cfr_loss_mode: anchored
+d2cfr_loss_function: huber
+d2cfr_state_value_loss_weight: 0.5
+d2cfr_reinitialize_each_iteration: true
+d2cfr_iteration_weight_mode: batch_mean_1
+
+advantage_buffer_reservoir: true
+strategy_buffer_reservoir: true
+clear_strategy_buffer_each_iteration: false
+```
+
+## 0.3. Заменить неоднозначный boolean
+
+Желательный новый конфиг:
+
+```yaml
+algorithm_variant: d2cfr_anchored
+```
+
+Вместо:
+
+```yaml
+d2cfr_enabled: true
+```
+
+Допустимые значения на переходный период:
+
+```
+d2cfr_anchored
+legacy_dcfr_plus
+```
+
+Но `legacy_dcfr_plus` должен быть явно помечен как архивный baseline и не использоваться для нового обучения.
+
+Если boolean пока сохраняется, startup должен печатать полный контракт:
+
+```
+Algorithm: D2CFR anchored
+Advantage history: historical reservoir
+Advantage target network: disabled
+DCFR bootstrap: disabled
+discount_alpha: ignored/unsupported
+Negative regret target clamp: disabled
+Regret-matching positive clamp: enabled
+Strategy history: historical reservoir
+```
+
+## Критерий готовности
+
+Нельзя запустить D2CFR с несовместимыми параметрами. Валидатор должен завершать запуск с понятной ошибкой, а не молча игнорировать конфиг.
+
+---
+
+# Этап 1. Исправить стандартные правила heads-up
+
+Файл:
+
+```
+pokers/src/game_logic.rs
+```
+
+## 1.1. Расстановка blinds
+
+Для двух игроков использовать отдельную ветку:
+
+```
+button = SB
+другой игрок = BB
+```
+
+Пример для `button=0`:
+
+```
+P0 = button/SB
+P1 = BB
+```
+
+Для `button=1`:
+
+```
+P1 = button/SB
+P0 = BB
+```
+
+Для `n_players > 2` сохранить обычную схему:
+
+```
+SB = button + 1
+BB = button + 2
+```
+
+## 1.2. Первый ход префлоп
+
+В HU первым префлоп действует button/SB:
+
+```
+preflop current_player = button
+```
+
+В multiplayer сохранить:
+
+```
+current_player = button + 3
+```
+
+## 1.3. Первый ход постфлоп
+
+В HU первым постфлоп действует BB:
+
+```
+postflop current_player = (button + 1) % 2
+```
+
+В multiplayer первым действует первый активный игрок после button.
+
+## 1.4. Добавить версию игровых правил
+
+Поскольку исправление меняет саму обучаемую игру, добавить metadata:
+
+```
+game_rules_version: holdem_standard_hu_v2
+```
+
+Старые checkpoints без этой версии или с предыдущей версией должны отклоняться.
+
+## Тесты
+
+Добавить Rust/Python-тесты:
+
+```
+HU button=0:
+    P0 posts SB
+    P1 posts BB
+    P0 acts first preflop
+    P1 acts first on flop
+
+HU button=1:
+    P1 posts SB
+    P0 posts BB
+    P1 acts first preflop
+    P0 acts first on flop
+
+6-max:
+    существующая схема blinds не изменилась
+```
+
+Также проверить смену button между руками.
+
+## Критерий готовности
+
+Детерминированный HU hand проходит все улицы с правильным порядком действий.
+
+---
+
+# Этап 2. Исправить `check` против нулевого `call`
+
+Файл:
+
+```
+pokers/src/game_logic.rs
+```
+
+## 2.1. Использовать `call_amount`
+
+Вместо проверки глобального:
+
+```rust
+state.min_bet
+```
+
+использовать:
+
+```rust
+call_amount =
+    max(0, state.min_bet - current_player.bet_chips)
+```
+
+Правило:
+
+```
+call_amount <= epsilon:
+    Check разрешён
+    Call запрещён
+    Fold обычно запрещён
+
+call_amount > epsilon:
+    Call разрешён
+    Check запрещён
+    Fold разрешён
+```
+
+## 2.2. Проверить BB после лимпа
+
+Сценарий:
+
+```
+SB calls
+BB has already posted full BB
+BB call_amount = 0
+```
+
+Ожидание:
+
+```
+Check legal
+Call illegal
+```
+
+## Тесты
+
+```
+BB после limp может check;
+BB после raise не может check;
+игрок без доплаты не получает call(0);
+public history записывает Check;
+fixed action slot соответствует CHECK, а не CALL.
+```
+
+## Критерий готовности
+
+Ни движок, ни encoder, ни runtime не создают `call` с нулевой оплатой там, где правила требуют `check`.
+
+---
+
+# Этап 3. Исправить wheel straight
+
+Файл:
+
+```
+pokers/src/game_logic.rs
+```
+
+## 3.1. Отдельно определить high card стрита
+
+Для:
+
+```
+A-2-3-4-5
+```
+
+старшей картой стрита должна считаться пятёрка.
+
+Не передавать wheel в обычный:
+
+```rust
+high_card_value(&ranks)
+```
+
+без специальной обработки туза.
+
+Можно ввести:
+
+```rust
+fn straight_high_rank(ranks: &[CardRank]) -> CardRank
+```
+
+Логика:
+
+```
+A2345 → R5
+обычный straight → максимальная карта
+```
+
+Использовать её и для:
+
+- straight;
+- straight flush.
+
+## Тесты
+
+Обязательные сравнения:
+
+```
+A2345 проигрывает 23456;
+A2345 проигрывает TJQKA;
+A2345 straight flush проигрывает 23456 straight flush;
+два одинаковых wheel дают tie;
+wheel сильнее trips;
+wheel слабее любого более высокого straight.
+```
+
+## Критерий готовности
+
+Evaluator соответствует стандартному ранжированию Texas Hold’em для всех wheel-комбинаций.
+
+---
+
+# Этап 4. Зафиксировать lifecycle D2CFR-буферов
+
+Файлы:
+
+```
+src/core/buffers.py
+src/core/deep_cfr.py
+src/core/hu_self_play.py
+src/training/train.py
+src/utils/config.py
+```
+
+## 4.1. Advantage-buffer никогда не очищать между D2CFR-итерациями
+
+Для D2CFR:
+
+```
+P0 historical reservoir сохраняется;
+P1 historical reservoir сохраняется;
+переинициализация сети не трогает replay;
+переинициализация optimizer не трогает replay.
+```
+
+Удалить любые вызовы:
+
+```python
+advantage_buffer.clear()
+```
+
+из D2CFR iteration lifecycle.
+
+## 4.2. Strategy-buffer тоже сохранять
+
+Обязательная конфигурация:
+
+```yaml
+strategy_buffer_reservoir: true
+clear_strategy_buffer_each_iteration: false
+```
+
+Strategy может обучаться не каждую итерацию, но samples должны продолжать накапливаться.
+
+## 4.3. Не путать rollback с очисткой
+
+Разрешён rollback только для незавершённого traversal:
+
+```
+traversal упал
+→ удалить samples этого traversal из pending transaction
+→ historical replay не изменять
+```
+
+Если вся HU-итерация не завершилась, pending samples обеих фаз не коммитятся.
+
+## 4.4. Сохранить независимость P0/P1
+
+Проверять:
+
+```
+разные network objects;
+разные optimizer;
+разные buffers;
+нет общих Parameters;
+advantage sample попадает только в buffer traverser.
+```
+
+## Тесты
+
+```
+после iteration 1 buffer P0/P1 непустой;
+после iteration 2 старые samples остаются;
+reinitialize меняет параметры сети, но не размер буфера;
+ошибка traversal не повреждает historical samples;
+данные P0 не попадают в buffer P1;
+strategy-buffer не очищается на границе итерации.
+```
+
+## Критерий готовности
+
+Размер historical buffer монотонно растёт до capacity. После заполнения изменяется только через reservoir replacement.
+
+---
+
+# Этап 5. Исправить внутреннюю модель reservoir
+
+Сейчас `_cur_id` одновременно используется как:
+
+- количество когда-либо увиденных samples;
+- косвенная длина доступных данных.
+
+Эти понятия нужно разделить.
+
+## 5.1. Новые поля
+
+Для каждого replay-buffer:
+
+```python
+_capacity
+_size
+_total_seen
+```
+
+Смысл:
+
+```
+capacity    — физическая ёмкость;
+size        — число реально заполненных валидных строк;
+total_seen  — число всех samples, прошедших через add().
+```
+
+## 5.2. Правильный `len`
+
+```python
+def __len__(self):
+    return self._size
+```
+
+Sampling разрешён только в диапазоне:
+
+```
+[0, size)
+```
+
+Никогда не использовать `total_seen` для определения области валидных строк.
+
+## 5.3. Reservoir Algorithm R
+
+Упрощённо:
+
+```python
+total_seen += 1
+
+if size < capacity:
+    write at size
+    size += 1
+else:
+    j = random integer in [0, total_seen)
+    if j < capacity:
+        replace row j
+    else:
+        skip sample
+```
+
+## 5.4. Единая реализация
+
+Желательно вынести общий reservoir index selection, чтобы одинаковая логика использовалась в:
+
+- `AdvantageBuffer`;
+- `DuelingAdvantageBuffer`;
+- `StrategyBuffer`;
+- `HuStrategyBuffer`.
+
+## Тесты
+
+```
+len никогда не превышает число заполненных строк;
+sampling не читает неинициализированную память;
+size не превышает capacity;
+total_seen может быть больше capacity;
+после restore sampling использует только size;
+eviction и skip counters корректны;
+при фиксированном seed reservoir воспроизводим.
+```
+
+## Критерий готовности
+
+Ни один buffer не использует один счётчик одновременно как `size` и `total_seen`.
+
+---
+
+# Этап 6. Переработать checkpoint/resume и capacity
+
+Файлы:
+
+```
+src/core/deep_cfr.py
+src/training/train.py
+src/core/checkpointing.py
+```
+
+## 6.1. Новый формат replay
+
+Checkpoint должен сохранять:
+
+```
+buffer_type
+capacity
+size
+total_seen
+state_dim
+target semantics
+valid rows only
+eviction_count
+skip_count
+```
+
+Для D2CFR:
+
+```
+states
+Q targets
+V targets
+regret targets
+legal masks
+iterations
+```
+
+## 6.2. Увеличить версию checkpoint
+
+Изменяются:
+
+- игровые правила;
+- buffer schema;
+- HU strategy input metadata.
+
+Поэтому увеличить:
+
+```
+CHECKPOINT_FORMAT_VERSION
+HU_CHECKPOINT_VERSION
+```
+
+Старые checkpoints отклонять с понятным сообщением:
+
+```
+Checkpoint создан до исправления HU rules/buffer schema.
+Продолжение обучения небезопасно.
+```
+
+## 6.3. Обычный resume требует прежнюю capacity
+
+Для точного продолжения:
+
+```
+saved capacity == configured capacity
+```
+
+Если отличается — остановить запуск:
+
+```
+Replay capacity differs. Use a new run or explicit migration.
+```
+
+Это не баг, а защита воспроизводимости.
+
+## 6.4. Не поддерживать неявное увеличение reservoir
+
+Точное расширение уже заполненного reservoir невозможно восстановить из отброшенной истории. Поэтому не делать вид, что обычный resize сохраняет равномерное распределение.
+
+Разрешить только явные режимы:
+
+```
+strict_resume:
+    capacity должна совпадать
+
+new_run:
+    создать пустые buffers нового размера
+
+reset_replay_migration:
+    перенести веса, начать replay с нуля
+
+shrink_migration:
+    явно subsample валидные строки до меньшей capacity
+```
+
+## 6.5. Не использовать HU checkpoint как 6-max resume
+
+Должно быть явное разделение:
+
+```
+initial_checkpoint
+    → только точное продолжение того же режима
+
+teacher_transfer_checkpoint
+    → перенос совместимого representation в новый режим
+```
+
+## Тесты
+
+```
+same-capacity round-trip полностью воспроизводим;
+другая capacity при strict resume отклоняется;
+старый checkpoint отклоняется;
+size/total_seen сохраняются точно;
+после restore нет доступа к незаполненным строкам;
+HU checkpoint не принимается как 6-max initial checkpoint.
+```
+
+---
+
+# Этап 7. Исправить HU light-checkpoint и runtime
+
+Файлы:
+
+```
+src/core/deep_cfr.py
+src/training/train.py
+policy_runtime/core.py
+```
+
+## 7.1. Сохранить actor-conditioning metadata
+
+HU light-checkpoint должен содержать:
+
+```
+checkpoint_kind: hu_strategy_only
+num_players: 2
+base_encoder_input_size: 181
+strategy_input_size: 183
+strategy_actor_conditioned: true
+strategy_actor_count: 2
+encoding_version: history_summary_v3
+game_rules_version: holdem_standard_hu_v2
+```
+
+## 7.2. Runtime должен добавлять actor one-hot
+
+Для P0:
+
+```
+base infoset + [1, 0]
+```
+
+Для P1:
+
+```
+base infoset + [0, 1]
+```
+
+Не использовать для этого `use_multi_agent_advantage`: это отдельная семантика strategy conditioning.
+
+## 7.3. Проверять реальную форму весов
+
+Runtime обязан проверить:
+
+```
+вход action network == strategy_input_size;
+strategy_input_size ==
+    base_encoder_input_size + actor_count.
+```
+
+## 7.4. Добавить end-to-end smoke
+
+```
+создать HU agent;
+сделать одну D2CFR-итерацию;
+сохранить light checkpoint;
+загрузить PolicyRuntimeAgent;
+построить policy для P0;
+построить policy для P1;
+убедиться, что legal probabilities конечны и нормированы.
+```
+
+## Критерий готовности
+
+Каждый создаваемый HU light-checkpoint сразу загружается независимым runtime без ручных исправлений.
+
+---
+
+# Этап 8. Исправить pairing частиц runtime search
+
+Файл:
+
+```
+src/runtime_search/rollouts.py
+```
+
+## 8.1. Хранить reward по двум индексам
+
+Вместо:
+
+```python
+rewards_by_action[action].append(reward)
+```
+
+использовать:
+
+```python
+rewards[action_index, particle_index] = reward
+success[action_index, particle_index] = True
+```
+
+## 8.2. Парные оценки только по общим particles
+
+Для каждой пары root actions:
+
+```
+paired_mask =
+    success[action_a] & success[action_b]
+```
+
+Затем:
+
+```
+difference[particle] =
+    reward[action_a, particle]
+    - reward[action_b, particle]
+```
+
+## 8.3. Не считать непарные данные парными
+
+Если общих успешных particles недостаточно:
+
+```
+best_gap_se = NaN
+best_gap_zscore = NaN
+fallback to blueprint
+```
+
+## Тесты
+
+Искусственно создать сценарий, где:
+
+```
+action A particles завершаются в порядке 0,2,1;
+action B particles завершаются в порядке 1,0,2.
+```
+
+Результат должен совпадать с вычислением по `particle_index`, а не по порядку завершения.
+
+Дополнительно:
+
+```
+один action падает на particle 2;
+другой успешно заканчивает particle 2;
+particle 2 исключается из paired difference.
+```
+
+## Критерий готовности
+
+Перестановка порядка завершения rollout не меняет gap, SE и z-score.
+
+---
+
+# Этап 9. Исправить generic multiplayer до 6-max
+
+Даже если активный HU использует отдельный coordinator, перед 6-max generic-контур должен быть исправлен.
+
+## 9.1. Не очищать buffer внутри цикла traversers
+
+Нельзя:
+
+```python
+for traversing_player:
+    prepare_iteration()  # содержит clear
+    collect()
+```
+
+Должно быть:
+
+```python
+prepare_whole_iteration_once()
+
+for traversing_player:
+    collect()
+```
+
+Для D2CFR prepare не очищает historical replay вообще.
+
+## 9.2. Исправить сбор average strategy
+
+Правило:
+
+```
+на узле traverser:
+    собрать advantage Q/V/R target;
+    перебрать все legal actions;
+
+на узле non-traverser:
+    записать текущую policy как strategy target;
+    затем sampled action;
+    продолжить одну ветку.
+```
+
+Не записывать average-strategy samples на полностью разветвлённых traverser-узлах без корректного `own_reach`.
+
+## 9.3. Сохранять actor identity
+
+В 6-max strategy samples должны однозначно указывать:
+
+```
+какой player/relative position принимал решение.
+```
+
+Это может быть:
+
+- player-relative encoding;
+- явный position/actor feature;
+- отдельное документированное conditioning.
+
+Нельзя допускать одинаковый вектор для семантически разных позиций, если сеть должна их различать.
+
+## 9.4. Frozen profile на всю итерацию
+
+Перед сбором данных всех traversers:
+
+```
+зафиксировать policy profile;
+собрать данные всех trainable players;
+только потом обновить сети.
+```
+
+Нельзя:
+
+```
+collect P0 → train → collect P1
+```
+
+если целью является симметричный iteration profile.
+
+## 9.5. Явно пометить теоретический статус
+
+6-max D2CFR должен называться:
+
+```
+experimental multiplayer D2CFR adaptation
+```
+
+а не полной репликацией two-player zero-sum статьи.
+
+## Тесты
+
+```
+данные первого traverser остаются после последнего;
+strategy samples записываются на non-traverser nodes;
+все traversers используют frozen policy profile;
+обучение начинается после завершения всех traversal-фаз;
+actor identity сохраняется;
+никакой buffer не очищается между игроками.
+```
+
+---
+
+# Этап 10. Оформить переход HU → 6-max
+
+## 10.1. Это новый запуск, а не resume
+
+Правильная схема:
+
+```
+обучить HU teacher
+→ сохранить полный HU checkpoint
+→ создать новый 6-max D2CFR agent
+→ создать новые пустые 6-max buffers
+→ перенести только card_encoder
+→ начать 6-max iteration 1
+```
+
+## 10.2. Выбрать capacity до запуска
+
+Например:
+
+```yaml
+num_players: 6
+advantage_memory_size: 1000000
+strategy_memory_size: 2000000
+```
+
+Значения должны выбираться по доступной RAM/VRAM и не меняться через обычный resume.
+
+## 10.3. Не переносить HU replay
+
+Не переносить:
+
+- HU Q/V/regret samples;
+- HU strategy samples;
+- HU P0/P1 optimizers;
+- actor-conditioned HU strategy head;
+- номер HU iteration.
+
+Переносить:
+
+```
+card_encoder weights
+source checkpoint checksum
+source game-rules version
+source encoding version
+teacher provenance
+```
+
+## 10.4. Проверить совместимость transfer
+
+Разрешить перенос только если совпадают:
+
+```
+card feature layout;
+card encoder architecture;
+card feature size;
+rank/suit canonicalization;
+game rules version не старее исправленного;
+action-space version.
+```
+
+## Тесты
+
+```
+HU checkpoint нельзя открыть как 6-max resume;
+HU card_encoder переносится в новый 6-max agent;
+6-max buffers пустые;
+6-max iteration начинается с 1;
+6-max capacities могут быть больше HU;
+после transfer проходит один полный 6-max smoke.
+```
+
+---
+
+# Этап 11. Удалить или изолировать устаревший код
+
+## 11.1. Opponent modeling
+
+Файл:
+
+```
+src/training/train_with_opponent_modeling.py
+```
+
+Сейчас импортирует отсутствующий модуль и использует устаревший API.
+
+Варианты:
+
+1. удалить entrypoint;
+2. переместить в `legacy/`;
+3. переписать полностью под новый D2CFR API.
+
+До переписывания он не должен выглядеть как рабочий сценарий.
+
+## 11.2. Legacy PDDCFR/DCFR+
+
+Если режим больше не нужен:
+
+- вынести в `legacy/`;
+- убрать его параметры из основного `config.yaml`;
+- исключить из обычных checkpoint;
+- сохранить только для исторического сравнения;
+- не смешивать его классы с D2CFR lifecycle.
+
+## 11.3. README
+
+Обновить:
+
+```
+активный режим HU D2CFR;
+правильную команду запуска;
+формат HU full/light checkpoint;
+команду resume;
+команду teacher transfer;
+запрет resize при resume;
+разницу resume и warm-start;
+теоретический статус 6-max.
+```
+
+---
+
+# Этап 12. Проверка Huber и достаточности обучения
+
+Это не блокирует исправление правил, но обязательно до выбора финальной конфигурации.
+
+## 12.1. A/B loss
+
+Сравнить:
+
+```
+anchored + Huber
+anchored + MSE
+```
+
+Не менять одновременно другие параметры.
+
+## 12.2. Логировать отдельно P0/P1
+
+Для каждой advantage-ноги:
+
+```
+regret_loss
+state_value_loss
+total_loss
+mean_abs_v_nn
+std_v_nn_minus_v_target
+mean_regret_abs_error
+buffer_size
+buffer_fill_ratio
+equivalent_training_epochs
+actual optimizer steps
+training seconds
+```
+
+## 12.3. Проверить 75 шагов
+
+Текущий config:
+
+```yaml
+advantage_train_steps: 75
+strategy_train_steps: 500
+strategy_train_every: 10
+strategy_final_train_steps: 10000
+```
+
+Проверить варианты:
+
+```
+75 advantage steps
+150 advantage steps
+300 advantage steps
+```
+
+Сравнивать:
+
+- held-out target error;
+- seat-swapped evaluation;
+- exploitability на маленькой тестовой игре, если доступно;
+- качество против frozen checkpoint pool;
+- wall-clock.
+
+Не выбирать steps только по training loss.
+
+---
+
+# Этап 13. Полная матрица тестов
+
+## Движок
+
+```
+HU blinds;
+preflop/postflop order;
+check/call legality;
+wheel;
+straight flush wheel;
+chip conservation;
+fold terminal rewards;
+showdown ties;
+short all-in;
+minimum raise;
+forced checkdown.
+```
+
+## D2CFR
+
+```
+R = Q − V на legal actions;
+одинаковая нормализация Q/V/R;
+negative targets сохраняются;
+positive clamp только в regret matching;
+P0/P1 snapshots frozen;
+buffers независимы;
+historical reservoir не очищается;
+reinitialize не очищает replay;
+ошибка traversal откатывает только pending samples.
+```
+
+## Checkpoint
+
+```
+HU full round-trip;
+HU light runtime round-trip;
+same-capacity resume;
+different-capacity rejection;
+old game-rules rejection;
+old buffer-schema rejection;
+RNG restoration;
+final strategy training сохранено.
+```
+
+## Runtime search
+
+```
+pairing по particle_index;
+out-of-order completion;
+частично упавшие particles;
+blueprint fallback;
+finite normalized policies.
+```
+
+## 6-max
+
+```
+новый run с большим пустым buffer;
+HU teacher card-encoder transfer;
+никакого HU replay;
+данные всех traversers сохраняются;
+strategy samples собираются корректно.
+```
+
+---
+
+# Этап 14. Порядок коммитов
+
+Рекомендуемый порядок, чтобы изменения было легко ревьюить и откатывать.
+
+## Коммит 1 — правила HU
+
+```
+fix: implement standard heads-up blinds and action order
+```
+
+## Коммит 2 — check/call
+
+```
+fix: derive check and call legality from call amount
+```
+
+## Коммит 3 — wheel
+
+```
+fix: rank wheel as five-high straight
+```
+
+## Коммит 4 — versioning
+
+```
+feat: version game rules and reject incompatible checkpoints
+```
+
+## Коммит 5 — reservoir internals
+
+```
+refactor: separate replay size from total seen samples
+```
+
+## Коммит 6 — D2 lifecycle
+
+```
+refactor: enforce historical replay lifecycle for D2CFR
+```
+
+## Коммит 7 — checkpoint safety
+
+```
+fix: make replay capacity immutable during strict resume
+```
+
+## Коммит 8 — HU export
+
+```
+fix: serialize actor-conditioned HU strategy contract
+```
+
+## Коммит 9 — search pairing
+
+```
+fix: preserve belief particle pairing across root actions
+```
+
+## Коммит 10 — multiplayer collection
+
+```
+fix: preserve all traverser samples and average strategy targets
+```
+
+## Коммит 11 — teacher transfer
+
+```
+feat: initialize fresh six-max D2CFR run from HU card encoder
+```
+
+## Коммит 12 — cleanup/docs
+
+```
+chore: isolate legacy training modes and update documentation
+```
+
+Не смешивать исправление движка, buffer schema и runtime search в одном огромном коммите.
+
+---
+
+# Финальные ворота перед длинным обучением
+
+## Gate 1 — корректность кода
+
+```
+все Python tests проходят;
+все Rust tests проходят;
+нет skipped-тестов по критическим правилам;
+HU light-checkpoint загружается runtime;
+checkpoint round-trip проходит.
+```
+
+## Gate 2 — короткий HU smoke
+
+Не менее:
+
+```
+100–1000 итераций;
+несколько seeds;
+оба места P0/P1;
+нет NaN/Inf;
+нет traversal failures;
+buffer fill корректен;
+P0/P1 получают сопоставимое количество samples.
+```
+
+## Gate 3 — проверка игровой симметрии
+
+При смене button/seat:
+
+```
+нет систематического преимущества из-за ошибочного порядка;
+сумма rewards равна нулю;
+одинаковые правила для P0 и P1;
+позиционные результаты меняются ожидаемо.
+```
+
+## Gate 4 — выбор loss/steps
+
+Сравнить Huber/MSE и несколько budgets. Зафиксировать победителя в отдельном экспериментальном отчёте.
+
+## Gate 5 — длинный HU teacher
+
+Только после предыдущих ворот запускать длительное обучение. Использовать новые checkpoints: старые веса обучались на неправильной HU-семантике.
+
+## Gate 6 — новый 6-max run
+
+После готового HU teacher:
+
+```
+новая 6-max сеть;
+новые большие replay buffers;
+warm-start только card_encoder;
+никакого resume HU training state.
+```
+
+---
+
+# Короткий итог для агента
+
+> Сначала исправить стандартные HU blinds/action order, legality check/call и wheel evaluator. После изменения игровой семантики повысить версии checkpoints и запретить старый resume. Затем привести D2CFR к единому historical-reservoir lifecycle: разделить `size` и `total_seen`, исключить очистку replay и запретить неявный resize при resume. Исправить HU light-checkpoint с явным actor conditioning и pairing belief particles в runtime search. До перехода в 6-max исправить generic traversal: сохранять данные всех traversers и собирать average strategy на non-traverser nodes. Переход HU → 6-max выполнять как новый run с пустыми буферами нужного размера и переносом только `card_encoder`, а не как продолжение HU checkpoint.
+>

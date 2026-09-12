@@ -1,5 +1,6 @@
 import numpy as np
 import pokers as pkrs
+import pytest
 
 from src.core.action_space import ActionSlot, legal_action_mask, resolve_action
 from src.runtime_search.beliefs import sample_blocker_aware_particle
@@ -23,12 +24,13 @@ class PassiveBatchPolicy:
 
 
 def test_root_signal_uses_paired_particle_differences():
-    gap, gap_se, zscore = _root_signal_statistics(
+    rewards = np.array(
         (
             [10.0, 20.0, 30.0],
             [9.0, 19.0, 29.0],
         )
     )
+    gap, gap_se, zscore = _root_signal_statistics(rewards, np.ones_like(rewards, dtype=bool))
 
     assert gap == 1.0
     assert gap_se == 0.0
@@ -36,16 +38,68 @@ def test_root_signal_uses_paired_particle_differences():
 
 
 def test_root_signal_selects_pair_on_other_particle_half():
-    gap, gap_se, zscore = _root_signal_statistics(
+    rewards = np.array(
         (
             [5.0, 5.0, 0.0, 0.0],
             [0.0, 0.0, 2.0, 2.0],
         )
     )
+    gap, gap_se, zscore = _root_signal_statistics(rewards, np.ones_like(rewards, dtype=bool))
 
     assert gap == -2.0
     assert gap_se == 0.0
     assert zscore == -np.inf
+
+
+def test_root_signal_pairs_rewards_by_particle_index_despite_completion_order():
+    rewards = np.array(
+        (
+            [10.0, 100.0, 20.0, 40.0],
+            [9.0, 99.0, 0.0, 35.0],
+        )
+    )
+    success = np.ones_like(rewards, dtype=bool)
+
+    gap, gap_se, zscore = _root_signal_statistics(rewards, success)
+
+    assert gap == 12.5
+    assert gap_se == 7.5
+    assert zscore == pytest.approx(12.5 / 7.5)
+
+
+def test_root_signal_excludes_particle_that_failed_for_one_root_action():
+    rewards = np.array(
+        (
+            [10.0, 100.0, 20.0, 40.0],
+            [9.0, 99.0, np.nan, 35.0],
+        )
+    )
+    success = np.array(((True, True, True, True), (True, True, False, True)))
+
+    gap, gap_se, zscore = _root_signal_statistics(rewards, success)
+
+    assert gap == 5.0
+    assert np.isnan(gap_se)
+    assert np.isnan(zscore)
+
+
+def test_root_signal_selects_actions_on_common_successful_particles():
+    """Ломается, если failure в selection-half меняет winner вне CRN-пересечения."""
+    rewards = np.array(
+        (
+            [100.0, 100.0, 0.0, 1.0, 2.0, 3.0],
+            [60.0, np.nan, 59.0, 5.0, 6.0, 7.0],
+        )
+    )
+    success = np.array(
+        ((True, True, True, True, True, True), (True, False, True, True, True, True))
+    )
+
+    gap, gap_se, zscore = _root_signal_statistics(rewards, success)
+
+    assert gap == 4.0
+    assert gap_se == 0.0
+    assert zscore == np.inf
 
 
 def _particle(state, seed):

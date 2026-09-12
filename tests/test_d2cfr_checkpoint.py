@@ -165,6 +165,12 @@ def test_single_agent_d2_checkpoint_round_trip_and_rejects_action_only_variant(t
             5,
         )
         d2_path = source.save_model(tmp_path / "d2.pt")
+        replay_payload = torch.load(d2_path, weights_only=False)["advantage_buffer"]
+        assert replay_payload["buffer_type"] == "dueling_advantage"
+        assert replay_payload["size"] == 1
+        assert replay_payload["total_seen"] == 1
+        assert "cur_id" not in replay_payload
+        assert "count" not in replay_payload
         restored = DeepCFRAgent(player_id=0, num_players=2, device="cpu")
         restored.load_model(d2_path)
         assert restored.iteration_count == 5
@@ -200,6 +206,35 @@ def test_single_agent_d2_checkpoint_round_trip_and_rejects_action_only_variant(t
         with pytest.raises(ValueError, match="algorithm variant"):
             d2_runtime.load_model(action_only_path)
         assert all(torch.equal(d2_runtime.advantage_net.state_dict()[key], value) for key, value in before.items())
+    finally:
+        config_mod.load_config("config.yaml")
+
+
+def test_d2cfr_resume_rejects_different_replay_capacity(tmp_path):
+    source_config = tmp_path / "source.yaml"
+    source_config.write_text(
+        "num_actions: 6\nnum_players: 2\nhidden_size: 8\nd2cfr_enabled: true\n"
+        "d2cfr_mc_correction_enabled: false\nsave_replay_buffers_in_checkpoint: true\n"
+        "advantage_memory_size: 4\n",
+        encoding="utf-8",
+    )
+    destination_config = tmp_path / "destination.yaml"
+    destination_config.write_text(
+        "num_actions: 6\nnum_players: 2\nhidden_size: 8\nd2cfr_enabled: true\n"
+        "d2cfr_mc_correction_enabled: false\nsave_replay_buffers_in_checkpoint: true\n"
+        "advantage_memory_size: 8\n",
+        encoding="utf-8",
+    )
+    config_mod.load_config(source_config)
+    try:
+        source = DeepCFRAgent(player_id=0, num_players=2, device="cpu")
+        path = source.save_model(tmp_path / "d2.pt")
+    finally:
+        config_mod.load_config(destination_config)
+    try:
+        destination = DeepCFRAgent(player_id=0, num_players=2, device="cpu")
+        with pytest.raises(ValueError, match="Replay capacity differs"):
+            destination.load_model(path)
     finally:
         config_mod.load_config("config.yaml")
 
