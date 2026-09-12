@@ -52,6 +52,9 @@ def materialize_particle_state(
     rng: np.random.Generator,
 ) -> pkrs.State:
     """Пересобирает state с particle hands и independent ordered runout."""
+    if state.stage == pkrs.Stage.Showdown:
+        raise ValueError("Runtime search cannot reconstruct unresolved Showdown state")
+
     players = tuple(state.players_state)
     if hero_id < 0 or hero_id >= len(players):
         raise ValueError("hero_id вне диапазона игроков")

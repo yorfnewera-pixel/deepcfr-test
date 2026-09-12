@@ -6,6 +6,59 @@ def card(value):
     return pkrs.Card.from_string(value[::-1])
 
 
+def mid_hand_arguments(stage=pkrs.Stage.Preflop, **overrides):
+    if stage == pkrs.Stage.Preflop:
+        public_cards = []
+    elif stage == pkrs.Stage.Flop:
+        public_cards = [card("2c"), card("3d"), card("4h")]
+    elif stage == pkrs.Stage.Turn:
+        public_cards = [card("2c"), card("3d"), card("4h"), card("5s")]
+    else:
+        public_cards = [card("2c"), card("3d"), card("4h"), card("5s"), card("6c")]
+
+    arguments = dict(
+        n_players=2,
+        button=0,
+        sb=1.0,
+        bb=2.0,
+        stake=20.0,
+        deck=[],
+        hole_cards=[(card("Ac"), card("Kd")), (card("Qh"), card("Js"))],
+        public_cards=public_cards,
+        stage=stage,
+        pot=3.0,
+        bet_chips=[1.0, 2.0],
+        pot_chips=[0.0, 0.0],
+        active=[True, True],
+        last_stage_action=[None, None],
+        current_player=0,
+        last_raise_increment=2.0,
+    )
+    arguments.update(overrides)
+    return arguments
+
+
+def test_from_mid_hand_requires_explicit_active_actor_and_rejects_showdown():
+    with pytest.raises(OSError, match="unresolved Showdown"):
+        pkrs.State.from_mid_hand(**mid_hand_arguments(pkrs.Stage.Showdown))
+
+    with pytest.raises(OSError, match="must be provided"):
+        pkrs.State.from_mid_hand(**mid_hand_arguments(current_player=None))
+
+    with pytest.raises(OSError, match="must be in range"):
+        pkrs.State.from_mid_hand(**mid_hand_arguments(current_player=2))
+
+    with pytest.raises(OSError, match="active player"):
+        pkrs.State.from_mid_hand(**mid_hand_arguments(current_player=1, active=[True, False]))
+
+
+def test_from_mid_hand_accepts_explicit_actor_for_non_terminal_streets():
+    for stage in (pkrs.Stage.Preflop, pkrs.Stage.Flop, pkrs.Stage.Turn, pkrs.Stage.River):
+        state = pkrs.State.from_mid_hand(**mid_hand_arguments(stage, current_player=1))
+        assert state.stage == stage
+        assert state.current_player == 1
+
+
 def test_from_mid_hand_preserves_folded_players_and_turn_owner():
     deck = [card(x) for x in ("2c", "3d", "4h", "5s", "6c", "7d", "8h", "9s", "Tc", "Jd")]
     state = pkrs.State.from_mid_hand(
@@ -80,6 +133,7 @@ def test_mid_hand_rejects_incomplete_public_history_copy():
         pot_chips=[0.0, 0.0],
         active=[True, True],
         last_stage_action=[None, None],
+        current_player=0,
     )
     target = source.__copy__()
 

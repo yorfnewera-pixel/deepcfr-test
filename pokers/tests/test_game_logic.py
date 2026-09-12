@@ -97,17 +97,20 @@ def test_initial_state():
                 n_players=n_players, button=button, sb=0.5, bb=1.0, stake=100, seed=1234
             )
             assert state.status == pkrs.StateStatus.Ok
-            assert state.current_player == (button + 3) % n_players
+            expected_small_blind = button if n_players == 2 else (button + 1) % n_players
+            expected_big_blind = (button + 1) % n_players if n_players == 2 else (button + 2) % n_players
+            expected_current_player = button if n_players == 2 else (button + 3) % n_players
+            assert state.current_player == expected_current_player
             assert state.pot == 1.5
             assert state.min_bet == 1.0
 
             for ps in state.players_state:
                 assert ps.pot_chips == 0
                 assert ps.active
-                if ps.player == (button + 1) % n_players:
+                if ps.player == expected_small_blind:
                     assert ps.bet_chips == 0.5
                     assert ps.stake == 99.5
-                elif ps.player == (button + 2) % n_players:
+                elif ps.player == expected_big_blind:
                     assert ps.bet_chips == 1.0
                     assert ps.stake == 99
                 else:

@@ -4,6 +4,7 @@ import pytest
 
 from src.runtime_search.beliefs import (
     ObservedDecision,
+    _materialize_observed_state,
     sample_blocker_aware_particle,
     sample_reach_weighted_particles,
 )
@@ -62,6 +63,27 @@ def test_blocker_aware_particle_has_no_known_or_duplicate_cards():
     assert not particle.is_solver_valid
     assert not known.intersection(card_key(card) for card in sampled)
     assert len({card_key(card) for card in sampled}) == len(sampled)
+
+
+def test_reach_weighted_materialization_rejects_showdown_before_reconstruction():
+    state = build_constructed_spot(pkrs.Stage.River)
+    state.stage = pkrs.Stage.Showdown
+    particle = sample_blocker_aware_particle(
+        hero_hand=state.players_state[0].hand,
+        public_cards=state.public_cards,
+        num_opponents=5,
+        runout_cards=0,
+        rng=np.random.default_rng(107),
+    )
+
+    with pytest.raises(ValueError, match="Showdown"):
+        _materialize_observed_state(
+            state,
+            hero_id=0,
+            particle=particle,
+            conditioned_public_cards=state.public_cards,
+            rng=np.random.default_rng(211),
+        )
 
 
 def test_blocker_aware_particle_is_reproducible_and_does_not_depend_on_state_deck():

@@ -137,6 +137,26 @@ def test_materialized_particle_uses_particle_cards_and_not_source_deck():
     assert [card_key(card) for card in rebuilt.deck] == [card_key(card) for card in rebuilt_from_reordered.deck]
 
 
+def test_materialized_particle_rejects_showdown_before_reconstruction():
+    state = build_constructed_spot(pkrs.Stage.River)
+    state.stage = pkrs.Stage.Showdown
+    particle = sample_blocker_aware_particle(
+        hero_hand=state.players_state[0].hand,
+        public_cards=state.public_cards,
+        num_opponents=5,
+        runout_cards=0,
+        rng=np.random.default_rng(107),
+    )
+
+    with pytest.raises(ValueError, match="Showdown"):
+        materialize_particle_state(
+            state,
+            hero_id=0,
+            particle=particle,
+            rng=np.random.default_rng(211),
+        )
+
+
 def test_materialized_complete_state_preserves_public_history():
     source = pkrs.State.from_seed(
         n_players=6, button=0, sb=1.0, bb=2.0, stake=200.0, seed=107

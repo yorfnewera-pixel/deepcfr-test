@@ -77,12 +77,12 @@ def test_mid_hand_reconstruction_matches_live_flop_and_next_round():
     )
 
     # Preflop order with button=0 is player 0, then SB/player 1, then
-    # BB/player 2. All three calls reach a known flop state through the normal
+    # BB/player 2. Два колла и Check BB достигают известного flop состояния через
     # engine, with all bookkeeping supplied by it.
     for action in (
         pkrs.Action(pkrs.ActionEnum.Call),
         pkrs.Action(pkrs.ActionEnum.Call),
-        pkrs.Action(pkrs.ActionEnum.Call),
+        pkrs.Action(pkrs.ActionEnum.Check),
     ):
         live = live.apply_action(action)
         assert live.status == pkrs.StateStatus.Ok

@@ -217,6 +217,12 @@ impl State {
             });
         }
 
+        if stage == Stage::Showdown {
+            return Err(InitStateError {
+                msg: "Cannot restore unresolved Showdown state; settlement is not supported".to_owned(),
+            });
+        }
+
         if hole_cards.len() != n_players as usize {
             return Err(InitStateError {
                 msg: format!("hole_cards length {} must equal n_players {}", hole_cards.len(), n_players),
@@ -301,24 +307,25 @@ impl State {
             });
         }
 
-        let active_players: Vec<_> = players_state.iter().filter(|ps| ps.active).collect();
-        if active_players.is_empty() {
+        if !players_state.iter().any(|ps| ps.active) {
             return Err(InitStateError {
                 msg: "At least one active player required".to_owned(),
             });
         }
 
-        let current_player = match current_player {
-            Some(player) if player < n_players && players_state[player as usize].active => player,
-            Some(_) => return Err(InitStateError {
+        let current_player = current_player.ok_or_else(|| InitStateError {
+            msg: "current_player must be provided for mid-hand reconstruction".to_owned(),
+        })?;
+        if current_player >= n_players {
+            return Err(InitStateError {
+                msg: "current_player must be in range".to_owned(),
+            });
+        }
+        if !players_state[current_player as usize].active {
+            return Err(InitStateError {
                 msg: "current_player must identify an active player".to_owned(),
-            }),
-            None => active_players.iter().min_by_key(|ps| {
-                (ps.player + n_players - button - 1) % n_players
-            }).map(|ps| ps.player).ok_or_else(|| InitStateError {
-                msg: "Could not determine current player".to_owned(),
-            })?,
-        };
+            });
+        }
 
         let mut state = State {
             current_player,
@@ -925,6 +932,131 @@ mod tests {
             Ok(state) => state,
             Err(error) => panic!("не удалось создать HU-состояние: {}", error.msg),
         }
+    }
+
+    #[cfg(test)]
+    fn reconstruct_state(source: &State, current_player: Option<u64>) -> Result<State, InitStateError> {
+        let stake = source.players_state[0].stake
+            + source.players_state[0].bet_chips
+            + source.players_state[0].pot_chips;
+
+        State::from_mid_hand(
+            source.players_state.len() as u64,
+            source.button,
+            source.sb,
+            source.bb,
+            stake,
+            source.deck.clone(),
+            source.players_state.iter().map(|player| player.hand).collect(),
+            source.public_cards.clone(),
+            source.stage,
+            source.pot,
+            source.players_state.iter().map(|player| player.bet_chips).collect(),
+            source.players_state.iter().map(|player| player.pot_chips).collect(),
+            source.players_state.iter().map(|player| player.active).collect(),
+            source.players_state.iter().map(|player| player.last_stage_action).collect(),
+            current_player,
+            Some(source.last_raise_increment),
+            source.verbose,
+        )
+    }
+
+    #[cfg(test)]
+    fn expect_reconstructed_state(result: Result<State, InitStateError>) -> State {
+        match result {
+            Ok(state) => state,
+            Err(error) => panic!("не удалось восстановить состояние: {}", error.msg),
+        }
+    }
+
+    #[cfg(test)]
+    #[test]
+    fn from_mid_hand_rejects_unresolved_showdown() {
+        let showdown = State {
+            stage: Stage::Showdown,
+            public_cards: vec![
+                card(CardSuit::Clubs, CardRank::R2),
+                card(CardSuit::Diamonds, CardRank::R3),
+                card(CardSuit::Hearts, CardRank::R4),
+                card(CardSuit::Spades, CardRank::R5),
+                card(CardSuit::Clubs, CardRank::R6),
+            ],
+            ..heads_up_state(0)
+        };
+
+        let error = reconstruct_state(&showdown, Some(0)).unwrap_err();
+
+        assert_eq!(
+            error.msg,
+            "Cannot restore unresolved Showdown state; settlement is not supported"
+        );
+    }
+
+    #[cfg(test)]
+    #[test]
+    fn from_mid_hand_requires_an_explicit_active_in_range_current_player() {
+        let state = heads_up_state(0);
+
+        let missing_actor = reconstruct_state(&state, None).unwrap_err();
+        assert_eq!(
+            missing_actor.msg,
+            "current_player must be provided for mid-hand reconstruction"
+        );
+
+        let out_of_range_actor = reconstruct_state(&state, Some(2)).unwrap_err();
+        assert_eq!(out_of_range_actor.msg, "current_player must be in range");
+
+        let folded_actor_state = State {
+            players_state: vec![
+                state.players_state[0].clone(),
+                PlayerState {
+                    active: false,
+                    ..state.players_state[1].clone()
+                },
+            ],
+            ..state
+        };
+        let inactive_actor = reconstruct_state(&folded_actor_state, Some(1)).unwrap_err();
+        assert_eq!(
+            inactive_actor.msg,
+            "current_player must identify an active player"
+        );
+    }
+
+    #[cfg(test)]
+    #[test]
+    fn from_mid_hand_preserves_explicit_hu_and_six_max_actors() {
+        for button in 0..2 {
+            let initial = heads_up_state(button);
+            let big_blind = (button + 1) % 2;
+            assert_eq!(
+                expect_reconstructed_state(reconstruct_state(&initial, Some(button))).current_player,
+                button
+            );
+
+            let after_raise = initial.apply_action(Action::new(ActionEnum::Raise, 4.0));
+            assert_eq!(
+                expect_reconstructed_state(reconstruct_state(&after_raise, Some(big_blind)))
+                    .current_player,
+                big_blind
+            );
+
+            let flop = after_raise.apply_action(Action::new(ActionEnum::Call, 0.0));
+            assert_eq!(flop.stage, Stage::Flop);
+            assert_eq!(
+                expect_reconstructed_state(reconstruct_state(&flop, Some(big_blind))).current_player,
+                big_blind
+            );
+        }
+
+        let six_max = match State::from_seed(6, 0, 1.0, 2.0, 100.0, 17, false) {
+            Ok(state) => state,
+            Err(error) => panic!("не удалось создать six-max состояние: {}", error.msg),
+        };
+        assert_eq!(
+            expect_reconstructed_state(reconstruct_state(&six_max, Some(3))).current_player,
+            3
+        );
     }
 
     #[cfg(test)]

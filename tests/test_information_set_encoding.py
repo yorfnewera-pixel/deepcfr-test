@@ -38,7 +38,7 @@ def _flop_raise_vs_turn_raise() -> tuple[pkrs.State, pkrs.State]:
     turn_raise = _initial_hu_state()
     for slot in (
         ActionSlot.CALL,
-        ActionSlot.CALL,
+        ActionSlot.CHECK,
         ActionSlot.CHECK,
         ActionSlot.CHECK,
         ActionSlot.CHECK,
@@ -51,7 +51,7 @@ def _flop_raise_vs_turn_raise() -> tuple[pkrs.State, pkrs.State]:
     flop_raise = _initial_hu_state()
     for slot in (
         ActionSlot.CALL,
-        ActionSlot.CALL,
+        ActionSlot.CHECK,
         ActionSlot.CHECK,
         ActionSlot.RAISE_HALF_POT,
         ActionSlot.CALL,
@@ -68,7 +68,7 @@ def _turn_aggressor_player_zero_vs_one() -> tuple[pkrs.State, pkrs.State]:
     player_zero_aggressor = _initial_hu_state()
     for slot in (
         ActionSlot.CALL,
-        ActionSlot.CALL,
+        ActionSlot.CHECK,
         ActionSlot.CHECK,
         ActionSlot.CHECK,
         ActionSlot.CHECK,
@@ -80,7 +80,7 @@ def _turn_aggressor_player_zero_vs_one() -> tuple[pkrs.State, pkrs.State]:
     player_one_aggressor = _initial_hu_state()
     for slot in (
         ActionSlot.CALL,
-        ActionSlot.CALL,
+        ActionSlot.CHECK,
         ActionSlot.CHECK,
         ActionSlot.CHECK,
         ActionSlot.RAISE_HALF_POT,
@@ -147,6 +147,7 @@ def test_history_summary_rejects_incomplete_public_history() -> None:
         pot_chips=[0.0, 0.0],
         active=[True, True],
         last_stage_action=[None, None],
+        current_player=0,
     )
 
     with pytest.raises(ValueError, match="полной публичной истории"):
@@ -175,8 +176,8 @@ def test_information_set_aliasing_audit_reproduces_v2_collisions_and_v3_regressi
     regression_pairs = (
         (
             (
-                ActionSlot.CALL,
-                ActionSlot.CALL,
+                    ActionSlot.CALL,
+                    ActionSlot.CHECK,
                 ActionSlot.CHECK,
                 ActionSlot.RAISE_HALF_POT,
                 ActionSlot.CALL,
@@ -185,8 +186,8 @@ def test_information_set_aliasing_audit_reproduces_v2_collisions_and_v3_regressi
                 ActionSlot.CHECK,
             ),
             (
-                ActionSlot.CALL,
-                ActionSlot.CALL,
+                    ActionSlot.CALL,
+                    ActionSlot.CHECK,
                 ActionSlot.CHECK,
                 ActionSlot.CHECK,
                 ActionSlot.CHECK,
@@ -197,8 +198,8 @@ def test_information_set_aliasing_audit_reproduces_v2_collisions_and_v3_regressi
         ),
         (
             (
-                ActionSlot.CALL,
-                ActionSlot.CALL,
+                    ActionSlot.CALL,
+                    ActionSlot.CHECK,
                 ActionSlot.CHECK,
                 ActionSlot.CHECK,
                 ActionSlot.CHECK,
@@ -206,8 +207,8 @@ def test_information_set_aliasing_audit_reproduces_v2_collisions_and_v3_regressi
                 ActionSlot.CALL,
             ),
             (
-                ActionSlot.CALL,
-                ActionSlot.CALL,
+                    ActionSlot.CALL,
+                    ActionSlot.CHECK,
                 ActionSlot.CHECK,
                 ActionSlot.CHECK,
                 ActionSlot.RAISE_HALF_POT,

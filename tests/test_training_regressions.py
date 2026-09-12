@@ -1418,7 +1418,7 @@ def test_advantage_training_stops_before_optimizer_step_on_nonfinite_gradient(mo
 def test_checkpoint_opponent_strategy_uses_strategy_net_not_advantage_net(monkeypatch):
     state = pkrs.State.from_seed(
         n_players=2, button=0, sb=1.0, bb=2.0, stake=200.0, seed=11
-    )
+    ).apply_action(pkrs.Action(pkrs.ActionEnum.Raise, amount=2.0))
     agent = DeepCFRAgent(player_id=0, num_players=2, device="cpu")
     agent.get_legal_action_mask = lambda _state: torch.tensor(
         [1, 1, 0, 0, 0, 0], dtype=torch.float32

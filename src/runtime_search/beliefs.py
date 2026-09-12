@@ -212,6 +212,9 @@ def _materialize_observed_state(
     conditioned_public_cards: Sequence[pkrs.Card],
     rng: np.random.Generator,
 ) -> pkrs.State:
+    if state.stage == pkrs.Stage.Showdown:
+        raise ValueError("Runtime search cannot reconstruct unresolved Showdown state")
+
     players = tuple(state.players_state)
     if hero_id < 0 or hero_id >= len(players):
         raise ValueError("hero_id вне диапазона игроков")
