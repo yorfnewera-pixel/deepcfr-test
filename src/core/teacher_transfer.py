@@ -70,6 +70,8 @@ _TRAJECTORY_CONFIG_KEYS = frozenset({
     "strategy_epochs",
     "advantage_train_steps",
     "strategy_train_steps",
+    "strategy_train_every",
+    "strategy_final_train_steps",
     "advantage_buffer_reservoir",
     "clear_strategy_buffer_each_iteration",
     "hu_strategy_buffer_reservoir",

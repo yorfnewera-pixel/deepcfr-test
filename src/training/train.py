@@ -745,9 +745,6 @@ def _optimizer_configuration(optimizer: torch.optim.Optimizer) -> list[dict[str,
 def _hu_trajectory_configuration(agent: DeepCFRAgent) -> dict[str, Any]:
     """Возвращает все параметры, меняющие траекторию HU обучения."""
     configuration = {
-        "advantage_accumulation": str(agent.advantage_accumulation),
-        "discount_alpha": float(agent.discount_alpha),
-        "discount_gamma": float(agent.discount_gamma),
         "advantage_regret_norm": str(agent.advantage_regret_norm),
         "advantage_regret_clip": agent.advantage_regret_clip,
         "advantage_reward_scale": float(agent.advantage_reward_scale),
@@ -759,6 +756,8 @@ def _hu_trajectory_configuration(agent: DeepCFRAgent) -> dict[str, Any]:
         "strategy_epochs": int(agent.strategy_epochs),
         "advantage_train_steps": agent.advantage_train_steps,
         "strategy_train_steps": agent.strategy_train_steps,
+        "strategy_train_every": int(getattr(agent, "strategy_train_every", 1)),
+        "strategy_final_train_steps": getattr(agent, "strategy_final_train_steps", None),
         "advantage_buffer_reservoir": bool(agent.advantage_buffer_reservoir),
         "clear_strategy_buffer_each_iteration": bool(agent.clear_strategy_buffer_each_iteration),
         "hu_strategy_buffer_reservoir": True,
@@ -780,12 +779,19 @@ def _hu_trajectory_configuration(agent: DeepCFRAgent) -> dict[str, Any]:
     if bool(getattr(agent, "d2cfr_enabled", False)):
         configuration.update({
             "d2cfr_enabled": True,
+            "d2cfr_historical_advantage_reservoir": True,
             "d2cfr_loss_mode": str(agent.d2cfr_loss_mode),
             "d2cfr_loss_function": str(agent.d2cfr_loss_function),
             "d2cfr_state_value_loss_weight": float(agent.d2cfr_state_value_loss_weight),
             "d2cfr_huber_delta": float(agent.d2cfr_huber_delta),
             "d2cfr_reinitialize_each_iteration": bool(agent.d2cfr_reinitialize_each_iteration),
             "d2cfr_iteration_weight_mode": str(agent.d2cfr_iteration_weight_mode),
+        })
+    else:
+        configuration.update({
+            "advantage_accumulation": str(agent.advantage_accumulation),
+            "discount_alpha": float(agent.discount_alpha),
+            "discount_gamma": float(agent.discount_gamma),
         })
     return configuration
 
@@ -1476,7 +1482,7 @@ def _create_hu_current_policy_coordinator(
         with _training_thread_limit(cfg_get("training_torch_threads")):
             loss = agent.train_strategy_network()
         strategy_training_elapsed[0] = time.perf_counter() - training_started
-        strategy_losses.append(float(loss))
+        strategy_losses[:] = [float(loss)]
         return float(loss)
 
     coordinator = HuCurrentPolicySelfPlayCoordinator(
@@ -1535,18 +1541,37 @@ def _log_d2cfr_component_losses(
     iteration: int,
 ) -> None:
     """Выводит loss regret и опционального anchored state value для HU-ног."""
-    metric_keys = ("regret_loss", "state_value_loss")
+    loss_keys = ("regret_loss", "state_value_loss")
+    diagnostic_keys = (
+        "mean_abs_v_nn",
+        "std_v_nn_minus_v_target",
+        "mean_regret_abs_error",
+        "buffer_size",
+        "buffer_fill_ratio",
+        "equivalent_training_epochs",
+    )
     for player_id, values in enumerate(component_losses):
         if not values:
             continue
-        metrics = {key: float(values.get(key, 0.0)) for key in metric_keys}
+        losses = {key: float(values.get(key, 0.0)) for key in loss_keys}
+        diagnostics = {key: float(values.get(key, 0.0)) for key in diagnostic_keys}
         print(
-            f"  D2CFR P{player_id}: d2cfr_regret_loss={metrics['regret_loss']:.6f} | "
-            f"d2cfr_state_value_loss={metrics['state_value_loss']:.6f}"
+            f"  D2CFR P{player_id}: d2cfr_regret_loss={losses['regret_loss']:.6f} | "
+            f"d2cfr_state_value_loss={losses['state_value_loss']:.6f}"
+        )
+        print(
+            f"    anchor: mean_abs_v_nn={diagnostics['mean_abs_v_nn']:.6f} | "
+            f"std_v_nn_minus_v_target={diagnostics['std_v_nn_minus_v_target']:.6f} | "
+            f"mean_regret_abs_error={diagnostics['mean_regret_abs_error']:.6f} | "
+            f"buffer={diagnostics['buffer_size']:.0f} "
+            f"({diagnostics['buffer_fill_ratio']:.3%}) | "
+            f"equivalent_epochs={diagnostics['equivalent_training_epochs']:.3f}"
         )
         if writer is not None:
-            for key, value in metrics.items():
+            for key, value in losses.items():
                 writer.add_scalar(f"Loss/D2CFR/P{player_id}/d2cfr_{key}", value, iteration)
+            for key, value in diagnostics.items():
+                writer.add_scalar(f"D2CFR/Diagnostics/P{player_id}/{key}", value, iteration)
 
 
 def _prepare_hu_current_policy_iteration(agent: DeepCFRAgent) -> None:
@@ -1578,6 +1603,17 @@ def _create_hu_traversal_failure_handler(agent: DeepCFRAgent):
     return handle
 
 
+def _train_final_hu_strategy(agent: DeepCFRAgent, train_steps: int) -> float:
+    """Дообучает average strategy перед final checkpoint, не меняя обычный бюджет."""
+    previous_train_steps = agent.strategy_train_steps
+    try:
+        agent.strategy_train_steps = int(train_steps)
+        with _training_thread_limit(cfg_get("training_torch_threads")):
+            return float(agent.train_strategy_network())
+    finally:
+        agent.strategy_train_steps = previous_train_steps
+
+
 def _train_hu_current_policy_self_play(
     *,
     agent: DeepCFRAgent,
@@ -1601,6 +1637,8 @@ def _train_hu_current_policy_self_play(
         seed = checkpoint_seed
     start_iteration = agent.iteration_count + 1
     completed_iteration: int | None = None
+    strategy_train_every = int(getattr(agent, "strategy_train_every", 1))
+    strategy_final_train_steps = getattr(agent, "strategy_final_train_steps", None)
     writer = _create_writer(log_dir)
     try:
         print(
@@ -1618,6 +1656,10 @@ def _train_hu_current_policy_self_play(
             agent.iteration_count = iteration
             _prepare_hu_current_policy_iteration(agent)
             handle_traversal_failure = _create_hu_traversal_failure_handler(agent)
+            strategy_train_due = iteration % strategy_train_every == 0
+            coordinator.training_losses[1].clear()
+            if hasattr(coordinator, "training_timings"):
+                coordinator.training_timings[1][0] = 0.0
             print(f"\nИтерация {iteration} (HU current-policy self-play):")
             traversal_started = time.perf_counter()
             coordinator.run_iteration(
@@ -1636,6 +1678,7 @@ def _train_hu_current_policy_self_play(
                 on_traversal_attempt=agent.record_traversal_attempt,
                 on_traversal_success=agent.record_traversal_success,
                 handle_traversal_failure=handle_traversal_failure,
+                train_strategy_due=strategy_train_due,
             )
             iteration_phase_elapsed = time.perf_counter() - traversal_started
             advantage_losses, strategy_losses = coordinator.training_losses
@@ -1653,6 +1696,11 @@ def _train_hu_current_policy_self_play(
             )
             advantage_loss = float(sum(advantage_losses) / len(advantage_losses))
             strategy_loss = float(strategy_losses[-1]) if strategy_losses else 0.0
+            if not strategy_train_due:
+                print(
+                    "  Strategy training пропущен: "
+                    f"ожидается на каждой {strategy_train_every}-й итерации."
+                )
             if bool(getattr(agent, "d2cfr_enabled", False)):
                 _log_d2cfr_component_losses(
                     coordinator.d2cfr_component_losses, writer, iteration
@@ -1706,6 +1754,21 @@ def _train_hu_current_policy_self_play(
                 strategy_training_elapsed,
                 tuple(advantage_player_elapsed),
             ))
+        if completed_iteration is not None and strategy_final_train_steps is not None:
+            final_strategy_loss = _train_final_hu_strategy(
+                agent,
+                int(strategy_final_train_steps),
+            )
+            print(
+                "Финальное обучение strategy: "
+                f"шагов={strategy_final_train_steps}, loss={final_strategy_loss:.6f}"
+            )
+            if writer is not None:
+                writer.add_scalar(
+                    "Loss/StrategyFinal",
+                    final_strategy_loss,
+                    completed_iteration,
+                )
     finally:
         if writer is not None:
             writer.flush()

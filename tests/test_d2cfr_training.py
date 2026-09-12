@@ -73,12 +73,19 @@ def test_d2cfr_anchored_training_uses_regret_and_state_value_losses_only(d2_agen
 
     loss = d2_agent.train_d2cfr_advantage_network_multi(batch_size=1)
 
-    assert loss == pytest.approx(11.0)
-    assert d2_agent.last_advantage_target_stats == {
-        "regret_loss": pytest.approx(2.0),
-        "state_value_loss": pytest.approx(18.0),
-        "total_loss": pytest.approx(11.0),
-    }
+    assert loss == pytest.approx(13.0)
+    assert d2_agent.last_advantage_target_stats["regret_loss"] == pytest.approx(4.0)
+    assert d2_agent.last_advantage_target_stats["state_value_loss"] == pytest.approx(18.0)
+    assert d2_agent.last_advantage_target_stats["total_loss"] == pytest.approx(13.0)
+    for metric in (
+        "mean_abs_v_nn",
+        "std_v_nn_minus_v_target",
+        "mean_regret_abs_error",
+        "buffer_size",
+        "buffer_fill_ratio",
+        "equivalent_training_epochs",
+    ):
+        assert np.isfinite(d2_agent.last_advantage_target_stats[metric])
 
 
 def test_d2cfr_empty_buffer_clears_loss_stats_instead_of_reusing_previous_values(d2_agent):
@@ -144,7 +151,7 @@ def test_d2cfr_record_keeps_q_v_and_r_atomically_in_traversal_collector(d2_agent
     assert recorded_iterations.tolist() == [3.0]
 
 
-def test_d2cfr_masked_loss_preserves_raw_iteration_weight_scale():
+def test_d2cfr_masked_loss_sums_legal_actions_before_batch_mean():
     predictions = torch.zeros(2, NUM_ACTIONS)
     targets = torch.tensor(
         [[2, 0, 0, 0, 0, 0], [1, 1, 0, 0, 0, 0]], dtype=torch.float32
@@ -163,7 +170,42 @@ def test_d2cfr_masked_loss_preserves_raw_iteration_weight_scale():
         1.0,
     )
 
-    assert loss.item() == pytest.approx(4.0 / 3.0)
+    assert loss.item() == pytest.approx(2.0)
+
+
+def test_d2cfr_forces_historical_advantage_reservoir(d2_agent):
+    assert d2_agent.advantage_buffer_reservoir is True
+
+
+def test_d2cfr_strategy_weights_ignore_legacy_discount_gamma(d2_agent):
+    d2_agent.strategy_train_steps = None
+    d2_agent.strategy_epochs = 1
+    d2_agent.discount_gamma = 0.0
+    d2_agent.iteration_count = 2
+    for parameter_group in d2_agent.strategy_optimizer.param_groups:
+        parameter_group["lr"] = 0.0
+    with torch.no_grad():
+        for parameter in d2_agent.strategy_net.parameters():
+            parameter.zero_()
+    mask = np.ones(NUM_ACTIONS, dtype=np.float32)
+    d2_agent.strategy_buffer.add(
+        np.zeros(d2_agent.input_size, dtype=np.float32),
+        np.full(NUM_ACTIONS, 1.0 / NUM_ACTIONS, dtype=np.float32),
+        mask,
+        1,
+    )
+    policy = np.zeros(NUM_ACTIONS, dtype=np.float32)
+    policy[0] = 1.0
+    d2_agent.strategy_buffer.add(
+        np.zeros(d2_agent.input_size, dtype=np.float32),
+        policy,
+        mask,
+        2,
+    )
+
+    loss = d2_agent.train_strategy_network(batch_size=2)
+
+    assert loss == pytest.approx(5.0 / 9.0)
 
 
 def test_d2cfr_record_rejects_regrets_inconsistent_with_q_minus_v(d2_agent):

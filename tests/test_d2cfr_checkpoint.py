@@ -82,6 +82,8 @@ def test_hu_d2_checkpoint_serializes_two_dueling_legs_without_target_networks(d2
     assert checkpoint["algorithm_variant"] == "d2cfr_dueling_v1"
     assert checkpoint["training_target_semantics"] == "counterfactual_q_v_regret_q_minus_v1"
     assert checkpoint["d2cfr_config"]["target_normalization"] == "shared_advantage_reward_scale"
+    assert checkpoint["config"]["d2cfr_historical_advantage_reservoir"] is True
+    assert "discount_gamma" not in checkpoint["config"]
     assert "advantage_target" not in checkpoint["architecture"]
     assert all("target_network" not in leg for leg in checkpoint["advantage_legs"])
     assert all({"action_values", "state_values", "regrets"} <= set(leg["buffer"]) for leg in checkpoint["advantage_legs"])

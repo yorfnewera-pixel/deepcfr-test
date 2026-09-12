@@ -69,6 +69,17 @@ class _ResumeCoordinator:
         self.events.append(("run", iteration, traversals_per_player))
 
 
+class _SchedulingCoordinator:
+    def __init__(self, events):
+        self.events = events
+        self.training_losses = ([0.0, 0.0], [])
+        self.training_timings = ([0.0, 0.0], [0.0])
+        self.d2cfr_component_losses = [{}, {}]
+
+    def run_iteration(self, *, iteration, traversals_per_player, train_strategy_due, **_kwargs):
+        self.events.append(("run", iteration, traversals_per_player, train_strategy_due))
+
+
 def _cfg(key, default=None):
     values = {
         "checkpoint_save_every": 1000,
@@ -126,6 +137,47 @@ def test_hu_training_uses_coordinator_without_opponent_pool(monkeypatch, tmp_pat
     output = capsys.readouterr().out
     assert "HU current-policy self-play" in output
     assert "обе фазы обходов P0/P1 на frozen snapshots -> обучение advantage P0/P1 -> обучение shared strategy" in output
+
+
+def test_hu_strategy_schedule_runs_periodically_and_once_at_finish(monkeypatch, tmp_path):
+    events = []
+    final_strategy_steps = []
+    agent = _HuAgent()
+    agent.strategy_train_every = 2
+    agent.strategy_train_steps = 50
+    agent.strategy_final_train_steps = 1000
+    agent.train_strategy_network = lambda: final_strategy_steps.append(
+        agent.strategy_train_steps
+    ) or 0.25
+    monkeypatch.setattr(train_mod, "DeepCFRAgent", lambda **_kwargs: agent)
+    monkeypatch.setattr(train_mod, "cfg_get", _cfg)
+    monkeypatch.setattr(train_mod, "_create_writer", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(train_mod, "_prepare_hu_current_policy_iteration", lambda _agent: None)
+    monkeypatch.setattr(
+        train_mod,
+        "_create_hu_current_policy_coordinator",
+        lambda _agent: _SchedulingCoordinator(events),
+    )
+    monkeypatch.setattr(train_mod, "_save_hu_checkpoint", lambda _agent, path, seed=None: path)
+    monkeypatch.setattr(train_mod, "_save_light_checkpoint", lambda _agent, path, seed=None: path)
+
+    train_mod.train_self_play_multi(
+        num_iterations=3,
+        traversals_per_iteration=1,
+        evaluate_every=0,
+        save_dir=tmp_path,
+        num_players=2,
+        trainable_players=2,
+        hu_current_policy_self_play=True,
+    )
+
+    assert events == [
+        ("run", 1, 1, False),
+        ("run", 2, 1, True),
+        ("run", 3, 1, False),
+    ]
+    assert final_strategy_steps == [1000]
+    assert agent.strategy_train_steps == 50
 
 
 def test_legacy_training_does_not_use_hu_coordinator(monkeypatch, tmp_path):

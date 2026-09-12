@@ -148,8 +148,17 @@ def test_d2cfr_defaults_to_anchored_loss_contract(tmp_path):
         ),
         ("d2cfr_enabled: true\ndiscount_gamma: 1.0\n", "discount_gamma"),
         (
+            "d2cfr_enabled: true\nadvantage_buffer_reservoir: false\n",
+            "advantage_buffer_reservoir",
+        ),
+        (
             "d2cfr_enabled: true\nd2cfr_reinitialize_each_iteration: false\n",
             "reinitialize_each_iteration",
+        ),
+        ("d2cfr_enabled: true\nstrategy_train_every: 0\n", "strategy_train_every"),
+        (
+            "d2cfr_enabled: true\nstrategy_final_train_steps: 0\n",
+            "strategy_final_train_steps",
         ),
     ),
 )

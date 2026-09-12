@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DeepCFR · Статический обзор</title>
+<base href="https://github.com/yorfnewera-pixel/deepcfr-test/blob/fc39d558f8251826288b2f9d9ad51820a131c80d/" target="_blank">
+<style>
+:root{color-scheme:light;--paper:#f6f3ed;--ink:#192d32;--muted:#5c6b6e;--line:#d8dfda;--accent:#b84128}
+*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 system-ui,sans-serif}main{max-width:1370px;padding:38px 48px;margin:auto}.eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}header{display:flex;justify-content:space-between;gap:28px;align-items:center;border-bottom:2px solid var(--ink);padding-bottom:22px}h1{font:46px/1.1 Georgia,serif;letter-spacing:-1.4px;margin:8px 0 12px}header p{margin:0;color:var(--muted);max-width:850px}.count{font:64px/1 Georgia,serif;white-space:nowrap}.count small{display:block;font:11px/1.6 system-ui,sans-serif;letter-spacing:.1em;text-transform:uppercase;text-align:center}.scope{font-size:12px;margin:15px 0 24px;color:var(--muted)}.grid{display:grid;grid-template-columns:1.12fr 1fr;gap:40px}h2{font-size:12px;letter-spacing:.1em;text-transform:uppercase;margin:0 0 12px;color:var(--muted)}article{border-top:1px solid var(--line);padding:15px 0}h3{font-size:17px;line-height:1.35;margin:0 0 6px}.number{color:var(--accent);font-size:12px;margin-right:8px}p{margin:6px 0}.refs{font-size:11px;line-height:1.8;overflow-wrap:anywhere}a{color:#286b75;text-decoration:none;border-bottom:1px solid #b3c6c6}a:hover{color:var(--accent)}code{font: .88em ui-monospace,monospace;background:#e9ece6;padding:1px 4px;border-radius:3px}details{border-top:1px solid var(--line);padding:13px 0}summary{cursor:pointer;font-size:14px;font-weight:650}details p{font-size:13px;padding-left:19px}details .refs{font-size:11px}.tag{display:block;margin:5px 0 0 19px;color:var(--muted);font-size:11px;font-weight:400}.note{margin-top:19px;padding:15px 18px;background:#e7eee8;border-left:3px solid #52766b;font-size:13px}.verdict{margin-top:24px;padding-top:17px;border-top:2px solid var(--ink);font-size:14px}.verdict strong{color:var(--accent)}footer{color:var(--muted);font-size:11px;margin-top:13px}@media(max-width:850px){main{padding:25px 20px}.grid{grid-template-columns:1fr;gap:25px}h1{font-size:36px}.count{font-size:45px}header{align-items:start}.scope{line-height:1.8}}@media print{body{background:white}main{padding:0}.grid{display:block}details{break-inside:avoid}details::details-content{content-visibility:visible}a{color:inherit}}
+@media(max-width:600px){header{display:block}.count{display:none}h1{font-size:34px}code{overflow-wrap:anywhere}}
+</style>
+</head>
+<body>
+<main>
+<header>
+<div><div class="eyebrow">yorfnewera-pixel / deepcfr-test · статический обзор</div><h1>Сначала корректность игры.</h1><p>Текущий режим: HU self-play, D2CFR anchored, <code>history_summary_v3</code>, <code>card_context_v1</code>. Главные проблемы находятся в правилах движка и экспорте стратегии.</p></div>
+<div class="count">08<small>находок</small></div>
+</header>
+<p class="scope">Область: <code>src/</code>, <code>pokers/</code>, <code>policy_runtime/</code>, <code>config.yaml</code>, <code>readme.md</code>. Только чтение кода. Без запуска, тестов, сборки и изменений репозитория.</p>
+<div class="grid">
+<section>
+<h2>Приоритетно · текущий режим</h2>
+<article>
+<h3><span class="number">01</span>Неверные правила heads-up</h3>
+<p>При двух игроках button получает BB, а другой игрок получает SB и ходит первым как префлоп, так и постфлоп. В стандартном HU button ставит SB и действует первым только префлоп. Обучение использует этот конструктор напрямую.</p>
+<p class="refs"><a href="pokers/src/game_logic.rs#L123-L148">pokers/src/game_logic.rs:123–148</a> · <a href="pokers/src/game_logic.rs#L567-L570">567–570</a> · <a href="src/training/train.py#L1260-L1268">train.py:1260–1268</a></p>
+</article>
+<article>
+<h3><span class="number">02</span>Младший стрит оценивается слишком высоко</h3>
+<p><code>A-2-3-4-5</code> распознаётся как стрит, но сравнивается с тузом как старшей картой. Поэтому он ошибочно обходит, например, <code>2-3-4-5-6</code>. Это касается и стрит-флеша, и напрямую искажает награды при обучении.</p>
+<p class="refs"><a href="pokers/src/game_logic.rs#L698-L726">pokers/src/game_logic.rs:698–726</a> · <a href="pokers/src/game_logic.rs#L742-L770">742–770</a></p>
+</article>
+<article>
+<h3><span class="number">03</span>HU light-checkpoint не загружается в runtime</h3>
+<p>HU strategy получает <strong>183 признака</strong>, включая два признака actor ID. Экспорт описывает вход как <strong>181 признак</strong> без соответствующего признака режима. <code>PolicyRuntimeAgent</code> отвергает такой файл при проверке размеров; аналогично устроен загрузчик blueprint.</p>
+<p class="refs"><a href="src/training/train.py#L1389-L1405">train.py:1389–1405</a> · <a href="src/core/deep_cfr.py#L2217-L2231">deep_cfr.py:2217–2231</a> · <a href="policy_runtime/core.py#L441-L451">policy_runtime/core.py:441–451</a></p>
+</article>
+</section>
+<section>
+<h2>Другие ошибки · раскрыть детали</h2>
+<details>
+<summary>04 · Парные оценки поиска теряют соответствие частиц<span class="tag">Runtime search · достоверность gap / z-score</span></summary>
+<p>Награды добавляются в списки по мере завершения rollout, а не по <code>particle_index</code>. Разные действия могут завершиться в разном порядке. Затем списки вычитаются по индексам как парные: сравниваются разные частицы, искажаются стандартная ошибка и разделение выборки. Это затрагивает решение о переходе от blueprint к search.</p>
+<p class="refs"><a href="src/runtime_search/rollouts.py#L153-L189">rollouts.py:153–189</a> · <a href="src/runtime_search/rollouts.py#L226-L249">226–249</a> · <a href="src/runtime_search/policy.py#L183-L188">policy.py:183–188</a></p>
+</details>
+<details>
+<summary>05 · На BB после лимпов запрещён check<span class="tag">Игровой движок · активный HU и другие режимы</span></summary>
+<p>Check запрещается при <code>min_bet &gt; 0</code>, а не при положительной сумме необходимого колла. На BB без рейза разрешается нулевой call вместо check. Движение фишек эквивалентно, но action-slot и публичная история неправильные, что важно для модели и внешнего runtime.</p>
+<p class="refs"><a href="pokers/src/game_logic.rs#L595-L607">pokers/src/game_logic.rs:595–607</a></p>
+</details>
+<details>
+<summary>06 · В multi-player теряются данные предыдущих traverser<span class="tag">Не текущий HU · non-D2CFR, несколько обучаемых игроков</span></summary>
+<p>При <code>advantage_buffer_reservoir: false</code> буфер очищается внутри фазы каждого игрока, а обучение происходит после всех фаз. Остаются примеры только последнего игрока. При включённой очистке strategy-буфера аналогично теряются и его данные. Очистка нужна до цикла игроков.</p>
+<p class="refs"><a href="src/core/deep_cfr.py#L944-L949">deep_cfr.py:944–949</a> · <a href="src/training/train.py#L1921-L1964">train.py:1921–1964</a></p>
+</details>
+<details>
+<summary>07 · Увеличение replay-буфера при resume небезопасно<span class="tag">Не текущий HU · восстановление обычного checkpoint</span></summary>
+<p>Восстанавливается только <code>count</code> строк, но сохраняется исторический <code>cur_id</code>. После увеличения capacity длина <code>min(cur_id, capacity)</code> может превысить число заполненных строк. Например: восстановлено 100 строк, но буфер объявляет 200 доступными. Sampling может читать неинициализированные данные.</p>
+<p class="refs"><a href="src/core/deep_cfr.py#L2127-L2142">deep_cfr.py:2127–2142</a> · <a href="src/core/buffers.py#L205-L225">buffers.py:205–225</a></p>
+</details>
+<details>
+<summary>08 · Режим opponent modeling содержит отсутствующий импорт<span class="tag">Отдельный сценарий обучения · ошибка запуска по коду</span></summary>
+<p>Модуль импортирует <code>src.opponent_modeling.deep_cfr_with_opponent_modeling</code>, которого нет в дереве <code>src/</code>. В представленном снимке этот сценарий не может пройти импорт.</p>
+<p class="refs"><a href="src/training/train_with_opponent_modeling.py#L9">train_with_opponent_modeling.py:9</a></p>
+</details>
+<div class="note"><strong>Документация отстаёт.</strong> <a href="readme.md#L5-L11">README:5–11</a> описывает 6-max, но <a href="config.yaml#L3-L10">config.yaml:3–10</a> включает HU. Пример продолжения использует <code>multi_checkpoint</code>, тогда как текущий режим сохраняет <code>hu_checkpoint</code>.</div>
+</section>
+</div>
+<div class="verdict"><strong>Порядок исправлений:</strong> правила HU и ранжирование комбинаций → контракт экспорта → буферы и статистика поиска. Настройка гиперпараметров не исправит обучение на неверных правилах.</div>
+<footer>Архитектура: Rust-движок → Python CFR / D2CFR → усреднённая strategy → независимый runtime; поиск использует beliefs и rollout. Обзор выборочный, не гарантия отсутствия других ошибок. Выводы получены чтением, без воспроизведения. Снимок main: дерево fc39d558f825…; ссылки ведут к просмотренным исходникам.</footer>
+</main>
+</body>
+</html>

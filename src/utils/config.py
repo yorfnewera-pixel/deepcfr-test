@@ -35,6 +35,8 @@ _DEFAULTS = {
     "strategy_epochs": 1,
     "advantage_train_steps": None,
     "strategy_train_steps": None,
+    "strategy_train_every": 1,
+    "strategy_final_train_steps": None,
     "advantage_buffer_reservoir": False,
     "strategy_buffer_reservoir": False,
     "clear_strategy_buffer_each_iteration": False,
@@ -98,6 +100,23 @@ def _validate_d2cfr_configuration(
             raise ValueError(f"{key} должен быть bool")
     if not config["d2cfr_enabled"]:
         return
+    strategy_train_every = config["strategy_train_every"]
+    if (
+        isinstance(strategy_train_every, bool)
+        or not isinstance(strategy_train_every, int)
+        or strategy_train_every < 1
+    ):
+        raise ValueError("strategy_train_every должен быть целым числом >= 1")
+    strategy_final_train_steps = config["strategy_final_train_steps"]
+    if (
+        strategy_final_train_steps is not None
+        and (
+            isinstance(strategy_final_train_steps, bool)
+            or not isinstance(strategy_final_train_steps, int)
+            or strategy_final_train_steps < 1
+        )
+    ):
+        raise ValueError("strategy_final_train_steps должен быть null или целым числом >= 1")
     if not config["d2cfr_reinitialize_each_iteration"]:
         raise ValueError("D2CFR требует d2cfr_reinitialize_each_iteration=true")
     explicitly_configured = {} if raw_config is None else raw_config
@@ -116,6 +135,8 @@ def _validate_d2cfr_configuration(
         raise ValueError("D2CFR MC correction заблокирован до реализации belief")
     if config["traversal_baseline_enabled"]:
         raise ValueError("D2CFR traversal baseline пока не реализован")
+    if explicitly_configured.get("advantage_buffer_reservoir") is False:
+        raise ValueError("D2CFR требует advantage_buffer_reservoir=true")
     if config["advantage_regret_clip"] is not None:
         raise ValueError("D2CFR несовместим с advantage_regret_clip")
 

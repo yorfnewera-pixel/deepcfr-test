@@ -19,7 +19,10 @@ strategy_batch_size: 2048
 advantage_epochs: 1
 strategy_epochs: 1
 advantage_train_steps: 75
+# Average strategy обучается раз в 10 CFR-итераций и дополнительно перед final checkpoint.
 strategy_train_steps: 500
+strategy_train_every: 10
+strategy_final_train_steps: 10000
 teacher_strategy_checkpoint: null
 # Stage A: переносит только card_encoder из версионированного полного HU checkpoint.
 teacher_transfer_enabled: false
@@ -33,9 +36,10 @@ strategy_distillation_lambda: 0.0
 strategy_distillation_temperature: 1.0
 strategy_distillation_anneal_iterations: 0
 
-advantage_memory_size: 1000000
-strategy_memory_size: 1000000
-advantage_buffer_reservoir: false
+advantage_memory_size: 100000
+strategy_memory_size: 200000
+# D2CFR хранит исторический reservoir в каждой HU advantage-ноге.
+advantage_buffer_reservoir: true
 strategy_buffer_reservoir: true
 clear_strategy_buffer_each_iteration: false
 save_replay_buffers_in_checkpoint: true

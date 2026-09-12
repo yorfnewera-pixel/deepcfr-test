@@ -475,6 +475,7 @@ class HuCurrentPolicySelfPlayCoordinator(Generic[StateT]):
         on_traversal_attempt: Callable[[], None] | None = None,
         on_traversal_success: Callable[[], None] | None = None,
         handle_traversal_failure: Callable[[TraversalFailure], bool] | None = None,
+        train_strategy_due: bool = True,
     ) -> None:
         """Проводит атомарную HU-итерацию с обработкой ошибок отдельных обходов."""
         if self._pending_advantage_samples is not None:
@@ -532,7 +533,7 @@ class HuCurrentPolicySelfPlayCoordinator(Generic[StateT]):
                     self.advantage_target_nets[player_id].load_state_dict(
                         self.advantage_nets[player_id].state_dict()
                     )
-            if self.train_strategy is not None:
+            if train_strategy_due and self.train_strategy is not None:
                 self.train_strategy(self.strategy_net, self.strategy_optimizer, self.strategy_buffer)
         finally:
             self._pending_advantage_samples = None

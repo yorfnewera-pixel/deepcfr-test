@@ -324,7 +324,11 @@ class DeepCFRAgent:
             NUM_ACTIONS,
             reservoir=bool(cfg_get("strategy_buffer_reservoir", False)),
         )
-        self.advantage_buffer_reservoir = cfg_reservoir_flag("advantage_buffer_reservoir")
+        self.advantage_buffer_reservoir = (
+            True
+            if self.d2cfr_enabled
+            else cfg_reservoir_flag("advantage_buffer_reservoir")
+        )
         self.clear_strategy_buffer_each_iteration = cfg_clear_strategy_buffer_each_iteration()
         self.save_replay_buffers_in_checkpoint = bool(cfg_get("save_replay_buffers_in_checkpoint", False))
 
@@ -336,6 +340,13 @@ class DeepCFRAgent:
         strategy_train_steps = cfg_get("strategy_train_steps", None)
         self.advantage_train_steps = int(advantage_train_steps) if advantage_train_steps is not None else None
         self.strategy_train_steps = int(strategy_train_steps) if strategy_train_steps is not None else None
+        self.strategy_train_every = int(cfg_get("strategy_train_every", 1))
+        strategy_final_train_steps = cfg_get("strategy_final_train_steps", None)
+        self.strategy_final_train_steps = (
+            int(strategy_final_train_steps)
+            if strategy_final_train_steps is not None
+            else None
+        )
         self.training_preload_to_device = bool(cfg_get("training_preload_to_device", False))
         self.discount_alpha = float(cfg_get("discount_alpha", 2.0))
         self.discount_gamma = float(cfg_get("discount_gamma", 1.0))
@@ -1665,7 +1676,15 @@ class DeepCFRAgent:
             )
         else:
             raise ValueError(f"Неизвестная D2CFR loss-функция: {loss_function}")
-        return (element_loss * masks * weights.unsqueeze(1)).sum() / masks.sum().clamp_min(1e-12)
+        per_infoset_loss = (element_loss * masks).sum(dim=1)
+        return (per_infoset_loss * weights).mean()
+
+    def _d2cfr_iteration_weights(self, source_iterations):
+        """Возвращает только утверждённые временные веса D2CFR без DCFR-параметров."""
+        weights = source_iterations.to(dtype=torch.float32)
+        if self.d2cfr_iteration_weight_mode == "batch_mean_1":
+            weights = weights / weights.mean().clamp_min(1e-12)
+        return weights
 
     @staticmethod
     def _d2cfr_weighted_loss(predictions, targets, weights, loss_function, huber_delta):
@@ -1706,6 +1725,15 @@ class DeepCFRAgent:
         self.advantage_net.train()
         total_loss, steps = 0.0, 0
         loss_totals = {"regret_loss": 0.0, "state_value_loss": 0.0}
+        diagnostics = {
+            "value_abs_sum": 0.0,
+            "value_error_sum": 0.0,
+            "value_error_squared_sum": 0.0,
+            "value_count": 0,
+            "regret_abs_error_sum": 0.0,
+            "regret_count": 0,
+            "drawn_samples": 0,
+        }
         configured_steps = self.advantage_train_steps
         preloaded = self._preload_training_arrays(
             (states, action_values, state_values, regrets, masks, iterations),
@@ -1740,11 +1768,9 @@ class DeepCFRAgent:
                     index_t = torch.as_tensor(indices, dtype=torch.long, device=self.device)
                     batch = tuple(value.index_select(0, index_t) for value in preloaded_values)
             state_t, action_target_t, state_target_t, regret_target_t, mask_t, source_iteration_t = batch
-            source_iteration_t = source_iteration_t.to(dtype=torch.float32)
-            iteration_weights = source_iteration_t
-            if self.d2cfr_iteration_weight_mode == "batch_mean_1":
-                iteration_weights = iteration_weights / iteration_weights.mean().clamp_min(1e-12)
+            iteration_weights = self._d2cfr_iteration_weights(source_iteration_t)
             components = self.advantage_net.forward_components(state_t)
+            predicted_state_values = components.state_values.squeeze(1)
             regret_loss = self._d2cfr_masked_weighted_loss(
                 components.regrets,
                 regret_target_t,
@@ -1754,7 +1780,7 @@ class DeepCFRAgent:
                 self.d2cfr_huber_delta,
             )
             state_value_loss = self._d2cfr_weighted_loss(
-                components.state_values.squeeze(1),
+                predicted_state_values,
                 state_target_t,
                 iteration_weights,
                 self.d2cfr_loss_function,
@@ -1776,14 +1802,38 @@ class DeepCFRAgent:
             total_loss += float(loss.item())
             loss_totals["regret_loss"] += float(regret_loss.item())
             loss_totals["state_value_loss"] += float(state_value_loss.item())
+            with torch.no_grad():
+                state_value_error = predicted_state_values - state_target_t
+                legal_regret_error = (components.regrets - regret_target_t).abs() * mask_t
+                diagnostics["value_abs_sum"] += float(predicted_state_values.abs().sum().item())
+                diagnostics["value_error_sum"] += float(state_value_error.sum().item())
+                diagnostics["value_error_squared_sum"] += float(state_value_error.square().sum().item())
+                diagnostics["value_count"] += int(state_value_error.numel())
+                diagnostics["regret_abs_error_sum"] += float(legal_regret_error.sum().item())
+                diagnostics["regret_count"] += int(mask_t.sum().item())
+                diagnostics["drawn_samples"] += int(state_t.shape[0])
             steps += 1
         self._synchronize_training_device()
         train_seconds = time.perf_counter() - started
         self.last_advantage_train_steps = steps
         self.last_advantage_effective_batch_size = effective_batch
+        value_count = max(int(diagnostics["value_count"]), 1)
+        mean_value_error = diagnostics["value_error_sum"] / value_count
+        value_error_variance = max(
+            diagnostics["value_error_squared_sum"] / value_count - mean_value_error ** 2,
+            0.0,
+        )
         self.last_advantage_target_stats = {
             **{key: value / max(steps, 1) for key, value in loss_totals.items()},
             "total_loss": total_loss / max(steps, 1),
+            "mean_abs_v_nn": diagnostics["value_abs_sum"] / value_count,
+            "std_v_nn_minus_v_target": math.sqrt(value_error_variance),
+            "mean_regret_abs_error": diagnostics["regret_abs_error_sum"] / max(
+                int(diagnostics["regret_count"]), 1
+            ),
+            "buffer_size": float(count),
+            "buffer_fill_ratio": float(count / self.d2cfr_buffer.capacity),
+            "equivalent_training_epochs": diagnostics["drawn_samples"] / count,
         }
         self.last_advantage_profile = {
             "samples": count,
@@ -1799,6 +1849,8 @@ class DeepCFRAgent:
             "total_seconds": train_seconds,
             "preloaded_to_device": preloaded is not None,
             "d2cfr_enabled": True,
+            "buffer_fill_ratio": float(count / self.d2cfr_buffer.capacity),
+            "equivalent_training_epochs": diagnostics["drawn_samples"] / count,
         }
         return total_loss / max(steps, 1)
 
@@ -1960,7 +2012,14 @@ class DeepCFRAgent:
             logits = self.strategy_net(state_t)
             masked_logits = torch.where(mask_t > 0.0, logits, torch.full_like(logits, -1e20))
             predicted = F.softmax(masked_logits, dim=1)
-            weights = torch.pow(torch.clamp(iteration_t / iteration_now, min=1e-6), self.discount_gamma)
+            weights = (
+                self._d2cfr_iteration_weights(iteration_t)
+                if self.d2cfr_enabled
+                else torch.pow(
+                    torch.clamp(iteration_t / iteration_now, min=1e-6),
+                    self.discount_gamma,
+                )
+            )
             per_sample_loss = ((predicted - policy_t).square() * mask_t).sum(dim=1)
             supervised_loss = torch.sum(per_sample_loss * weights) / torch.clamp(weights.sum(), min=1e-8)
             distillation_loss = torch.zeros((), device=self.device)
@@ -2185,6 +2244,13 @@ class DeepCFRAgent:
             },
         }
         if self.d2cfr_enabled:
+            for legacy_key in (
+                "advantage_accumulation",
+                "discount_alpha",
+                "discount_gamma",
+            ):
+                checkpoint["config"].pop(legacy_key, None)
+            checkpoint["config"]["d2cfr_historical_advantage_reservoir"] = True
             checkpoint.update(self._d2cfr_checkpoint_metadata())
         if not self.d2cfr_enabled:
             assert self.advantage_target_net is not None

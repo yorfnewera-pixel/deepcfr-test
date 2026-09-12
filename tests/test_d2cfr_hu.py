@@ -86,6 +86,21 @@ def test_hu_d2_records_q_v_r_only_in_traversing_player_buffer():
     assert iterations.tolist() == [3.0]
 
 
+def test_hu_coordinator_skips_strategy_training_when_schedule_is_not_due():
+    coordinator = _d2_coordinator()
+    strategy_calls = []
+    coordinator.train_strategy = lambda *_args: strategy_calls.append("trained")
+
+    coordinator.run_iteration(
+        iteration=1,
+        traversals_per_player=1,
+        new_initial_state=lambda _player_id, _traversal_index: (0, 0),
+        train_strategy_due=False,
+    )
+
+    assert strategy_calls == []
+
+
 @pytest.fixture
 def d2_hu_agent(tmp_path):
     config_path = tmp_path / "hu-d2cfr.yaml"
