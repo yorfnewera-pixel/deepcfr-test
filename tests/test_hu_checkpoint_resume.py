@@ -242,6 +242,35 @@ def test_hu_resume_rejects_card_context_version_mismatch(
         )
 
 
+def test_hu_resume_rejects_v2_weights_forged_as_v1_before_any_network_load(tmp_path, monkeypatch):
+    checkpoint = train_mod._build_hu_checkpoint(
+        _hu_runtime(network_architecture=CARD_CONTEXT_V2_ARCHITECTURE)
+    )
+    for network_schema in (
+        *checkpoint["architecture"]["advantage"],
+        *checkpoint["architecture"]["advantage_target"],
+        checkpoint["architecture"]["strategy"],
+    ):
+        network_schema["network_architecture"] = CARD_CONTEXT_ARCHITECTURE
+        network_schema.pop("fusion_input_size")
+        network_schema.pop("fusion_output_size")
+    path = tmp_path / "forged-v1-hu.pt"
+    torch.save(checkpoint, path)
+    restored = _hu_runtime(iteration=0, network_architecture=CARD_CONTEXT_ARCHITECTURE)
+    load_calls = []
+
+    def unexpected_load(*args, **kwargs):
+        load_calls.append((args, kwargs))
+        raise AssertionError("load_state_dict не должен вызываться для forged architecture")
+
+    monkeypatch.setattr(restored.hu_advantage_nets[0], "load_state_dict", unexpected_load)
+
+    with pytest.raises(ValueError, match="веса.*архитектур"):
+        train_mod._load_hu_checkpoint(restored, path)
+
+    assert load_calls == []
+
+
 def test_hu_resume_rejects_card_context_without_architecture_metadata(tmp_path):
     checkpoint = train_mod._build_hu_checkpoint(
         _hu_runtime(network_architecture=CARD_CONTEXT_ARCHITECTURE)

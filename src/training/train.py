@@ -560,6 +560,86 @@ def _normalize_hu_architecture(
     }
 
 
+def _hu_network_state_shapes(
+    schema: dict[str, object],
+    *,
+    dueling: bool,
+) -> dict[str, tuple[int, ...]]:
+    architecture = schema.get("network_architecture")
+    input_size = schema.get("input_size")
+    hidden_size = schema.get("hidden_size")
+    if (
+        not isinstance(architecture, str)
+        or isinstance(input_size, bool)
+        or not isinstance(input_size, int)
+        or isinstance(hidden_size, bool)
+        or not isinstance(hidden_size, int)
+    ):
+        raise ValueError("HU checkpoint имеет некорректное описание сети")
+    if architecture == MONOLITHIC_ARCHITECTURE:
+        trunk_shapes = {
+            "base.0.weight": (hidden_size, input_size),
+            "base.0.bias": (hidden_size,), "base.2.weight": (hidden_size, hidden_size),
+            "base.2.bias": (hidden_size,), "base.4.weight": (hidden_size, hidden_size),
+            "base.4.bias": (hidden_size,),
+        }
+        head_input_size = hidden_size
+    elif architecture == CARD_CONTEXT_ARCHITECTURE:
+        trunk_shapes = {
+            "card_encoder.0.weight": (hidden_size, CARD_FEATURE_SIZE),
+            "card_encoder.0.bias": (hidden_size,),
+            "context_encoder.0.weight": (hidden_size, input_size - CARD_FEATURE_SIZE),
+            "context_encoder.0.bias": (hidden_size,),
+        }
+        head_input_size = hidden_size * 2
+    elif architecture == CARD_CONTEXT_V2_ARCHITECTURE:
+        trunk_shapes = {
+            "card_encoder.0.weight": (hidden_size, CARD_FEATURE_SIZE),
+            "card_encoder.0.bias": (hidden_size,),
+            "context_encoder.0.weight": (hidden_size, input_size - CARD_FEATURE_SIZE),
+            "context_encoder.0.bias": (hidden_size,),
+            "fusion.0.weight": (hidden_size, hidden_size * 2),
+            "fusion.0.bias": (hidden_size,), "fusion.2.weight": (hidden_size, hidden_size),
+            "fusion.2.bias": (hidden_size,),
+        }
+        head_input_size = hidden_size
+    else:
+        raise ValueError("HU checkpoint имеет несовместимую архитектуру сети")
+    if dueling:
+        return {
+            **trunk_shapes,
+            "state_value_head.weight": (1, head_input_size), "state_value_head.bias": (1,),
+            "action_value_head.weight": (NUM_ACTIONS, head_input_size),
+            "action_value_head.bias": (NUM_ACTIONS,),
+        }
+    return {
+        **trunk_shapes,
+        "action_head.weight": (NUM_ACTIONS, head_input_size),
+        "action_head.bias": (NUM_ACTIONS,),
+    }
+
+
+def _validate_hu_network_state(
+    state: object,
+    schema: dict[str, object],
+    *,
+    network_name: str,
+    dueling: bool,
+) -> None:
+    expected_shapes = _hu_network_state_shapes(schema, dueling=dueling)
+    if not isinstance(state, dict) or set(state) != set(expected_shapes):
+        raise ValueError(
+            f"HU checkpoint имеет несовместимые веса для declared архитектуры: {network_name}"
+        )
+    for parameter_name, expected_shape in expected_shapes.items():
+        value = state[parameter_name]
+        if not torch.is_tensor(value) or tuple(value.shape) != expected_shape:
+            raise ValueError(
+                "HU checkpoint имеет несовместимые веса для declared архитектуры: "
+                f"{network_name}.{parameter_name}"
+            )
+
+
 def _capture_rng_state() -> dict[str, Any]:
     """Сохраняет все генераторы, влияющие на HU traversal и reservoir."""
     numpy_algorithm, numpy_state, numpy_position, numpy_has_gauss, numpy_cached_gaussian = np.random.get_state()
@@ -985,6 +1065,14 @@ def _validate_hu_checkpoint(agent: DeepCFRAgent, checkpoint: object) -> dict[str
         architecture = checkpoint.get("architecture")
     if architecture != expected_architecture:
         raise ValueError("HU checkpoint имеет несовместимую архитектуру")
+    assert isinstance(architecture, dict)
+    advantage_schemas = architecture["advantage"]
+    strategy_schema = architecture["strategy"]
+    assert isinstance(advantage_schemas, list)
+    assert isinstance(strategy_schema, dict)
+    advantage_target_schemas = architecture.get("advantage_target")
+    if not d2cfr_enabled:
+        assert isinstance(advantage_target_schemas, list)
     for leg in advantage_legs:
         leg_keys = ("network", "optimizer", "buffer") if d2cfr_enabled else (
             "network", "target_network", "optimizer", "buffer"
@@ -993,6 +1081,25 @@ def _validate_hu_checkpoint(agent: DeepCFRAgent, checkpoint: object) -> dict[str
             raise ValueError("HU checkpoint содержит неполную advantage-ногу")
     if any(key not in strategy for key in ("network", "optimizer", "buffer")):
         raise ValueError("HU checkpoint содержит неполное strategy-состояние")
+    for index, leg in enumerate(advantage_legs):
+        advantage_schema = advantage_schemas[index]
+        assert isinstance(advantage_schema, dict)
+        _validate_hu_network_state(
+            leg["network"], advantage_schema,
+            network_name=f"advantage[{index}]", dueling=d2cfr_enabled,
+        )
+        if not d2cfr_enabled:
+            assert isinstance(advantage_target_schemas, list)
+            advantage_target_schema = advantage_target_schemas[index]
+            assert isinstance(advantage_target_schema, dict)
+            _validate_hu_network_state(
+                leg["target_network"], advantage_target_schema,
+                network_name=f"advantage_target[{index}]", dueling=False,
+            )
+    _validate_hu_network_state(
+        strategy["network"], strategy_schema,
+        network_name="strategy", dueling=False,
+    )
     if not isinstance(checkpoint.get("rng"), dict):
         raise ValueError("HU checkpoint не содержит состояние RNG")
     return checkpoint

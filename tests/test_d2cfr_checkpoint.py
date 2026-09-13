@@ -6,6 +6,7 @@ import torch
 
 from src.core.action_space import NUM_ACTIONS
 from src.core.deep_cfr import DeepCFRAgent
+from src.core.model import CARD_CONTEXT_ARCHITECTURE, CARD_CONTEXT_V2_ARCHITECTURE
 from src.training import train as train_mod
 from src.utils import config as config_mod
 
@@ -141,6 +142,55 @@ def test_hu_d2_checkpoint_round_trip_restores_two_legs(tmp_path, d2_hu_agent):
     _assert_nested_state_equal(
         restored.strategy_optimizer.state_dict(), d2_hu_agent.strategy_optimizer.state_dict()
     )
+
+
+def test_hu_d2_resume_rejects_v2_weights_forged_as_v1_before_network_load(tmp_path, monkeypatch):
+    source_config = tmp_path / "d2-v2-source.yaml"
+    target_config = tmp_path / "d2-v1-target.yaml"
+    source_config.write_text(
+        "\n".join((
+            "num_actions: 6", "num_players: 2", "num_trainable_players: 2",
+            "hu_current_policy_self_play: true", "hidden_size: 8", "d2cfr_enabled: true",
+            "d2cfr_mc_correction_enabled: false", "network_architecture: card_context_v2",
+        )) + "\n",
+        encoding="utf-8",
+    )
+    target_config.write_text(
+        "\n".join((
+            "num_actions: 6", "num_players: 2", "num_trainable_players: 2",
+            "hu_current_policy_self_play: true", "hidden_size: 8", "d2cfr_enabled: true",
+            "d2cfr_mc_correction_enabled: false", "network_architecture: card_context_v1",
+        )) + "\n",
+        encoding="utf-8",
+    )
+    config_mod.load_config(source_config)
+    try:
+        source = DeepCFRAgent(player_id=0, num_players=2, device="cpu")
+        train_mod._create_hu_current_policy_coordinator(source)
+        checkpoint = train_mod._build_hu_checkpoint(source)
+        for network_schema in (*checkpoint["architecture"]["advantage"], checkpoint["architecture"]["strategy"]):
+            network_schema["network_architecture"] = CARD_CONTEXT_ARCHITECTURE
+            network_schema.pop("fusion_input_size")
+            network_schema.pop("fusion_output_size")
+        path = tmp_path / "forged-v1-d2-hu.pt"
+        torch.save(checkpoint, path)
+    finally:
+        config_mod.load_config(target_config)
+    try:
+        restored = DeepCFRAgent(player_id=0, num_players=2, device="cpu")
+        train_mod._create_hu_current_policy_coordinator(restored)
+        load_calls = []
+
+        def unexpected_load(*args, **kwargs):
+            load_calls.append((args, kwargs))
+            raise AssertionError("load_state_dict не должен вызываться для forged architecture")
+
+        monkeypatch.setattr(restored.hu_advantage_nets[0], "load_state_dict", unexpected_load)
+        with pytest.raises(ValueError, match="веса.*архитектур"):
+            train_mod._load_hu_checkpoint(restored, path)
+        assert load_calls == []
+    finally:
+        config_mod.load_config("config.yaml")
 
 
 def test_single_agent_d2_checkpoint_round_trip_and_rejects_action_only_variant(tmp_path):

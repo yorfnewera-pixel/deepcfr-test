@@ -3,6 +3,7 @@ import pokers as pkrs
 import pytest
 import torch
 
+import policy_runtime.core as runtime_core
 from policy_runtime.adapters.pokers import wrap_state
 from policy_runtime.core import (
     PolicyRuntimeAgent,
@@ -90,7 +91,15 @@ def test_runtime_reconstructs_v2_light_checkpoint_with_identical_logits(tmp_path
     assert torch.equal(runtime.strategy_net(inputs), agent.strategy_net(inputs))
 
 
-@pytest.mark.parametrize("mutation", ("missing_metadata", "missing_fusion_weight"))
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        "missing_metadata",
+        "missing_fusion_weight",
+        "malformed_card_rank",
+        "malformed_action_bias",
+    ),
+)
 def test_runtime_rejects_incomplete_v2_fusion_contract_before_loading(tmp_path, mutation) -> None:
     agent = DeepCFRAgent(
         player_id=0,
@@ -102,10 +111,40 @@ def test_runtime_rejects_incomplete_v2_fusion_contract_before_loading(tmp_path, 
     if mutation == "missing_metadata":
         payload.pop("fusion_input_size")
         payload["config"].pop("fusion_input_size")
-    else:
+    elif mutation == "missing_fusion_weight":
         payload["strategy_net"].pop("fusion.0.weight")
+    elif mutation == "malformed_card_rank":
+        payload["strategy_net"]["card_encoder.0.weight"] = torch.zeros(8)
+    else:
+        payload["strategy_net"]["action_head.bias"] = torch.zeros(5)
     checkpoint_path = tmp_path / f"card-context-v2-{mutation}.pt"
     torch.save(payload, checkpoint_path)
 
     with pytest.raises(ValueError, match="fusion"):
         PolicyRuntimeAgent(str(checkpoint_path))
+
+
+def test_runtime_rejects_v2_weights_forged_as_v1_before_load_state_dict(tmp_path, monkeypatch) -> None:
+    agent = DeepCFRAgent(
+        player_id=0,
+        num_players=2,
+        hidden_size=8,
+        network_architecture=CARD_CONTEXT_V2_ARCHITECTURE,
+    )
+    payload = agent.build_light_checkpoint(seed=19)
+    payload["network_architecture"] = "card_context_v1"
+    payload["config"]["network_architecture"] = "card_context_v1"
+    checkpoint_path = tmp_path / "forged-v1-runtime.pt"
+    torch.save(payload, checkpoint_path)
+    load_calls = []
+
+    def unexpected_load(*args, **kwargs):
+        load_calls.append((args, kwargs))
+        raise AssertionError("load_state_dict не должен вызываться для forged architecture")
+
+    monkeypatch.setattr(runtime_core.PokerNetwork, "load_state_dict", unexpected_load)
+
+    with pytest.raises(ValueError, match="card_context_v1.*веса"):
+        PolicyRuntimeAgent(str(checkpoint_path))
+
+    assert load_calls == []

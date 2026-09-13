@@ -35,15 +35,21 @@ def _validate_v2_fusion_contract(checkpoint, config, strategy_state):
     fusion_output_weight = strategy_state.get("fusion.2.weight")
     fusion_output_bias = strategy_state.get("fusion.2.bias")
     action_weight = strategy_state.get("action_head.weight")
-    if not all(torch.is_tensor(value) for value in (
-        card_weight,
-        context_weight,
-        fusion_input_weight,
-        fusion_input_bias,
-        fusion_output_weight,
-        fusion_output_bias,
-        action_weight,
-    )):
+    action_bias = strategy_state.get("action_head.bias")
+    required_tensors = {
+        "card_encoder.0.weight": (card_weight, 2),
+        "context_encoder.0.weight": (context_weight, 2),
+        "fusion.0.weight": (fusion_input_weight, 2),
+        "fusion.0.bias": (fusion_input_bias, 1),
+        "fusion.2.weight": (fusion_output_weight, 2),
+        "fusion.2.bias": (fusion_output_bias, 1),
+        "action_head.weight": (action_weight, 2),
+        "action_head.bias": (action_bias, 1),
+    }
+    if any(
+        not torch.is_tensor(value) or value.ndim != expected_rank
+        for value, expected_rank in required_tensors.values()
+    ):
         raise ValueError("Checkpoint не содержит полные v2 fusion веса")
 
     hidden_size = int(card_weight.shape[0])
@@ -69,11 +75,46 @@ def _validate_v2_fusion_contract(checkpoint, config, strategy_state):
         "fusion.2.weight": (hidden_size, hidden_size),
         "fusion.2.bias": (hidden_size,),
         "action_head.weight": (NUM_ACTIONS, hidden_size),
+        "action_head.bias": (NUM_ACTIONS,),
     }
     for key, expected_shape in expected_shapes.items():
         value = strategy_state[key]
         if tuple(value.shape) != expected_shape:
             raise ValueError(f"Checkpoint имеет несовместимые v2 fusion веса: {key}")
+    return input_size, hidden_size
+
+
+def _validate_v1_card_context_contract(strategy_state):
+    expected_keys = {
+        "card_encoder.0.weight", "card_encoder.0.bias",
+        "context_encoder.0.weight", "context_encoder.0.bias",
+        "action_head.weight", "action_head.bias",
+    }
+    if not isinstance(strategy_state, dict) or set(strategy_state) != expected_keys:
+        raise ValueError("Checkpoint имеет несовместимые card_context_v1 веса")
+    card_weight = strategy_state["card_encoder.0.weight"]
+    context_weight = strategy_state["context_encoder.0.weight"]
+    if (
+        not torch.is_tensor(card_weight)
+        or card_weight.ndim != 2
+        or not torch.is_tensor(context_weight)
+        or context_weight.ndim != 2
+    ):
+        raise ValueError("Checkpoint имеет несовместимые card_context_v1 веса")
+    hidden_size = int(card_weight.shape[0])
+    input_size = int(card_weight.shape[1]) + int(context_weight.shape[1])
+    expected_shapes = {
+        "card_encoder.0.weight": (hidden_size, CARD_FEATURE_SIZE),
+        "card_encoder.0.bias": (hidden_size,),
+        "context_encoder.0.weight": (hidden_size, input_size - CARD_FEATURE_SIZE),
+        "context_encoder.0.bias": (hidden_size,),
+        "action_head.weight": (NUM_ACTIONS, hidden_size * 2),
+        "action_head.bias": (NUM_ACTIONS,),
+    }
+    for key, expected_shape in expected_shapes.items():
+        value = strategy_state[key]
+        if not torch.is_tensor(value) or tuple(value.shape) != expected_shape:
+            raise ValueError("Checkpoint имеет несовместимые card_context_v1 веса")
     return input_size, hidden_size
 @runtime_checkable
 class PlayerState(Protocol):
@@ -505,8 +546,7 @@ class PolicyRuntimeAgent:
             context_weight = strategy_sd.get('context_encoder.0.weight')
             if card_weight is None or context_weight is None:
                 raise ValueError("Checkpoint не содержит веса card_context_v1")
-            self.hidden_size = int(card_weight.shape[0])
-            self.input_size = int(card_weight.shape[1]) + int(context_weight.shape[1])
+            self.input_size, self.hidden_size = _validate_v1_card_context_contract(strategy_sd)
         elif architecture == CARD_CONTEXT_V2_ARCHITECTURE:
             self.input_size, self.hidden_size = _validate_v2_fusion_contract(
                 checkpoint,
