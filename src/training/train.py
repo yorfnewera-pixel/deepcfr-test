@@ -24,6 +24,10 @@ import torch
 from src.agents.random_agent import RandomAgent
 from src.core.action_space import ACTION_LABELS, ACTION_SPACE_VERSION, NUM_ACTIONS
 from src.core.buffers import AdvantageBuffer, DuelingAdvantageBuffer
+from src.core.checkpoint_kinds import (
+    HU_CURRENT_POLICY_SELF_PLAY_CHECKPOINT_KIND,
+    HU_FULL_CHECKPOINT_VERSION,
+)
 from src.core.deep_cfr import CHECKPOINT_FORMAT_VERSION, GAME_RULES_VERSION, DeepCFRAgent
 from src.core.hu_self_play import (
     HuCurrentPolicySelfPlayCoordinator,
@@ -52,8 +56,8 @@ _HU_HEAVY_CHECKPOINT_PREFIX = "hu_checkpoint_iter_"
 _HU_LIGHT_CHECKPOINT_PREFIX = "hu_light_checkpoint_iter_"
 _OPPONENT_RECENT_CHECKPOINTS = 11
 _OPPONENT_HISTORICAL_CHECKPOINTS = 2
-_HU_CHECKPOINT_KIND = "hu_current_policy_self_play"
-_HU_CHECKPOINT_VERSION = 3
+_HU_CHECKPOINT_KIND = HU_CURRENT_POLICY_SELF_PLAY_CHECKPOINT_KIND
+_HU_CHECKPOINT_VERSION = HU_FULL_CHECKPOINT_VERSION
 _HU_RUN_MANIFEST_NAME = "run_manifest.json"
 _HU_UPDATE_ORDER = [
     "traverse_p0",

@@ -9,7 +9,19 @@ import pokers as pkrs
 
 import torch
 
-from src.core.action_space import ACTION_SPACE_VERSION, NUM_ACTIONS, legal_action_mask, resolve_action
+from src.core.action_space import (
+    ACTION_LABELS,
+    ACTION_SPACE_VERSION,
+    NUM_ACTIONS,
+    legal_action_mask,
+    resolve_action,
+)
+from src.core.checkpoint_kinds import (
+    HU_CURRENT_POLICY_SELF_PLAY_CHECKPOINT_KIND,
+    HU_FULL_CHECKPOINT_VERSION,
+    HU_STRATEGY_ONLY_CHECKPOINT_KIND,
+    STRATEGY_ONLY_CHECKPOINT_KIND,
+)
 from src.core.deep_cfr import (
     CHECKPOINT_FORMAT_VERSION,
     DeepCFRAgent,
@@ -18,6 +30,7 @@ from src.core.deep_cfr import (
 )
 from src.core.model import (
     CARD_CONTEXT_ARCHITECTURE,
+    CARD_CONTEXT_V2_ARCHITECTURE,
     CARD_FEATURE_SIZE,
     MONOLITHIC_ARCHITECTURE,
     NETWORK_ARCHITECTURES,
@@ -78,11 +91,12 @@ class FrozenBlueprintPolicy:
         device: str = "cpu",
     ):
         checkpoint = torch.load(path, map_location=device, weights_only=False)
-        checkpoint_num_players = checkpoint.get("num_players")
-        if isinstance(checkpoint_num_players, bool) or not isinstance(checkpoint_num_players, int):
-            raise ValueError("Чекпоинт имеет некорректное число игроков")
-        resolved_num_players = checkpoint_num_players if num_players is None else int(num_players)
-        if checkpoint.get("checkpoint_kind") in {"strategy_only", "hu_strategy_only"}:
+        checkpoint_kind = checkpoint.get("checkpoint_kind")
+        if checkpoint_kind in {
+            STRATEGY_ONLY_CHECKPOINT_KIND,
+            HU_STRATEGY_ONLY_CHECKPOINT_KIND,
+        }:
+            resolved_num_players = cls._resolve_root_num_players(checkpoint, num_players)
             (
                 architecture,
                 strategy_input_size,
@@ -118,6 +132,36 @@ class FrozenBlueprintPolicy:
                 strategy_actor_count=strategy_actor_count,
             )
 
+        if checkpoint_kind == HU_CURRENT_POLICY_SELF_PLAY_CHECKPOINT_KIND:
+            (
+                architecture,
+                strategy_input_size,
+                hidden_size,
+                base_input_size,
+                use_multi_agent,
+                encoding_version,
+                strategy_state,
+            ) = cls._validate_hu_full_checkpoint(checkpoint, num_players)
+            strategy_net = PokerNetwork(
+                strategy_input_size,
+                hidden_size,
+                NUM_ACTIONS,
+                architecture,
+            ).to(device)
+            strategy_net.load_state_dict(strategy_state, strict=True)
+            return cls(
+                strategy_net,
+                num_players=2,
+                use_multi_agent=use_multi_agent,
+                encoding_version=encoding_version,
+                device=device,
+                base_input_size=base_input_size,
+                strategy_input_size=strategy_input_size,
+                strategy_actor_conditioned=True,
+                strategy_actor_count=2,
+            )
+
+        resolved_num_players = cls._resolve_root_num_players(checkpoint, num_players)
         architecture, _, hidden_size = full_checkpoint_network_spec(checkpoint)
         agent = DeepCFRAgent(
             player_id=0,
@@ -135,6 +179,165 @@ class FrozenBlueprintPolicy:
             device=device,
             agent=agent,
         )
+
+    @staticmethod
+    def _resolve_root_num_players(checkpoint: dict, requested_num_players: int | None) -> int:
+        checkpoint_num_players = checkpoint.get("num_players")
+        if isinstance(checkpoint_num_players, bool) or not isinstance(checkpoint_num_players, int):
+            raise ValueError("Чекпоинт имеет некорректное число игроков")
+        return checkpoint_num_players if requested_num_players is None else int(requested_num_players)
+
+    @classmethod
+    def _validate_hu_full_checkpoint(
+        cls,
+        checkpoint: dict,
+        requested_num_players: int | None,
+    ) -> tuple[str, int, int, int, bool, str, dict[str, torch.Tensor]]:
+        """Проверяет inference-контракт HU full checkpoint без восстановления training state."""
+        if checkpoint.get("checkpoint_kind") != HU_CURRENT_POLICY_SELF_PLAY_CHECKPOINT_KIND:
+            raise ValueError("Ожидался полный HU checkpoint")
+        if checkpoint.get("hu_checkpoint_version") != HU_FULL_CHECKPOINT_VERSION:
+            raise ValueError("HU full checkpoint имеет несовместимую версию")
+        if checkpoint.get("checkpoint_format_version") != CHECKPOINT_FORMAT_VERSION:
+            raise ValueError("HU full checkpoint имеет несовместимую версию формата")
+        if checkpoint.get("game_rules_version") != GAME_RULES_VERSION:
+            raise ValueError("HU full checkpoint имеет несовместимую версию правил игры")
+        if checkpoint.get("action_space_version") != ACTION_SPACE_VERSION:
+            raise ValueError("HU full checkpoint имеет другое пространство действий")
+        if checkpoint.get("action_labels") != list(ACTION_LABELS):
+            raise ValueError("HU full checkpoint имеет несовместимые action labels")
+        if checkpoint.get("num_actions") != NUM_ACTIONS:
+            raise ValueError("HU full checkpoint имеет неверное число действий")
+
+        mode = checkpoint.get("mode")
+        if not isinstance(mode, dict):
+            raise ValueError("HU full checkpoint не содержит корректный mode")
+        mode_num_players = mode.get("num_players")
+        base_input_size = mode.get("encoder_input_size")
+        encoding_version = mode.get("encoding_version")
+        use_multi_agent = mode.get("use_multi_agent_advantage")
+        if (
+            mode.get("hu_current_policy_self_play") is not True
+            or mode.get("num_trainable_players") != 2
+            or mode_num_players != 2
+            or use_multi_agent is not False
+            or isinstance(base_input_size, bool)
+            or not isinstance(base_input_size, int)
+            or base_input_size <= 0
+            or not isinstance(encoding_version, str)
+        ):
+            raise ValueError("HU full checkpoint имеет несовместимый mode")
+        if requested_num_players is not None and int(requested_num_players) != mode_num_players:
+            raise ValueError("HU full checkpoint поддерживает только двух игроков")
+        try:
+            expected_base_input_size = encoder_input_size(
+                mode_num_players,
+                encoding_version,
+                use_multi_agent,
+            )
+        except ValueError as error:
+            raise ValueError("HU full checkpoint имеет неизвестную версию encoder") from error
+        if base_input_size != expected_base_input_size:
+            raise ValueError("HU full checkpoint имеет несовместимый base encoder input size")
+
+        architecture_payload = checkpoint.get("architecture")
+        if not isinstance(architecture_payload, dict):
+            raise ValueError("HU full checkpoint не содержит strategy architecture")
+        strategy_schema = architecture_payload.get("strategy")
+        if not isinstance(strategy_schema, dict):
+            raise ValueError("HU full checkpoint не содержит strategy architecture")
+        architecture = strategy_schema.get("network_architecture")
+        hidden_size = strategy_schema.get("hidden_size")
+        strategy_input_size = strategy_schema.get("input_size")
+        if not isinstance(architecture, str) or architecture not in NETWORK_ARCHITECTURES:
+            raise ValueError("HU full checkpoint имеет неизвестную strategy архитектуру")
+        if (
+            isinstance(hidden_size, bool)
+            or not isinstance(hidden_size, int)
+            or hidden_size <= 0
+            or isinstance(strategy_input_size, bool)
+            or not isinstance(strategy_input_size, int)
+            or strategy_input_size != base_input_size + 2
+            or strategy_schema.get("num_actions") != NUM_ACTIONS
+        ):
+            raise ValueError("HU full checkpoint имеет несовместимый actor-conditioned strategy input")
+        if architecture in (CARD_CONTEXT_ARCHITECTURE, CARD_CONTEXT_V2_ARCHITECTURE):
+            if strategy_schema.get("card_feature_size") != CARD_FEATURE_SIZE:
+                raise ValueError("HU full checkpoint имеет несовместимый размер card-признаков")
+        if architecture == CARD_CONTEXT_V2_ARCHITECTURE and (
+            strategy_schema.get("fusion_input_size") != hidden_size * 2
+            or strategy_schema.get("fusion_output_size") != hidden_size
+        ):
+            raise ValueError("HU full checkpoint имеет несовместимую fusion architecture")
+
+        strategy_payload = checkpoint.get("strategy")
+        if not isinstance(strategy_payload, dict):
+            raise ValueError("HU full checkpoint не содержит strategy state")
+        strategy_state = strategy_payload.get("network")
+        expected_shapes = cls._strategy_state_shapes(
+            architecture,
+            strategy_input_size,
+            hidden_size,
+        )
+        if not isinstance(strategy_state, dict) or set(strategy_state) != set(expected_shapes):
+            raise ValueError("HU full checkpoint имеет несовместимые strategy weights")
+        for parameter_name, expected_shape in expected_shapes.items():
+            parameter = strategy_state[parameter_name]
+            if not torch.is_tensor(parameter) or tuple(parameter.shape) != expected_shape:
+                if architecture == CARD_CONTEXT_V2_ARCHITECTURE and parameter_name.startswith("fusion"):
+                    raise ValueError("HU full checkpoint имеет несовместимые fusion weights")
+                raise ValueError("HU full checkpoint имеет несовместимые strategy weights")
+        return (
+            architecture,
+            strategy_input_size,
+            hidden_size,
+            base_input_size,
+            use_multi_agent,
+            encoding_version,
+            strategy_state,
+        )
+
+    @staticmethod
+    def _strategy_state_shapes(
+        architecture: str,
+        strategy_input_size: int,
+        hidden_size: int,
+    ) -> dict[str, tuple[int, ...]]:
+        if architecture == MONOLITHIC_ARCHITECTURE:
+            return {
+                "base.0.weight": (hidden_size, strategy_input_size),
+                "base.0.bias": (hidden_size,),
+                "base.2.weight": (hidden_size, hidden_size),
+                "base.2.bias": (hidden_size,),
+                "base.4.weight": (hidden_size, hidden_size),
+                "base.4.bias": (hidden_size,),
+                "action_head.weight": (NUM_ACTIONS, hidden_size),
+                "action_head.bias": (NUM_ACTIONS,),
+            }
+        context_size = strategy_input_size - CARD_FEATURE_SIZE
+        if context_size < 0:
+            raise ValueError("HU full checkpoint имеет несовместимый card/context input size")
+        shapes = {
+            "card_encoder.0.weight": (hidden_size, CARD_FEATURE_SIZE),
+            "card_encoder.0.bias": (hidden_size,),
+            "context_encoder.0.weight": (hidden_size, context_size),
+            "context_encoder.0.bias": (hidden_size,),
+        }
+        if architecture == CARD_CONTEXT_V2_ARCHITECTURE:
+            shapes.update({
+                "fusion.0.weight": (hidden_size, hidden_size * 2),
+                "fusion.0.bias": (hidden_size,),
+                "fusion.2.weight": (hidden_size, hidden_size),
+                "fusion.2.bias": (hidden_size,),
+                "action_head.weight": (NUM_ACTIONS, hidden_size),
+                "action_head.bias": (NUM_ACTIONS,),
+            })
+        else:
+            shapes.update({
+                "action_head.weight": (NUM_ACTIONS, hidden_size * 2),
+                "action_head.bias": (NUM_ACTIONS,),
+            })
+        return shapes
 
     @staticmethod
     def _checkpoint_network_architecture(checkpoint: dict) -> str:
@@ -172,7 +375,7 @@ class FrozenBlueprintPolicy:
         num_players: int,
     ) -> tuple[str, int, int, int, bool, int]:
         checkpoint_kind = checkpoint.get("checkpoint_kind")
-        is_hu_strategy = checkpoint_kind == "hu_strategy_only"
+        is_hu_strategy = checkpoint_kind == HU_STRATEGY_ONLY_CHECKPOINT_KIND
         checkpoint_config = checkpoint.get("config", {})
         if not isinstance(checkpoint_config, dict):
             raise ValueError("Light checkpoint имеет некорректный config")

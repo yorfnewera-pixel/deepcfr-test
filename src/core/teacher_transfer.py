@@ -13,6 +13,7 @@ from typing import Any
 import torch
 
 from src.core.action_space import ACTION_LABELS, ACTION_SPACE_VERSION, NUM_ACTIONS
+from src.core.checkpoint_kinds import HU_CURRENT_POLICY_SELF_PLAY_CHECKPOINT_KIND
 from src.core.model import (
     CARD_CONTEXT_ARCHITECTURE,
     CARD_CONTEXT_ARCHITECTURES,
@@ -23,7 +24,6 @@ from src.core.model import (
 )
 from src.training.train import (
     CHECKPOINT_FORMAT_VERSION,
-    _HU_CHECKPOINT_KIND,
     _HU_CHECKPOINT_VERSION,
     _HU_RUNTIME_CONFIG_ALLOWLIST,
     _HU_UPDATE_ORDER,
@@ -33,6 +33,7 @@ from src.core.deep_cfr import GAME_RULES_VERSION
 
 _HU_INPUT_SIZE = encoder_input_size(2, HISTORY_SUMMARY_V3_ENCODING_VERSION)
 _HU_STRATEGY_INPUT_SIZE = _HU_INPUT_SIZE + 2
+_HU_CHECKPOINT_KIND = HU_CURRENT_POLICY_SELF_PLAY_CHECKPOINT_KIND
 _CUDA_PHILOX_STATE_NUMEL = 16  # uint64 seed и int64 offset генератора Philox.
 _CARD_ENCODER_PARAMETER_NAMES = ("0.weight", "0.bias")
 _V1_NETWORK_PARAMETER_NAMES = (

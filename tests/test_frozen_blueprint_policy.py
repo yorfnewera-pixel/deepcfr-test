@@ -252,3 +252,151 @@ def test_frozen_policy_loads_actor_conditioned_hu_light_checkpoint_for_each_play
         )
     finally:
         config_mod.load_config("config.yaml")
+
+
+def _save_actor_conditioned_hu_full_pair(tmp_path, *, architecture="monolithic_v1"):
+    config_path = tmp_path / "hu-full.yaml"
+    config_path.write_text(
+        "\n".join(
+            (
+                "num_actions: 6",
+                "num_players: 2",
+                "num_trainable_players: 2",
+                "hu_current_policy_self_play: true",
+                "hidden_size: 8",
+                f"network_architecture: {architecture}",
+            )
+        ) + "\n",
+        encoding="utf-8",
+    )
+    config_mod.load_config(config_path)
+    agent = DeepCFRAgent(player_id=0, num_players=2, device="cpu")
+    from src.training import train as train_mod
+
+    train_mod._create_hu_current_policy_coordinator(agent)
+    full_path = tmp_path / "hu-full.pt"
+    light_path = tmp_path / "hu-light.pt"
+    torch.save(train_mod._build_hu_checkpoint(agent, seed=19), full_path)
+    torch.save(agent.build_light_checkpoint(seed=19), light_path)
+    return agent, full_path, light_path
+
+
+def test_frozen_policy_loads_hu_full_without_training_restore_and_preserves_actor_conditioning(
+    tmp_path, monkeypatch
+):
+    agent, full_path, light_path = _save_actor_conditioned_hu_full_pair(tmp_path)
+    try:
+        def unexpected_training_agent(*_args, **_kwargs):
+            pytest.fail("Frozen HU evaluation не должна создавать DeepCFRAgent")
+
+        monkeypatch.setattr(
+            "src.evaluation.blueprint_policy.DeepCFRAgent",
+            unexpected_training_agent,
+        )
+        monkeypatch.setattr(
+            torch.optim,
+            "AdamW",
+            lambda *_args, **_kwargs: pytest.fail(
+                "Frozen HU evaluation не должна создавать optimizer"
+            ),
+        )
+
+        inferred = FrozenBlueprintPolicy.from_checkpoint(full_path)
+        explicit = FrozenBlueprintPolicy.from_checkpoint(full_path, num_players=2)
+        light = FrozenBlueprintPolicy.from_checkpoint(light_path, num_players=2)
+        first = pkrs.State.from_seed(
+            n_players=2, button=0, sb=1.0, bb=2.0, stake=100.0, seed=19
+        )
+        second = first.apply_action(pkrs.Action(pkrs.ActionEnum.Call))
+
+        assert inferred.agent is None
+        assert inferred.num_players == 2
+        assert not inferred.strategy_net.training
+        assert all(not parameter.requires_grad for parameter in inferred.strategy_net.parameters())
+        for state, player_id in ((first, 0), (first, 1), (second, 1)):
+            assert np.allclose(
+                inferred.probabilities(state, player_id=player_id),
+                light.probabilities(state, player_id=player_id),
+            )
+        expected_batch = np.stack(
+            (
+                inferred.probabilities(first, player_id=0),
+                inferred.probabilities(second, player_id=1),
+            )
+        )
+        actual_batch = explicit.probabilities_batch((first, second))
+        assert np.allclose(actual_batch, expected_batch)
+        assert np.array_equal(
+            actual_batch == 0.0,
+            np.stack((legal_action_mask(first), legal_action_mask(second))) == 0.0,
+        )
+        assert np.allclose(
+            inferred.strategy_net(torch.ones((1, agent.input_size + 2))),
+            light.strategy_net(torch.ones((1, agent.input_size + 2))),
+        )
+    finally:
+        config_mod.load_config("config.yaml")
+
+
+def test_frozen_policy_rejects_hu_full_with_mismatched_requested_player_count(tmp_path):
+    _, full_path, _ = _save_actor_conditioned_hu_full_pair(tmp_path)
+    try:
+        with pytest.raises(ValueError, match="двух игроков"):
+            FrozenBlueprintPolicy.from_checkpoint(full_path, num_players=6)
+    finally:
+        config_mod.load_config("config.yaml")
+
+
+@pytest.mark.parametrize(
+    ("mutate", "message"),
+    (
+        (
+            lambda payload: payload["architecture"]["strategy"].__setitem__(
+                "network_architecture", "unknown"
+            ),
+            "архитектур",
+        ),
+        (
+            lambda payload: payload["mode"].__setitem__(
+                "encoder_input_size", payload["mode"]["encoder_input_size"] + 1
+            ),
+            "base encoder",
+        ),
+        (
+            lambda payload: payload["architecture"]["strategy"].__setitem__(
+                "input_size", payload["mode"]["encoder_input_size"]
+            ),
+            "actor",
+        ),
+    ),
+)
+def test_frozen_policy_rejects_malformed_hu_full_strategy_contract(
+    tmp_path, mutate, message
+):
+    _, full_path, _ = _save_actor_conditioned_hu_full_pair(tmp_path)
+    try:
+        payload = torch.load(full_path, weights_only=False)
+        mutate(payload)
+        malformed_path = tmp_path / "malformed-hu-full.pt"
+        torch.save(payload, malformed_path)
+
+        with pytest.raises(ValueError, match=message):
+            FrozenBlueprintPolicy.from_checkpoint(malformed_path)
+    finally:
+        config_mod.load_config("config.yaml")
+
+
+def test_frozen_policy_validates_hu_full_card_context_v2_tensor_shapes(tmp_path):
+    _, full_path, _ = _save_actor_conditioned_hu_full_pair(
+        tmp_path, architecture=CARD_CONTEXT_V2_ARCHITECTURE
+    )
+    try:
+        payload = torch.load(full_path, weights_only=False)
+        payload["strategy"]["network"]["fusion.0.weight"] = torch.zeros((8, 15))
+        malformed_path = tmp_path / "malformed-hu-full-v2.pt"
+        torch.save(payload, malformed_path)
+
+        with pytest.raises(ValueError, match="fusion"):
+            FrozenBlueprintPolicy.from_checkpoint(malformed_path)
+    finally:
+        config_mod.load_config("config.yaml")

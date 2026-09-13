@@ -25,6 +25,10 @@ from src.core.action_space import (
     resolve_action,
 )
 from src.core.buffers import AdvantageBuffer, DuelingAdvantageBuffer, StrategyBuffer
+from src.core.checkpoint_kinds import (
+    HU_STRATEGY_ONLY_CHECKPOINT_KIND,
+    STRATEGY_ONLY_CHECKPOINT_KIND,
+)
 from src.core.checkpointing import _resolve_model_save_path
 from src.core.model import (
     CARD_CONTEXT_ARCHITECTURE,
@@ -2444,7 +2448,11 @@ class DeepCFRAgent:
         checkpoint = {
             "checkpoint_format_version": CHECKPOINT_FORMAT_VERSION,
             "game_rules_version": GAME_RULES_VERSION,
-            "checkpoint_kind": "hu_strategy_only" if strategy_actor_conditioned else "strategy_only",
+            "checkpoint_kind": (
+                HU_STRATEGY_ONLY_CHECKPOINT_KIND
+                if strategy_actor_conditioned
+                else STRATEGY_ONLY_CHECKPOINT_KIND
+            ),
             "action_space_version": ACTION_SPACE_VERSION,
             "action_labels": list(ACTION_LABELS),
             "iteration": int(self.iteration_count),
