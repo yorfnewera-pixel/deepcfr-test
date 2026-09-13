@@ -1,4 +1,0 @@
-
-[24] Kdb — Li, Wang, Li, Jia, Wu, Zhang, Qi, «Scalable sub-game solving for imperfect-information games», Knowledge-Based Systems 231 (2021) 107434. Та же группа — часто в таких работах инженерные детали кодировки описаны подробнее.
-
-10.1016/j.knosys.2021.107434
