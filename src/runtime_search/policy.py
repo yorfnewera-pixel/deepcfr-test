@@ -45,6 +45,7 @@ class RuntimeSearchConfig:
     eta: float = 10.0
     alpha: float = 0.05
     min_root_gap_zscore: float = 1.0
+    min_root_gap_samples: int = 8
     policy_floor: float = 0.001
     belief_min_ess_ratio: float = 0.25
     belief_resample_ess_ratio: float = 0.5
@@ -61,6 +62,8 @@ class RuntimeSearchConfig:
             raise ValueError("eta, alpha и policy_floor не могут быть отрицательными")
         if self.min_root_gap_zscore < 0.0:
             raise ValueError("min_root_gap_zscore не может быть отрицательным")
+        if self.min_root_gap_samples < 2:
+            raise ValueError("min_root_gap_samples не может быть меньше 2")
         if self.belief_min_ess < 0.0 or not 0.0 <= self.belief_min_ess_ratio <= 1.0:
             raise ValueError("belief_min_ess и belief_min_ess_ratio имеют недопустимое значение")
         if not 0.0 < self.belief_resample_ess_ratio <= 1.0:
@@ -183,27 +186,69 @@ def choose_action(
     if np.any(evaluation.successful_rollouts != config.belief_particles):
         flags.append("rollout_incomplete")
         search_policy = root_prior.copy()
+    elif evaluation.best_gap_sample_count < config.min_root_gap_samples:
+        flags.append("rollout_insufficient_gap_samples")
+        search_policy = root_prior.copy()
+    elif not np.isfinite(evaluation.best_gap):
+        flags.append("rollout_gap_undefined")
+        search_policy = root_prior.copy()
+    elif not np.isfinite(evaluation.best_gap_se) or evaluation.best_gap_se < 0.0:
+        flags.append("rollout_gap_se_undefined")
+        search_policy = root_prior.copy()
+    elif (
+        evaluation.best_gap_se == 0.0
+        and evaluation.best_gap > 0.0
+        and evaluation.best_gap_zscore == np.inf
+    ):
+        flags.append("rollout_zero_variance_positive_signal")
+        search_policy = _updated_root_policy(
+            state,
+            root_prior=root_prior,
+            root_mask=root_mask,
+            root_slots=root_slots,
+            raw_ev_mean=evaluation.raw_ev_mean,
+            config=config,
+            mc_values=mc_values,
+            eta_times_values=eta_times_values,
+        )
+        if search_policy is None:
+            flags.append("rollout_nonfinite_values")
+            search_policy = root_prior.copy()
+        else:
+            value_scale = max(
+                float(state.pot),
+                float(remaining_after_call(state)),
+                config.value_scale_epsilon,
+            )
+    elif (
+        evaluation.best_gap_se == 0.0
+        or not np.isfinite(evaluation.best_gap_zscore)
+    ):
+        flags.append("rollout_zscore_undefined")
+        search_policy = root_prior.copy()
     elif evaluation.best_gap_zscore < config.min_root_gap_zscore:
-        flags.append("rollout_signal_below_noise_blueprint_fallback")
+        flags.extend(("rollout_signal_below_noise", "rollout_signal_below_noise_blueprint_fallback"))
         search_policy = root_prior.copy()
     else:
-        value_scale = max(
-            float(state.pot),
-            float(remaining_after_call(state)),
-            config.value_scale_epsilon,
+        search_policy = _updated_root_policy(
+            state,
+            root_prior=root_prior,
+            root_mask=root_mask,
+            root_slots=root_slots,
+            raw_ev_mean=evaluation.raw_ev_mean,
+            config=config,
+            mc_values=mc_values,
+            eta_times_values=eta_times_values,
         )
-        mc_values[root_slots] = evaluation.raw_ev_mean / value_scale
-        eta_times_values[root_slots] = config.eta * mc_values[root_slots]
-        values_for_update = np.zeros(NUM_ACTIONS, dtype=np.float64)
-        values_for_update[root_slots] = mc_values[root_slots]
-        search_policy = mmds_update(
-            root_prior,
-            values_for_update,
-            root_mask,
-            config.eta,
-            config.alpha,
-            floor=config.policy_floor,
-        )
+        if search_policy is None:
+            flags.append("rollout_nonfinite_values")
+            search_policy = root_prior.copy()
+        else:
+            value_scale = max(
+                float(state.pot),
+                float(remaining_after_call(state)),
+                config.value_scale_epsilon,
+            )
 
     return _search_decision(
         state,
@@ -226,6 +271,43 @@ def choose_action(
         best_gap_zscore=evaluation.best_gap_zscore,
         value_scale=value_scale,
         eta_effective=config.eta / (1.0 + config.alpha * config.eta),
+    )
+
+
+def _updated_root_policy(
+    state: pkrs.State,
+    *,
+    root_prior: np.ndarray,
+    root_mask: np.ndarray,
+    root_slots: np.ndarray,
+    raw_ev_mean: np.ndarray,
+    config: RuntimeSearchConfig,
+    mc_values: np.ndarray,
+    eta_times_values: np.ndarray,
+) -> np.ndarray | None:
+    """Возвращает MMDS policy только для конечных rollout значений."""
+    if not np.all(np.isfinite(raw_ev_mean)):
+        return None
+    value_scale = max(
+        float(state.pot),
+        float(remaining_after_call(state)),
+        config.value_scale_epsilon,
+    )
+    if not np.isfinite(value_scale):
+        return None
+    mc_values[root_slots] = raw_ev_mean / value_scale
+    eta_times_values[root_slots] = config.eta * mc_values[root_slots]
+    values_for_update = np.zeros(NUM_ACTIONS, dtype=np.float64)
+    values_for_update[root_slots] = mc_values[root_slots]
+    if not np.all(np.isfinite(mc_values[root_slots])) or not np.all(np.isfinite(values_for_update)):
+        return None
+    return mmds_update(
+        root_prior,
+        values_for_update,
+        root_mask,
+        config.eta,
+        config.alpha,
+        floor=config.policy_floor,
     )
 
 

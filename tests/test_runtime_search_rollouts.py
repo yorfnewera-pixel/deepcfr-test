@@ -30,11 +30,12 @@ def test_root_signal_uses_paired_particle_differences():
             [9.0, 19.0, 29.0],
         )
     )
-    gap, gap_se, zscore = _root_signal_statistics(rewards, np.ones_like(rewards, dtype=bool))
+    gap, gap_se, zscore, sample_count = _root_signal_statistics(rewards, np.ones_like(rewards, dtype=bool))
 
     assert gap == 1.0
     assert gap_se == 0.0
     assert np.isinf(zscore)
+    assert sample_count == 2
 
 
 def test_root_signal_selects_pair_on_other_particle_half():
@@ -44,11 +45,12 @@ def test_root_signal_selects_pair_on_other_particle_half():
             [0.0, 0.0, 2.0, 2.0],
         )
     )
-    gap, gap_se, zscore = _root_signal_statistics(rewards, np.ones_like(rewards, dtype=bool))
+    gap, gap_se, zscore, sample_count = _root_signal_statistics(rewards, np.ones_like(rewards, dtype=bool))
 
     assert gap == -2.0
     assert gap_se == 0.0
     assert zscore == -np.inf
+    assert sample_count == 2
 
 
 def test_root_signal_pairs_rewards_by_particle_index_despite_completion_order():
@@ -60,11 +62,12 @@ def test_root_signal_pairs_rewards_by_particle_index_despite_completion_order():
     )
     success = np.ones_like(rewards, dtype=bool)
 
-    gap, gap_se, zscore = _root_signal_statistics(rewards, success)
+    gap, gap_se, zscore, sample_count = _root_signal_statistics(rewards, success)
 
     assert gap == 12.5
     assert gap_se == 7.5
     assert zscore == pytest.approx(12.5 / 7.5)
+    assert sample_count == 2
 
 
 def test_root_signal_excludes_particle_that_failed_for_one_root_action():
@@ -76,11 +79,12 @@ def test_root_signal_excludes_particle_that_failed_for_one_root_action():
     )
     success = np.array(((True, True, True, True), (True, True, False, True)))
 
-    gap, gap_se, zscore = _root_signal_statistics(rewards, success)
+    gap, gap_se, zscore, sample_count = _root_signal_statistics(rewards, success)
 
     assert gap == 5.0
     assert np.isnan(gap_se)
     assert np.isnan(zscore)
+    assert sample_count == 1
 
 
 def test_root_signal_selects_actions_on_common_successful_particles():
@@ -95,11 +99,25 @@ def test_root_signal_selects_actions_on_common_successful_particles():
         ((True, True, True, True, True, True), (True, False, True, True, True, True))
     )
 
-    gap, gap_se, zscore = _root_signal_statistics(rewards, success)
+    gap, gap_se, zscore, sample_count = _root_signal_statistics(rewards, success)
 
     assert gap == 4.0
     assert gap_se == 0.0
     assert zscore == np.inf
+    assert sample_count == 3
+
+
+@pytest.mark.parametrize(
+    ("rewards", "expected_count"),
+    [
+        (np.array(((1.0,), (0.0,))), 0),
+        (np.array(((1.0, 2.0), (0.0, 1.0))), 1),
+    ],
+)
+def test_root_signal_reports_paired_sample_count_for_undefined_and_single_sample(rewards, expected_count):
+    _, _, _, sample_count = _root_signal_statistics(rewards, np.ones_like(rewards, dtype=bool))
+
+    assert sample_count == expected_count
 
 
 def _particle(state, seed):
@@ -204,6 +222,7 @@ def test_lockstep_rollouts_complete_for_each_root_action_and_are_reproducible():
     assert first.terminal_completion_rate == 1.0
     assert not first.failure_messages
     assert np.all(np.isfinite(first.raw_ev_mean))
+    assert first.best_gap_sample_count == 1
     assert np.array_equal(first.raw_ev_mean, second.raw_ev_mean)
 
 

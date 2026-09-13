@@ -30,6 +30,7 @@ class RolloutEvaluation:
     best_gap: float
     best_gap_se: float
     best_gap_zscore: float
+    best_gap_sample_count: int
     successful_rollouts: np.ndarray
     total_particles: int
     failure_messages: tuple[str, ...]
@@ -220,7 +221,7 @@ def evaluate_root_actions(
         value / np.sqrt(count) if count > 0 else np.nan
         for value, count in zip(raw_ev_std, successful_rollouts)
     ], dtype=np.float64)
-    best_gap, best_gap_se, best_gap_zscore = _root_signal_statistics(rewards, success)
+    best_gap, best_gap_se, best_gap_zscore, best_gap_sample_count = _root_signal_statistics(rewards, success)
     total_scenarios = len(root_actions) * len(particles)
     return RolloutEvaluation(
         raw_ev_mean=raw_ev_mean,
@@ -229,6 +230,7 @@ def evaluate_root_actions(
         best_gap=best_gap,
         best_gap_se=best_gap_se,
         best_gap_zscore=best_gap_zscore,
+        best_gap_sample_count=best_gap_sample_count,
         successful_rollouts=successful_rollouts,
         total_particles=len(particles),
         failure_messages=tuple(failures),
@@ -239,18 +241,18 @@ def evaluate_root_actions(
 def _root_signal_statistics(
     rewards: np.ndarray,
     success: np.ndarray,
-) -> tuple[float, float, float]:
+) -> tuple[float, float, float, int]:
     """Возвращает CRN-correct gap лучшего и второго root action."""
     rewards = np.asarray(rewards, dtype=np.float64)
     success = np.asarray(success, dtype=bool)
     if rewards.ndim != 2 or rewards.shape != success.shape:
         raise ValueError("rewards и success должны быть двумерными массивами одинаковой формы")
     if rewards.shape[0] < 2 or rewards.shape[1] < 2:
-        return np.nan, np.nan, np.nan
+        return np.nan, np.nan, np.nan, 0
     split_index = rewards.shape[1] // 2
     selection_mask = np.all(success[:, :split_index], axis=0)
     if not np.any(selection_mask):
-        return np.nan, np.nan, np.nan
+        return np.nan, np.nan, np.nan, 0
     means = rewards[:, :split_index][:, selection_mask].mean(axis=1)
     best_index = int(np.argmax(means))
     runner_values = means.copy()
@@ -262,14 +264,14 @@ def _root_signal_statistics(
         - rewards[runner_index, split_index:][paired_mask]
     )
     if differences.size == 0:
-        return np.nan, np.nan, np.nan
+        return np.nan, np.nan, np.nan, 0
     gap = float(differences.mean())
     if differences.size <= 1:
-        return gap, np.nan, np.nan
+        return gap, np.nan, np.nan, int(differences.size)
     gap_se = float(differences.std(ddof=1) / np.sqrt(differences.size))
     if gap_se == 0.0:
-        return gap, 0.0, float(np.inf) if gap > 0.0 else float(-np.inf) if gap < 0.0 else 0.0
-    return gap, gap_se, gap / gap_se
+        return gap, 0.0, float(np.inf) if gap > 0.0 else float(-np.inf) if gap < 0.0 else 0.0, int(differences.size)
+    return gap, gap_se, gap / gap_se, int(differences.size)
 
 
 def _sample_continuation_action(
