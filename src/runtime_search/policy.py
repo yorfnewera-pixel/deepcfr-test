@@ -220,9 +220,13 @@ def choose_action(
                 float(remaining_after_call(state)),
                 config.value_scale_epsilon,
             )
+    elif evaluation.best_gap_zscore == -np.inf:
+        flags.extend(("rollout_signal_below_noise", "rollout_signal_below_noise_blueprint_fallback"))
+        search_policy = root_prior.copy()
     elif (
         evaluation.best_gap_se == 0.0
-        or not np.isfinite(evaluation.best_gap_zscore)
+        or np.isnan(evaluation.best_gap_zscore)
+        or evaluation.best_gap_zscore == np.inf
     ):
         flags.append("rollout_zscore_undefined")
         search_policy = root_prior.copy()

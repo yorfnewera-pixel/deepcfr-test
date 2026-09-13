@@ -117,7 +117,7 @@ def test_runtime_config_rejects_root_gap_sample_threshold_below_two():
         (_rollout_evaluation(best_gap=np.nan), "rollout_gap_undefined"),
         (_rollout_evaluation(best_gap_se=np.nan), "rollout_gap_se_undefined"),
         (_rollout_evaluation(best_gap_zscore=np.nan), "rollout_zscore_undefined"),
-        (_rollout_evaluation(best_gap_zscore=-np.inf), "rollout_zscore_undefined"),
+        (_rollout_evaluation(best_gap_zscore=-np.inf), "rollout_signal_below_noise"),
         (_rollout_evaluation(best_gap=0.0, best_gap_se=0.0, best_gap_zscore=0.0), "rollout_zscore_undefined"),
         (_rollout_evaluation(best_gap=0.0, best_gap_se=0.0, best_gap_zscore=np.inf), "rollout_zscore_undefined"),
         (_rollout_evaluation(best_gap_zscore=0.5), "rollout_signal_below_noise"),
@@ -153,6 +153,8 @@ def test_root_policy_updates_only_for_valid_positive_infinite_signal(monkeypatch
     assert "rollout_zero_variance_positive_signal" in decision.diagnostic_flags
     assert not np.array_equal(decision.root_search_policy, decision.root_blueprint_policy)
     assert np.isclose(decision.root_search_policy.sum(), 1.0)
+    assert np.all(np.isfinite(decision.root_search_policy))
+    assert np.all(decision.root_search_policy >= 0.0)
     assert np.all(decision.root_search_policy[~legal] == 0.0)
 
 
