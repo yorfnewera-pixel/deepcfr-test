@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from math import isfinite
+from numbers import Real
 from time import perf_counter
 from typing import Protocol, Sequence
 
@@ -60,10 +62,15 @@ class RuntimeSearchConfig:
             raise ValueError("belief_proposal_count не может быть меньше belief_particles")
         if self.eta < 0.0 or self.alpha < 0.0 or self.policy_floor < 0.0:
             raise ValueError("eta, alpha и policy_floor не могут быть отрицательными")
-        if self.min_root_gap_zscore < 0.0:
-            raise ValueError("min_root_gap_zscore не может быть отрицательным")
-        if self.min_root_gap_samples < 2:
-            raise ValueError("min_root_gap_samples не может быть меньше 2")
+        if (
+            isinstance(self.min_root_gap_zscore, bool)
+            or not isinstance(self.min_root_gap_zscore, Real)
+            or not isfinite(self.min_root_gap_zscore)
+            or self.min_root_gap_zscore < 0.0
+        ):
+            raise ValueError("min_root_gap_zscore должен быть конечным числом не меньше 0")
+        if type(self.min_root_gap_samples) is not int or self.min_root_gap_samples < 2:
+            raise ValueError("min_root_gap_samples должен быть целым числом не меньше 2")
         if self.belief_min_ess < 0.0 or not 0.0 <= self.belief_min_ess_ratio <= 1.0:
             raise ValueError("belief_min_ess и belief_min_ess_ratio имеют недопустимое значение")
         if not 0.0 < self.belief_resample_ess_ratio <= 1.0:

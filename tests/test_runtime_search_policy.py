@@ -109,6 +109,31 @@ def test_runtime_config_rejects_root_gap_sample_threshold_below_two():
         RuntimeSearchConfig(min_root_gap_samples=1)
 
 
+@pytest.mark.parametrize("threshold", (float("nan"), float("inf"), float("-inf"), -0.1, True))
+def test_runtime_config_rejects_nonfinite_or_invalid_root_gap_zscore(threshold):
+    with pytest.raises(ValueError, match="min_root_gap_zscore"):
+        RuntimeSearchConfig(min_root_gap_zscore=threshold)
+
+
+@pytest.mark.parametrize(
+    "sample_count",
+    (True, 1.0, 1.5, float("nan"), float("inf"), float("-inf")),
+)
+def test_runtime_config_rejects_noninteger_root_gap_sample_threshold(sample_count):
+    with pytest.raises(ValueError, match="min_root_gap_samples"):
+        RuntimeSearchConfig(min_root_gap_samples=sample_count)
+
+
+def test_invalid_runtime_config_is_rejected_before_policy_update(monkeypatch):
+    def unexpected_update(*_args, **_kwargs):
+        pytest.fail("недопустимый config не должен запускать обновление policy")
+
+    monkeypatch.setattr(policy_module, "mmds_update", unexpected_update)
+
+    with pytest.raises(ValueError, match="min_root_gap_zscore"):
+        RuntimeSearchConfig(min_root_gap_zscore=float("nan"))
+
+
 @pytest.mark.parametrize(
     ("evaluation", "expected_flag"),
     [

@@ -7,6 +7,7 @@ import pytest
 import torch
 
 from src.core.deep_cfr import DeepCFRAgent
+from src.core.game_contract import validate_fixed_hu_game_contract
 from src.evaluation.blueprint_policy import FrozenBlueprintPolicy
 from src.training import train as train_mod
 from src.utils import config as config_mod
@@ -16,7 +17,7 @@ _EXPECTED_GAME_CONTRACT = {
     "small_blind": 1.0,
     "big_blind": 2.0,
     "starting_stack": 200.0,
-    "depth_big_blinds": 100.0,
+    "stack_depth_bb": 100.0,
 }
 
 
@@ -122,6 +123,26 @@ def test_hu_resume_rejects_missing_game_contract(tmp_path):
 
     with pytest.raises(ValueError, match="игровой контракт"):
         train_mod._load_hu_checkpoint(_hu_agent(), checkpoint_path)
+
+
+@pytest.mark.parametrize(
+    "metadata",
+    (
+        None,
+        (),
+        {"small_blind": 1.0, "big_blind": 2.0, "starting_stack": 200.0},
+        {**_EXPECTED_GAME_CONTRACT, "unexpected": 1.0},
+        {**_EXPECTED_GAME_CONTRACT, "small_blind": True},
+        {**_EXPECTED_GAME_CONTRACT, "big_blind": float("nan")},
+        {**_EXPECTED_GAME_CONTRACT, "starting_stack": float("inf")},
+        {**_EXPECTED_GAME_CONTRACT, "stack_depth_bb": float("-inf")},
+        {**_EXPECTED_GAME_CONTRACT, "big_blind": "2.0"},
+        {**_EXPECTED_GAME_CONTRACT, "starting_stack": 100.0},
+    ),
+)
+def test_game_contract_validator_rejects_noncanonical_metadata(metadata):
+    with pytest.raises(ValueError, match="игровой контракт"):
+        validate_fixed_hu_game_contract(metadata, "test artifact")
 
 
 @pytest.mark.parametrize("checkpoint_kind", ("light", "full"))
