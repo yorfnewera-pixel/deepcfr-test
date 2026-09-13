@@ -486,11 +486,68 @@ def test_hu_light_checkpoint_is_retained_next_to_hu_full_checkpoint(tmp_path):
         agent,
         tmp_path,
         5000,
+        prefix="hu_light_checkpoint_iter_",
         full_checkpoint_prefix="hu_checkpoint_iter_",
     )
 
-    assert path.name == "light_checkpoint_iter_5000.pt"
+    assert path.name == "hu_light_checkpoint_iter_5000.pt"
     assert path.exists()
+
+
+def test_hu_iteration_light_uses_own_namespace_without_overwriting_generic_light(
+    tmp_path,
+    monkeypatch,
+):
+    """Ломается, если HU save перезаписывает generic light той же итерации."""
+    generic_light = tmp_path / "light_checkpoint_iter_5000.pt"
+    generic_light.write_bytes(b"generic-light")
+
+    def save_full(_agent, path, seed=None):
+        Path(path).touch()
+        return Path(path)
+
+    monkeypatch.setattr(train_mod, "_save_hu_checkpoint", save_full)
+
+    _, hu_light = train_mod._save_hu_iteration_checkpoints(
+        cast(DeepCFRAgent, LightCheckpointAgent()),
+        tmp_path,
+        5000,
+    )
+
+    assert hu_light.name == "hu_light_checkpoint_iter_5000.pt"
+    assert generic_light.read_bytes() == b"generic-light"
+    assert hu_light.exists()
+
+
+def test_hu_and_generic_light_pruning_are_namespace_isolated(tmp_path):
+    """Ломается, если pruning одного режима удаляет light checkpoint другого режима."""
+    (tmp_path / "multi_checkpoint_iter_5000.pt").touch()
+    generic_matching = tmp_path / "light_checkpoint_iter_5000.pt"
+    generic_matching.touch()
+    generic_orphan = tmp_path / "light_checkpoint_iter_10000.pt"
+    generic_orphan.touch()
+    (tmp_path / "hu_checkpoint_iter_5000.pt").touch()
+    hu_matching = tmp_path / "hu_light_checkpoint_iter_5000.pt"
+    hu_matching.touch()
+    hu_orphan = tmp_path / "hu_light_checkpoint_iter_10000.pt"
+    hu_orphan.touch()
+
+    train_mod._prune_light_checkpoints(
+        tmp_path,
+        full_checkpoint_prefix="hu_checkpoint_iter_",
+        light_checkpoint_prefix="hu_light_checkpoint_iter_",
+    )
+
+    assert hu_matching.exists()
+    assert not hu_orphan.exists()
+    assert generic_matching.exists()
+    assert generic_orphan.exists()
+
+    train_mod._prune_light_checkpoints(tmp_path)
+
+    assert generic_matching.exists()
+    assert not generic_orphan.exists()
+    assert hu_matching.exists()
 
 
 def test_hu_full_checkpoint_retention_keeps_recent_and_milestones(tmp_path):
@@ -534,19 +591,20 @@ def test_hu_light_pruning_removes_only_orphans_for_retained_full_checkpoints(tmp
     """Ломается, если light checkpoint удаляется без проверки HU full checkpoint."""
     for iteration in (55000, 105000):
         (tmp_path / f"hu_checkpoint_iter_{iteration}.pt").touch()
-        (tmp_path / f"light_checkpoint_iter_{iteration}.pt").touch()
-    orphan = tmp_path / "light_checkpoint_iter_15000.pt"
+        (tmp_path / f"hu_light_checkpoint_iter_{iteration}.pt").touch()
+    orphan = tmp_path / "hu_light_checkpoint_iter_15000.pt"
     orphan.touch()
-    final_light = tmp_path / "light_checkpoint_final.pt"
+    final_light = tmp_path / "hu_light_checkpoint_final.pt"
     final_light.touch()
 
     train_mod._prune_light_checkpoints(
         tmp_path,
         full_checkpoint_prefix="hu_checkpoint_iter_",
+        light_checkpoint_prefix="hu_light_checkpoint_iter_",
     )
 
-    assert (tmp_path / "light_checkpoint_iter_55000.pt").exists()
-    assert (tmp_path / "light_checkpoint_iter_105000.pt").exists()
+    assert (tmp_path / "hu_light_checkpoint_iter_55000.pt").exists()
+    assert (tmp_path / "hu_light_checkpoint_iter_105000.pt").exists()
     assert not orphan.exists()
     assert final_light.exists()
 
@@ -579,8 +637,10 @@ def test_hu_iteration_checkpoint_saves_full_before_pruning_and_light(tmp_path, m
         return {"recent": [], "milestones": [], "deleted": []}
 
     def save_light(_agent, directory, iteration, **kwargs):
-        events.append(("light", Path(directory).name, iteration, kwargs["full_checkpoint_prefix"]))
-        return Path(directory) / f"light_checkpoint_iter_{iteration}.pt"
+        events.append(
+            ("light", Path(directory).name, iteration, kwargs["prefix"], kwargs["full_checkpoint_prefix"])
+        )
+        return Path(directory) / f"{kwargs['prefix']}{iteration}.pt"
 
     monkeypatch.setattr(train_mod, "_save_hu_checkpoint", save_full)
     monkeypatch.setattr(train_mod, "_prune_hu_full_checkpoints", prune_full)
@@ -594,11 +654,11 @@ def test_hu_iteration_checkpoint_saves_full_before_pruning_and_light(tmp_path, m
     )
 
     assert full_path.name == "hu_checkpoint_iter_5000.pt"
-    assert light_path.name == "light_checkpoint_iter_5000.pt"
+    assert light_path.name == "hu_light_checkpoint_iter_5000.pt"
     assert events == [
         ("full", "hu_checkpoint_iter_5000.pt", 17),
         ("prune_full", tmp_path.name),
-        ("light", tmp_path.name, 5000, "hu_checkpoint_iter_"),
+        ("light", tmp_path.name, 5000, "hu_light_checkpoint_iter_", "hu_checkpoint_iter_"),
     ]
 
 

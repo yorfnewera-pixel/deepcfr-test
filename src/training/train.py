@@ -46,6 +46,7 @@ from src.utils.config import (
 _HEAVY_CHECKPOINT_PREFIX = "multi_checkpoint_iter_"
 _LIGHT_CHECKPOINT_PREFIX = "light_checkpoint_iter_"
 _HU_HEAVY_CHECKPOINT_PREFIX = "hu_checkpoint_iter_"
+_HU_LIGHT_CHECKPOINT_PREFIX = "hu_light_checkpoint_iter_"
 _OPPONENT_RECENT_CHECKPOINTS = 11
 _OPPONENT_HISTORICAL_CHECKPOINTS = 2
 _HU_CHECKPOINT_KIND = "hu_current_policy_self_play"
@@ -301,11 +302,12 @@ def _prune_hu_full_checkpoints(
 def _prune_light_checkpoints(
     directory: str | Path,
     full_checkpoint_prefix: str = _HEAVY_CHECKPOINT_PREFIX,
+    light_checkpoint_prefix: str = _LIGHT_CHECKPOINT_PREFIX,
 ) -> None:
-    """Сохраняет light-checkpoint только при наличии full checkpoint того же режима."""
+    """Сохраняет light-checkpoint только с full checkpoint того же namespace."""
     retained_heavy = set(_checkpoint_paths(directory, full_checkpoint_prefix))
-    for path in Path(directory).glob(f"{_LIGHT_CHECKPOINT_PREFIX}*.pt"):
-        iteration = _checkpoint_iteration(path, _LIGHT_CHECKPOINT_PREFIX)
+    for path in Path(directory).glob(f"{light_checkpoint_prefix}*.pt"):
+        iteration = _checkpoint_iteration(path, light_checkpoint_prefix)
         if iteration is None or iteration not in retained_heavy:
             path.unlink(missing_ok=True)
 
@@ -1236,6 +1238,7 @@ def _save_hu_iteration_checkpoints(
         agent,
         save_dir,
         iteration,
+        prefix=_HU_LIGHT_CHECKPOINT_PREFIX,
         seed=seed,
         full_checkpoint_prefix=_HU_HEAVY_CHECKPOINT_PREFIX,
     )
@@ -1278,7 +1281,7 @@ def _save_iteration_light_checkpoint(
     """Сохраняет только усреднённую стратегию для инференса."""
     path = Path(save_dir) / f"{prefix}{int(iteration)}.pt"
     _save_light_checkpoint(agent, path, seed=seed)
-    _prune_light_checkpoints(save_dir, full_checkpoint_prefix)
+    _prune_light_checkpoints(save_dir, full_checkpoint_prefix, prefix)
     return path
 
 
@@ -1994,7 +1997,7 @@ def _train_hu_current_policy_self_play(
         )
         final_light_checkpoint = _save_light_checkpoint(
             agent,
-            Path(save_dir) / "light_checkpoint_final.pt",
+            Path(save_dir) / "hu_light_checkpoint_final.pt",
             seed=seed,
         )
         print(f"Финальный HU checkpoint: {final_checkpoint}")

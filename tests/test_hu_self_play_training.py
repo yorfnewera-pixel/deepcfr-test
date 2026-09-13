@@ -387,9 +387,9 @@ def test_hu_resume_continues_from_next_iteration_and_writes_periodic_and_final_c
     assert events == ["load", "prepare", ("run", 5, 3)]
     assert saved_paths == [
         ("hu_checkpoint_iter_5.pt", 9),
-        ("light_checkpoint_iter_5.pt", 9),
+        ("hu_light_checkpoint_iter_5.pt", 9),
         ("hu_checkpoint_final.pt", 9),
-        ("light_checkpoint_final.pt", 9),
+        ("hu_light_checkpoint_final.pt", 9),
     ]
 
 
@@ -438,7 +438,7 @@ def test_hu_writes_full_and_light_checkpoints_on_hu_schedule_and_at_finish(monke
 
     assert saved_paths == [
         ("full", "hu_checkpoint_iter_1.pt", 17),
-        ("light", "light_checkpoint_iter_1.pt", 17),
+        ("light", "hu_light_checkpoint_iter_1.pt", 17),
         ("full", "hu_checkpoint_final.pt", 17),
-        ("light", "light_checkpoint_final.pt", 17),
+        ("light", "hu_light_checkpoint_final.pt", 17),
     ]
