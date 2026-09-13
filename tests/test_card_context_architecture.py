@@ -89,6 +89,14 @@ def test_card_context_v2_fuses_embeddings_before_action_head(network_class):
     assert torch.equal(network.action_head.bias, torch.zeros_like(network.action_head.bias))
 
 
+def test_dueling_card_context_v1_keeps_direct_heads_without_fusion():
+    network = DuelingRegretNetwork(181, hidden_size=16, architecture=CARD_CONTEXT_ARCHITECTURE)
+
+    assert not hasattr(network, "fusion")
+    assert network.state_value_head.in_features == 32
+    assert network.action_value_head.in_features == 32
+
+
 def test_dueling_card_context_v2_preserves_exact_action_value_minus_state_value():
     network = DuelingRegretNetwork(181, hidden_size=16, architecture=CARD_CONTEXT_V2_ARCHITECTURE)
     result = network.forward_components(torch.randn(3, 181))
@@ -199,6 +207,74 @@ def test_monolithic_agent_rejects_card_context_checkpoint(tmp_path):
             monolithic_agent.load_model(str(checkpoint_path))
     finally:
         config_mod.load_config("config.yaml")
+
+
+def test_v2_full_and_light_checkpoints_declare_fusion_contract(tmp_path):
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text("num_actions: 6\nhidden_size: 8\n", encoding="utf-8")
+
+    try:
+        config_mod.load_config(config_path)
+        agent = DeepCFRAgent(
+            player_id=0,
+            num_players=2,
+            network_architecture=CARD_CONTEXT_V2_ARCHITECTURE,
+        )
+        expected_metadata = {
+            "network_architecture": CARD_CONTEXT_V2_ARCHITECTURE,
+            "card_feature_size": CARD_FEATURE_SIZE,
+            "input_size": agent.input_size,
+            "hidden_size": 8,
+            "fusion_input_size": 16,
+            "fusion_output_size": 8,
+            "num_actions": 6,
+        }
+
+        full_checkpoint = agent._build_checkpoint()
+        light_checkpoint = agent.build_light_checkpoint()
+
+        assert {
+            key: full_checkpoint.get(key) for key in expected_metadata
+        } == expected_metadata
+        assert {
+            key: light_checkpoint.get(key) for key in expected_metadata
+        } == expected_metadata
+    finally:
+        config_mod.load_config("config.yaml")
+
+
+@pytest.mark.parametrize(
+    ("source_architecture", "target_architecture"),
+    (
+        (CARD_CONTEXT_ARCHITECTURE, CARD_CONTEXT_V2_ARCHITECTURE),
+        (CARD_CONTEXT_V2_ARCHITECTURE, CARD_CONTEXT_ARCHITECTURE),
+    ),
+)
+def test_full_checkpoint_rejects_card_context_architecture_mismatch_before_loading(
+    tmp_path,
+    source_architecture,
+    target_architecture,
+):
+    checkpoint_path = tmp_path / "card-context-version.pt"
+    source = DeepCFRAgent(
+        player_id=0,
+        num_players=2,
+        hidden_size=8,
+        network_architecture=source_architecture,
+    )
+    source.save_model(str(checkpoint_path))
+    target = DeepCFRAgent(
+        player_id=0,
+        num_players=2,
+        hidden_size=8,
+        network_architecture=target_architecture,
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=f"{source_architecture}.*{target_architecture}|{target_architecture}.*{source_architecture}",
+    ):
+        target.load_model(str(checkpoint_path))
 
 
 def test_legacy_checkpoint_without_metadata_is_supported_only_by_monolithic_agent(tmp_path):

@@ -1,5 +1,6 @@
 import numpy as np
 import pokers as pkrs
+import pytest
 import torch
 
 from policy_runtime.adapters.pokers import wrap_state
@@ -9,6 +10,7 @@ from policy_runtime.core import (
 )
 from src.core.action_space import ActionSlot, resolve_action
 from src.core.deep_cfr import DeepCFRAgent
+from src.core.model import CARD_CONTEXT_V2_ARCHITECTURE
 from src.core.model import encode_state_history_summary_v3 as training_encode_state
 from src.training import train as train_mod
 from src.utils import config as config_mod
@@ -69,3 +71,41 @@ def test_runtime_loads_actor_conditioned_hu_light_checkpoint(tmp_path) -> None:
         assert big_blind_action in {int(action) for action in big_blind_state.legal_actions}
     finally:
         config_mod.load_config("config.yaml")
+
+
+def test_runtime_reconstructs_v2_light_checkpoint_with_identical_logits(tmp_path) -> None:
+    agent = DeepCFRAgent(
+        player_id=0,
+        num_players=2,
+        hidden_size=8,
+        network_architecture=CARD_CONTEXT_V2_ARCHITECTURE,
+    )
+    checkpoint_path = tmp_path / "card-context-v2-light.pt"
+    torch.save(agent.build_light_checkpoint(seed=19), checkpoint_path)
+
+    runtime = PolicyRuntimeAgent(str(checkpoint_path))
+    inputs = torch.randn(3, agent.input_size)
+
+    assert runtime.strategy_net.architecture == CARD_CONTEXT_V2_ARCHITECTURE
+    assert torch.equal(runtime.strategy_net(inputs), agent.strategy_net(inputs))
+
+
+@pytest.mark.parametrize("mutation", ("missing_metadata", "missing_fusion_weight"))
+def test_runtime_rejects_incomplete_v2_fusion_contract_before_loading(tmp_path, mutation) -> None:
+    agent = DeepCFRAgent(
+        player_id=0,
+        num_players=2,
+        hidden_size=8,
+        network_architecture=CARD_CONTEXT_V2_ARCHITECTURE,
+    )
+    payload = agent.build_light_checkpoint(seed=19)
+    if mutation == "missing_metadata":
+        payload.pop("fusion_input_size")
+        payload["config"].pop("fusion_input_size")
+    else:
+        payload["strategy_net"].pop("fusion.0.weight")
+    checkpoint_path = tmp_path / f"card-context-v2-{mutation}.pt"
+    torch.save(payload, checkpoint_path)
+
+    with pytest.raises(ValueError, match="fusion"):
+        PolicyRuntimeAgent(str(checkpoint_path))

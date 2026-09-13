@@ -13,7 +13,12 @@ from src.core.action_space import NUM_ACTIONS
 from src.core.buffers import AdvantageBuffer
 from src.core.deep_cfr import DeepCFRAgent
 from src.core.hu_self_play import HuStrategyBuffer
-from src.core.model import CARD_CONTEXT_ARCHITECTURE, CARD_FEATURE_SIZE, PokerNetwork
+from src.core.model import (
+    CARD_CONTEXT_ARCHITECTURE,
+    CARD_CONTEXT_V2_ARCHITECTURE,
+    CARD_FEATURE_SIZE,
+    PokerNetwork,
+)
 from src.training import train as train_mod
 
 
@@ -21,8 +26,13 @@ _HU_INPUT_SIZE = 181
 _HU_STRATEGY_INPUT_SIZE = 183
 
 
-def _network_with_optimizer(input_size: int, *, step_optimizer: bool = True):
-    network = PokerNetwork(input_size, hidden_size=8, architecture=CARD_CONTEXT_ARCHITECTURE)
+def _network_with_optimizer(
+    input_size: int,
+    *,
+    architecture: str = CARD_CONTEXT_ARCHITECTURE,
+    step_optimizer: bool = True,
+):
+    network = PokerNetwork(input_size, hidden_size=8, architecture=architecture)
     optimizer = torch.optim.AdamW(network.parameters(), lr=1e-3)
     if step_optimizer:
         network(torch.ones((1, input_size))).sum().backward()
@@ -31,13 +41,21 @@ def _network_with_optimizer(input_size: int, *, step_optimizer: bool = True):
     return network, optimizer
 
 
-def _real_hu_runtime(*, step_optimizers: bool = True):
+def _real_hu_runtime(
+    *,
+    architecture: str = CARD_CONTEXT_ARCHITECTURE,
+    step_optimizers: bool = True,
+):
     """Строит компактный, но реальный HU runtime для штатного checkpoint builder."""
     advantage_nets, advantage_targets = [], []
     advantage_optimizers, advantage_buffers = [], []
     for player_id in (0, 1):
-        network, optimizer = _network_with_optimizer(_HU_INPUT_SIZE, step_optimizer=step_optimizers)
-        target, _ = _network_with_optimizer(_HU_INPUT_SIZE)
+        network, optimizer = _network_with_optimizer(
+            _HU_INPUT_SIZE,
+            architecture=architecture,
+            step_optimizer=step_optimizers,
+        )
+        target, _ = _network_with_optimizer(_HU_INPUT_SIZE, architecture=architecture)
         advantage_nets.append(network)
         advantage_targets.append(target)
         advantage_optimizers.append(optimizer)
@@ -51,7 +69,9 @@ def _real_hu_runtime(*, step_optimizers: bool = True):
         advantage_buffers.append(buffer)
 
     strategy_net, strategy_optimizer = _network_with_optimizer(
-        _HU_STRATEGY_INPUT_SIZE, step_optimizer=step_optimizers
+        _HU_STRATEGY_INPUT_SIZE,
+        architecture=architecture,
+        step_optimizer=step_optimizers,
     )
     strategy_buffer = HuStrategyBuffer(3, _HU_INPUT_SIZE)
     strategy_buffer.add(
@@ -99,13 +119,20 @@ def _real_hu_runtime(*, step_optimizers: bool = True):
     )
 
 
-def _hu_card_checkpoint(path: Path, *, step_optimizers: bool = True):
+def _hu_card_checkpoint(
+    path: Path,
+    *,
+    architecture: str = CARD_CONTEXT_ARCHITECTURE,
+    step_optimizers: bool = True,
+):
     """Сохраняет checkpoint, созданный штатным HU builder, без ручной подделки схемы."""
-    source = _real_hu_runtime(step_optimizers=step_optimizers)
+    source = _real_hu_runtime(architecture=architecture, step_optimizers=step_optimizers)
     with torch.no_grad():
         source.strategy_net.card_encoder[0].weight.fill_(17.0)
         source.strategy_net.card_encoder[0].bias.fill_(-3.0)
         source.strategy_net.context_encoder[0].weight.fill_(41.0)
+        if architecture == CARD_CONTEXT_V2_ARCHITECTURE:
+            source.strategy_net.fusion[0].weight.fill_(53.0)
         source.strategy_net.action_head.weight.fill_(73.0)
         source.strategy_net.action_head.bias.fill_(79.0)
     torch.save(train_mod._build_hu_checkpoint(source), path)
@@ -146,9 +173,14 @@ def _hu_d2cfr_card_checkpoint(path: Path, config_path: Path):
         config_mod.load_config("config.yaml")
 
 
-def _six_max_student():
-    return DeepCFRAgent(player_id=0, num_players=6, device="cpu", hidden_size=8,
-                        network_architecture=CARD_CONTEXT_ARCHITECTURE)
+def _six_max_student(architecture: str = CARD_CONTEXT_ARCHITECTURE):
+    return DeepCFRAgent(
+        player_id=0,
+        num_players=6,
+        device="cpu",
+        hidden_size=8,
+        network_architecture=architecture,
+    )
 
 
 def _card_state(network):
@@ -163,9 +195,10 @@ def test_transfer_copies_only_card_encoder_without_aliasing_or_head_mutation(tmp
     """Ломается, если переносит не только card_encoder либо оставляет общие tensor-ы."""
     checkpoint_path = tmp_path / "hu-card.pt"
     source_network = _hu_card_checkpoint(checkpoint_path)
-    student = _six_max_student()
+    student = _six_max_student(CARD_CONTEXT_V2_ARCHITECTURE)
     context_before = {name: parameter.detach().clone() for name, parameter in student.strategy_net.context_encoder.named_parameters()}
     head_before = {name: parameter.detach().clone() for name, parameter in student.strategy_net.action_head.named_parameters()}
+    fusion_before = {name: parameter.detach().clone() for name, parameter in student.strategy_net.fusion.named_parameters()}
 
     provenance = student.load_card_encoder_from_hu_checkpoint(checkpoint_path)
 
@@ -182,10 +215,49 @@ def test_transfer_copies_only_card_encoder_without_aliasing_or_head_mutation(tmp
     assert torch.equal(student.strategy_net.card_encoder[0].bias, source_network.card_encoder[0].bias)
     assert all(torch.equal(parameter, context_before[name]) for name, parameter in student.strategy_net.context_encoder.named_parameters())
     assert all(torch.equal(parameter, head_before[name]) for name, parameter in student.strategy_net.action_head.named_parameters())
+    assert all(torch.equal(parameter, fusion_before[name]) for name, parameter in student.strategy_net.fusion.named_parameters())
 
     with torch.no_grad():
         student.strategy_net.card_encoder[0].weight.add_(1.0)
     assert not torch.equal(student.strategy_net.card_encoder[0].weight, source_network.card_encoder[0].weight)
+
+
+def test_transfer_accepts_v2_hu_card_encoder_without_copying_fusion_or_heads(tmp_path):
+    checkpoint_path = tmp_path / "hu-card-v2.pt"
+    source_network = _hu_card_checkpoint(
+        checkpoint_path,
+        architecture=CARD_CONTEXT_V2_ARCHITECTURE,
+    )
+    student = _six_max_student(CARD_CONTEXT_V2_ARCHITECTURE)
+    context_before = {
+        name: parameter.detach().clone()
+        for name, parameter in student.strategy_net.context_encoder.named_parameters()
+    }
+    head_before = {
+        name: parameter.detach().clone()
+        for name, parameter in student.strategy_net.action_head.named_parameters()
+    }
+    fusion_before = {
+        name: parameter.detach().clone()
+        for name, parameter in student.strategy_net.fusion.named_parameters()
+    }
+
+    provenance = student.load_card_encoder_from_hu_checkpoint(checkpoint_path)
+
+    assert provenance.source_architecture == CARD_CONTEXT_V2_ARCHITECTURE
+    assert torch.equal(student.strategy_net.card_encoder[0].weight, source_network.card_encoder[0].weight)
+    assert all(
+        torch.equal(parameter, context_before[name])
+        for name, parameter in student.strategy_net.context_encoder.named_parameters()
+    )
+    assert all(
+        torch.equal(parameter, head_before[name])
+        for name, parameter in student.strategy_net.action_head.named_parameters()
+    )
+    assert all(
+        torch.equal(parameter, fusion_before[name])
+        for name, parameter in student.strategy_net.fusion.named_parameters()
+    )
 
 
 def test_transfer_accepts_genuine_hu_checkpoint_with_empty_adamw_state(tmp_path):

@@ -25,6 +25,56 @@ CARD_CONTEXT_V2_ARCHITECTURE = "card_context_v2"
 CARD_CONTEXT_ARCHITECTURES = (CARD_CONTEXT_ARCHITECTURE, CARD_CONTEXT_V2_ARCHITECTURE)
 NETWORK_ARCHITECTURES = (MONOLITHIC_ARCHITECTURE, *CARD_CONTEXT_ARCHITECTURES)
 CARD_FEATURE_SIZE = 109
+
+
+def _validate_v2_fusion_contract(checkpoint, config, strategy_state):
+    card_weight = strategy_state.get("card_encoder.0.weight")
+    context_weight = strategy_state.get("context_encoder.0.weight")
+    fusion_input_weight = strategy_state.get("fusion.0.weight")
+    fusion_input_bias = strategy_state.get("fusion.0.bias")
+    fusion_output_weight = strategy_state.get("fusion.2.weight")
+    fusion_output_bias = strategy_state.get("fusion.2.bias")
+    action_weight = strategy_state.get("action_head.weight")
+    if not all(torch.is_tensor(value) for value in (
+        card_weight,
+        context_weight,
+        fusion_input_weight,
+        fusion_input_bias,
+        fusion_output_weight,
+        fusion_output_bias,
+        action_weight,
+    )):
+        raise ValueError("Checkpoint не содержит полные v2 fusion веса")
+
+    hidden_size = int(card_weight.shape[0])
+    input_size = int(card_weight.shape[1]) + int(context_weight.shape[1])
+    expected_metadata = {
+        "network_architecture": CARD_CONTEXT_V2_ARCHITECTURE,
+        "card_feature_size": CARD_FEATURE_SIZE,
+        "input_size": input_size,
+        "hidden_size": hidden_size,
+        "fusion_input_size": hidden_size * 2,
+        "fusion_output_size": hidden_size,
+        "num_actions": NUM_ACTIONS,
+    }
+    for key, expected_value in expected_metadata.items():
+        if checkpoint.get(key, config.get(key)) != expected_value:
+            raise ValueError(f"Checkpoint имеет несовместимые v2 fusion метаданные: {key}")
+
+    expected_shapes = {
+        "card_encoder.0.weight": (hidden_size, CARD_FEATURE_SIZE),
+        "context_encoder.0.weight": (hidden_size, input_size - CARD_FEATURE_SIZE),
+        "fusion.0.weight": (hidden_size, hidden_size * 2),
+        "fusion.0.bias": (hidden_size,),
+        "fusion.2.weight": (hidden_size, hidden_size),
+        "fusion.2.bias": (hidden_size,),
+        "action_head.weight": (NUM_ACTIONS, hidden_size),
+    }
+    for key, expected_shape in expected_shapes.items():
+        value = strategy_state[key]
+        if tuple(value.shape) != expected_shape:
+            raise ValueError(f"Checkpoint имеет несовместимые v2 fusion веса: {key}")
+    return input_size, hidden_size
 @runtime_checkable
 class PlayerState(Protocol):
     hand: list
@@ -457,6 +507,12 @@ class PolicyRuntimeAgent:
                 raise ValueError("Checkpoint не содержит веса card_context_v1")
             self.hidden_size = int(card_weight.shape[0])
             self.input_size = int(card_weight.shape[1]) + int(context_weight.shape[1])
+        elif architecture == CARD_CONTEXT_V2_ARCHITECTURE:
+            self.input_size, self.hidden_size = _validate_v2_fusion_contract(
+                checkpoint,
+                cfg,
+                strategy_sd,
+            )
         else:
             first_weight_key = 'base.0.weight'
             if first_weight_key not in strategy_sd:

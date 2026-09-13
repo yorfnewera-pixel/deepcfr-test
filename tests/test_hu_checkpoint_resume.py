@@ -10,7 +10,14 @@ import torch
 
 from src.core.buffers import AdvantageBuffer
 from src.core.hu_self_play import HuStrategyBuffer
-from src.core.model import CARD_CONTEXT_ARCHITECTURE, CARD_FEATURE_SIZE, MONOLITHIC_ARCHITECTURE, PokerNetwork
+from src.core.model import (
+    CARD_CONTEXT_ARCHITECTURE,
+    CARD_CONTEXT_ARCHITECTURES,
+    CARD_CONTEXT_V2_ARCHITECTURE,
+    CARD_FEATURE_SIZE,
+    MONOLITHIC_ARCHITECTURE,
+    PokerNetwork,
+)
 from src.training import train as train_mod
 
 
@@ -32,7 +39,7 @@ def _hu_runtime(
     iteration: int = 7,
     network_architecture: str = MONOLITHIC_ARCHITECTURE,
 ):
-    input_size = CARD_FEATURE_SIZE + 1 if network_architecture == CARD_CONTEXT_ARCHITECTURE else 4
+    input_size = CARD_FEATURE_SIZE + 1 if network_architecture in CARD_CONTEXT_ARCHITECTURES else 4
     advantage_nets, advantage_targets, advantage_optimizers, advantage_buffers = [], [], [], []
     for player_id in (0, 1):
         network, optimizer = _network_with_optimizer(input_size, network_architecture)
@@ -176,6 +183,63 @@ def test_hu_card_context_checkpoint_round_trip(tmp_path):
     assert checkpoint["architecture"]["strategy"]["card_feature_size"] == CARD_FEATURE_SIZE
     restored = _hu_runtime(iteration=0, network_architecture=CARD_CONTEXT_ARCHITECTURE)
     assert train_mod._load_hu_checkpoint(restored, path)["iteration"] == 7
+
+
+def test_hu_card_context_v2_checkpoint_round_trip_restores_logits_and_fusion_metadata(tmp_path):
+    source = _hu_runtime(network_architecture=CARD_CONTEXT_V2_ARCHITECTURE)
+    advantage_input = torch.randn(2, source.input_size)
+    strategy_input = torch.randn(2, source.input_size + 2)
+    expected_advantage = source.hu_advantage_nets[0](advantage_input).detach().clone()
+    expected_target = source.hu_advantage_target_nets[1](advantage_input).detach().clone()
+    expected_strategy = source.strategy_net(strategy_input).detach().clone()
+    path = tmp_path / "card-context-v2-hu.pt"
+
+    checkpoint = train_mod._build_hu_checkpoint(source)
+    train_mod._save_hu_checkpoint(source, path)
+
+    expected_strategy_schema = {
+        "network_architecture": CARD_CONTEXT_V2_ARCHITECTURE,
+        "card_feature_size": CARD_FEATURE_SIZE,
+        "input_size": source.input_size + 2,
+        "hidden_size": 8,
+        "fusion_input_size": 16,
+        "fusion_output_size": 8,
+        "num_actions": 6,
+    }
+    assert checkpoint["architecture"]["strategy"] == expected_strategy_schema
+    restored = _hu_runtime(iteration=0, network_architecture=CARD_CONTEXT_V2_ARCHITECTURE)
+    assert train_mod._load_hu_checkpoint(restored, path)["iteration"] == 7
+    assert torch.equal(restored.hu_advantage_nets[0](advantage_input), expected_advantage)
+    assert torch.equal(restored.hu_advantage_target_nets[1](advantage_input), expected_target)
+    assert torch.equal(restored.strategy_net(strategy_input), expected_strategy)
+
+
+@pytest.mark.parametrize(
+    ("source_architecture", "target_architecture"),
+    (
+        (CARD_CONTEXT_ARCHITECTURE, CARD_CONTEXT_V2_ARCHITECTURE),
+        (CARD_CONTEXT_V2_ARCHITECTURE, CARD_CONTEXT_ARCHITECTURE),
+    ),
+)
+def test_hu_resume_rejects_card_context_version_mismatch(
+    tmp_path,
+    source_architecture,
+    target_architecture,
+):
+    checkpoint = train_mod._build_hu_checkpoint(
+        _hu_runtime(network_architecture=source_architecture)
+    )
+    path = tmp_path / "version-mismatch.pt"
+    torch.save(checkpoint, path)
+
+    with pytest.raises(
+        ValueError,
+        match=f"{source_architecture}.*{target_architecture}|{target_architecture}.*{source_architecture}",
+    ):
+        train_mod._load_hu_checkpoint(
+            _hu_runtime(iteration=0, network_architecture=target_architecture),
+            path,
+        )
 
 
 def test_hu_resume_rejects_card_context_without_architecture_metadata(tmp_path):

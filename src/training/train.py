@@ -28,6 +28,8 @@ from src.core.hu_self_play import (
 )
 from src.core.model import (
     CARD_CONTEXT_ARCHITECTURE,
+    CARD_CONTEXT_ARCHITECTURES,
+    CARD_CONTEXT_V2_ARCHITECTURE,
     CARD_FEATURE_SIZE,
     MONOLITHIC_ARCHITECTURE,
     PokerNetwork,
@@ -472,6 +474,19 @@ def _network_architecture(network: PokerNetwork) -> dict[str, int | str]:
             "hidden_size": int(network.card_encoder[0].out_features),
             "num_actions": int(action_head.out_features),
         }
+    if network.architecture == CARD_CONTEXT_V2_ARCHITECTURE:
+        hidden_size = int(network.card_encoder[0].out_features)
+        return {
+            "network_architecture": network.architecture,
+            "card_feature_size": CARD_FEATURE_SIZE,
+            "input_size": int(
+                network.card_encoder[0].in_features + network.context_encoder[0].in_features
+            ),
+            "hidden_size": hidden_size,
+            "fusion_input_size": int(network.fusion[0].in_features),
+            "fusion_output_size": int(network.fusion[0].out_features),
+            "num_actions": int(action_head.out_features),
+        }
     return {
         "network_architecture": network.architecture,
         "input_size": int(network.base[0].in_features),
@@ -500,8 +515,11 @@ def _normalize_hu_network_architecture(
         if not isinstance(checkpoint_architecture, str):
             raise ValueError("HU checkpoint имеет некорректное значение архитектуры сети")
     if checkpoint_architecture != expected_architecture:
-        raise ValueError("HU checkpoint имеет несовместимую архитектуру сети")
-    if checkpoint_architecture == CARD_CONTEXT_ARCHITECTURE:
+        raise ValueError(
+            "HU checkpoint имеет несовместимую архитектуру сети: "
+            f"{checkpoint_architecture} != {expected_architecture}"
+        )
+    if checkpoint_architecture in CARD_CONTEXT_ARCHITECTURES:
         if normalized.get("card_feature_size") != CARD_FEATURE_SIZE:
             raise ValueError("HU checkpoint имеет несовместимый размер card-признаков")
     return normalized

@@ -15,6 +15,8 @@ import torch
 from src.core.action_space import ACTION_LABELS, ACTION_SPACE_VERSION, NUM_ACTIONS
 from src.core.model import (
     CARD_CONTEXT_ARCHITECTURE,
+    CARD_CONTEXT_ARCHITECTURES,
+    CARD_CONTEXT_V2_ARCHITECTURE,
     CARD_FEATURE_SIZE,
     HISTORY_SUMMARY_V3_ENCODING_VERSION,
     encoder_input_size,
@@ -33,7 +35,7 @@ _HU_INPUT_SIZE = encoder_input_size(2, HISTORY_SUMMARY_V3_ENCODING_VERSION)
 _HU_STRATEGY_INPUT_SIZE = _HU_INPUT_SIZE + 2
 _CUDA_PHILOX_STATE_NUMEL = 16  # uint64 seed и int64 offset генератора Philox.
 _CARD_ENCODER_PARAMETER_NAMES = ("0.weight", "0.bias")
-_NETWORK_PARAMETER_NAMES = (
+_V1_NETWORK_PARAMETER_NAMES = (
     "card_encoder.0.weight",
     "card_encoder.0.bias",
     "context_encoder.0.weight",
@@ -41,7 +43,26 @@ _NETWORK_PARAMETER_NAMES = (
     "action_head.weight",
     "action_head.bias",
 )
-_STRATEGY_PARAMETER_NAMES = frozenset(_NETWORK_PARAMETER_NAMES)
+_V2_NETWORK_PARAMETER_NAMES = (
+    "card_encoder.0.weight",
+    "card_encoder.0.bias",
+    "context_encoder.0.weight",
+    "context_encoder.0.bias",
+    "fusion.0.weight",
+    "fusion.0.bias",
+    "fusion.2.weight",
+    "fusion.2.bias",
+    "action_head.weight",
+    "action_head.bias",
+)
+
+
+def _network_parameter_names(architecture: str) -> tuple[str, ...]:
+    if architecture == CARD_CONTEXT_ARCHITECTURE:
+        return _V1_NETWORK_PARAMETER_NAMES
+    if architecture == CARD_CONTEXT_V2_ARCHITECTURE:
+        return _V2_NETWORK_PARAMETER_NAMES
+    raise ValueError("HU checkpoint имеет несовместимую архитектуру сети")
 _ADAMW_GROUP_KEYS = frozenset({
     "lr",
     "betas",
@@ -191,7 +212,7 @@ def _validated_source_card_encoder(
             for parameter_name in _CARD_ENCODER_PARAMETER_NAMES
         },
         {
-            "architecture": CARD_CONTEXT_ARCHITECTURE,
+            "architecture": strategy_architecture["network_architecture"],
             "encoding_version": mode["encoding_version"],
             "num_players": mode["num_players"],
             "game_rules_version": GAME_RULES_VERSION,
@@ -281,16 +302,39 @@ def _validate_hu_full_training_state(
     if not isinstance(capacities, list) or len(capacities) != 2:
         raise ValueError("HU checkpoint имеет некорректную конфигурацию replay-буферов")
     for index, leg in enumerate(advantage_legs):
+        advantage_schema = checkpoint["architecture"]["advantage"][index]
         advantage_state = _validate_network_state(
-            leg["network"], _HU_INPUT_SIZE, hidden_size, "advantage"
+            leg["network"],
+            _HU_INPUT_SIZE,
+            hidden_size,
+            "advantage",
+            advantage_schema["network_architecture"],
         )
-        _validate_network_state(leg["target_network"], _HU_INPUT_SIZE, hidden_size, "advantage")
-        _validate_optimizer_state(leg["optimizer"], advantage_state)
+        _validate_network_state(
+            leg["target_network"],
+            _HU_INPUT_SIZE,
+            hidden_size,
+            "advantage",
+            advantage_schema["network_architecture"],
+        )
+        _validate_optimizer_state(
+            leg["optimizer"],
+            advantage_state,
+            advantage_schema["network_architecture"],
+        )
         _validate_advantage_buffer(leg["buffer"], capacities[index])
     strategy_state = _validate_network_state(
-        strategy["network"], _HU_STRATEGY_INPUT_SIZE, hidden_size, "strategy"
+        strategy["network"],
+        _HU_STRATEGY_INPUT_SIZE,
+        hidden_size,
+        "strategy",
+        strategy_architecture["network_architecture"],
     )
-    _validate_optimizer_state(strategy["optimizer"], strategy_state)
+    _validate_optimizer_state(
+        strategy["optimizer"],
+        strategy_state,
+        strategy_architecture["network_architecture"],
+    )
     _validate_strategy_buffer(strategy["buffer"], config["strategy_buffer_capacity"])
     _validate_rng_state(checkpoint.get("rng"))
     return strategy_state
@@ -305,7 +349,11 @@ def _validate_hu_d2cfr_strategy_state(
     if not isinstance(strategy, dict) or set(strategy) != {"network", "optimizer", "buffer"}:
         raise ValueError("HU D2CFR checkpoint не содержит strategy training state")
     return _validate_network_state(
-        strategy["network"], _HU_STRATEGY_INPUT_SIZE, strategy_architecture["hidden_size"], "strategy"
+        strategy["network"],
+        _HU_STRATEGY_INPUT_SIZE,
+        strategy_architecture["hidden_size"],
+        "strategy",
+        strategy_architecture["network_architecture"],
     )
 
 
@@ -314,17 +362,29 @@ def _validate_network_state(
     input_size: int,
     hidden_size: int,
     network_kind: str,
+    architecture: str,
 ) -> dict[str, torch.Tensor]:
-    if not isinstance(state, dict) or set(state) != _STRATEGY_PARAMETER_NAMES:
+    parameter_names = _network_parameter_names(architecture)
+    if not isinstance(state, dict) or set(state) != set(parameter_names):
         raise ValueError(f"HU checkpoint содержит повреждённые {network_kind}-сети")
     expected_shapes = {
         "card_encoder.0.weight": (hidden_size, CARD_FEATURE_SIZE),
         "card_encoder.0.bias": (hidden_size,),
         "context_encoder.0.weight": (hidden_size, input_size - CARD_FEATURE_SIZE),
         "context_encoder.0.bias": (hidden_size,),
-        "action_head.weight": (NUM_ACTIONS, hidden_size * 2),
+        "action_head.weight": (
+            NUM_ACTIONS,
+            hidden_size if architecture == CARD_CONTEXT_V2_ARCHITECTURE else hidden_size * 2,
+        ),
         "action_head.bias": (NUM_ACTIONS,),
     }
+    if architecture == CARD_CONTEXT_V2_ARCHITECTURE:
+        expected_shapes.update({
+            "fusion.0.weight": (hidden_size, hidden_size * 2),
+            "fusion.0.bias": (hidden_size,),
+            "fusion.2.weight": (hidden_size, hidden_size),
+            "fusion.2.bias": (hidden_size,),
+        })
     for name, shape in expected_shapes.items():
         value = state[name]
         if not torch.is_tensor(value) or tuple(value.shape) != shape:
@@ -342,13 +402,15 @@ def _validate_network_state(
 def _validate_optimizer_state(
     payload: object,
     network_state: dict[str, torch.Tensor],
+    architecture: str,
 ) -> None:
     """Проверяет ровно сериализацию AdamW, созданного для параметров PokerNetwork."""
     if not isinstance(payload, dict) or set(payload) != {"state", "param_groups"}:
         raise ValueError("HU checkpoint содержит повреждённый optimizer")
     state = payload["state"]
     groups = payload["param_groups"]
-    expected_parameter_ids = list(range(len(_NETWORK_PARAMETER_NAMES)))
+    parameter_names = _network_parameter_names(architecture)
+    expected_parameter_ids = list(range(len(parameter_names)))
     if (
         not isinstance(state, dict)
         or not isinstance(groups, list)
@@ -358,7 +420,7 @@ def _validate_optimizer_state(
     ):
         raise ValueError("HU checkpoint содержит повреждённый optimizer")
     parameter_shapes = tuple(
-        tuple(network_state[name].shape) for name in _NETWORK_PARAMETER_NAMES
+        tuple(network_state[name].shape) for name in parameter_names
     )
     for parameter_id, parameter_state in state.items():
         if (
@@ -643,13 +705,21 @@ def _validate_hu_d2cfr_architecture(checkpoint: dict[str, Any]) -> dict[str, Any
 
 
 def _validate_network_architecture(schema: object, input_size: int, hidden_size: int) -> None:
+    architecture = schema.get("network_architecture") if isinstance(schema, dict) else None
+    if architecture not in CARD_CONTEXT_ARCHITECTURES:
+        raise ValueError("HU checkpoint имеет несовместимую архитектуру сети")
     expected_schema = {
-        "network_architecture": CARD_CONTEXT_ARCHITECTURE,
+        "network_architecture": architecture,
         "card_feature_size": CARD_FEATURE_SIZE,
         "input_size": input_size,
         "hidden_size": hidden_size,
         "num_actions": NUM_ACTIONS,
     }
+    if architecture == CARD_CONTEXT_V2_ARCHITECTURE:
+        expected_schema.update({
+            "fusion_input_size": hidden_size * 2,
+            "fusion_output_size": hidden_size,
+        })
     if schema != expected_schema:
         raise ValueError("HU checkpoint имеет несовместимую архитектуру сети")
 
@@ -663,8 +733,8 @@ def _validated_student_card_encoder(
     if getattr(student, "encoding_version", None) != HISTORY_SUMMARY_V3_ENCODING_VERSION:
         raise ValueError("Six-max student должен использовать encoder history_summary_v3")
     strategy_net = getattr(student, "strategy_net", None)
-    if getattr(strategy_net, "architecture", None) != CARD_CONTEXT_ARCHITECTURE:
-        raise ValueError("Six-max student должен использовать архитектуру card_context_v1")
+    if getattr(strategy_net, "architecture", None) not in CARD_CONTEXT_ARCHITECTURES:
+        raise ValueError("Six-max student должен использовать card_context архитектуру")
     card_encoder = getattr(strategy_net, "card_encoder", None)
     parameters = dict(card_encoder.named_parameters()) if card_encoder is not None else {}
     if set(parameters) != set(_CARD_ENCODER_PARAMETER_NAMES):

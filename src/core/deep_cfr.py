@@ -11,6 +11,7 @@ from typing import Any, NoReturn
 
 import numpy as np
 import torch
+from torch import nn
 import torch.nn.functional as F
 import torch.optim as optim
 import pokers as pkrs
@@ -27,6 +28,8 @@ from src.core.buffers import AdvantageBuffer, DuelingAdvantageBuffer, StrategyBu
 from src.core.checkpointing import _resolve_model_save_path
 from src.core.model import (
     CARD_CONTEXT_ARCHITECTURE,
+    CARD_CONTEXT_ARCHITECTURES,
+    CARD_CONTEXT_V2_ARCHITECTURE,
     CARD_FEATURE_SIZE,
     HISTORY_SUMMARY_V3_ENCODING_VERSION,
     MONOLITHIC_ARCHITECTURE,
@@ -54,6 +57,28 @@ GAME_RULES_VERSION = "holdem_standard_hu_v2"
 _D2CFR_TARGET_SEMANTICS = "counterfactual_q_v_regret_q_minus_v1"
 
 
+def _validate_v2_fusion_metadata(
+    checkpoint: dict,
+    checkpoint_config: dict,
+    *,
+    input_size: int,
+    hidden_size: int,
+) -> None:
+    expected_metadata = {
+        "network_architecture": CARD_CONTEXT_V2_ARCHITECTURE,
+        "card_feature_size": CARD_FEATURE_SIZE,
+        "input_size": input_size,
+        "hidden_size": hidden_size,
+        "fusion_input_size": hidden_size * 2,
+        "fusion_output_size": hidden_size,
+        "num_actions": NUM_ACTIONS,
+    }
+    for key, expected_value in expected_metadata.items():
+        actual_value = checkpoint.get(key, checkpoint_config.get(key))
+        if actual_value != expected_value:
+            raise ValueError(f"Чекпоинт имеет несовместимые v2 fusion метаданные: {key}")
+
+
 def full_checkpoint_network_spec(checkpoint: dict) -> tuple[str, int, int]:
     """Возвращает и проверяет сетевой контракт полного checkpoint до загрузки весов."""
     checkpoint_config = checkpoint.get("config", {})
@@ -74,7 +99,7 @@ def full_checkpoint_network_spec(checkpoint: dict) -> tuple[str, int, int]:
     if not isinstance(architecture, str) or architecture not in NETWORK_ARCHITECTURES:
         raise ValueError("Чекпоинт имеет некорректное значение архитектуры сети")
 
-    if architecture == CARD_CONTEXT_ARCHITECTURE:
+    if architecture in CARD_CONTEXT_ARCHITECTURES:
         card_feature_size = checkpoint.get(
             "card_feature_size",
             checkpoint_config.get("card_feature_size"),
@@ -95,6 +120,13 @@ def full_checkpoint_network_spec(checkpoint: dict) -> tuple[str, int, int]:
                 hidden_size = int(base_weight.shape[0])
     if isinstance(hidden_size, bool) or not isinstance(hidden_size, int) or hidden_size <= 0:
         raise ValueError("В checkpoint отсутствует корректный hidden_size сети")
+    if architecture == CARD_CONTEXT_V2_ARCHITECTURE:
+        _validate_v2_fusion_metadata(
+            checkpoint,
+            checkpoint_config,
+            input_size=input_size,
+            hidden_size=hidden_size,
+        )
 
     if architecture == MONOLITHIC_ARCHITECTURE:
         expected_shapes = {
@@ -107,7 +139,7 @@ def full_checkpoint_network_spec(checkpoint: dict) -> tuple[str, int, int]:
             "action_head.weight": (NUM_ACTIONS, hidden_size),
             "action_head.bias": (NUM_ACTIONS,),
         }
-    else:
+    elif architecture == CARD_CONTEXT_ARCHITECTURE:
         context_size = input_size - CARD_FEATURE_SIZE
         if context_size < 0:
             raise ValueError("Чекпоинт имеет несовместимый размер входа card_context_v1")
@@ -117,6 +149,22 @@ def full_checkpoint_network_spec(checkpoint: dict) -> tuple[str, int, int]:
             "context_encoder.0.weight": (hidden_size, context_size),
             "context_encoder.0.bias": (hidden_size,),
             "action_head.weight": (NUM_ACTIONS, hidden_size * 2),
+            "action_head.bias": (NUM_ACTIONS,),
+        }
+    else:
+        context_size = input_size - CARD_FEATURE_SIZE
+        if context_size < 0:
+            raise ValueError("Чекпоинт имеет несовместимый размер входа card_context_v2")
+        expected_shapes = {
+            "card_encoder.0.weight": (hidden_size, CARD_FEATURE_SIZE),
+            "card_encoder.0.bias": (hidden_size,),
+            "context_encoder.0.weight": (hidden_size, context_size),
+            "context_encoder.0.bias": (hidden_size,),
+            "fusion.0.weight": (hidden_size, hidden_size * 2),
+            "fusion.0.bias": (hidden_size,),
+            "fusion.2.weight": (hidden_size, hidden_size),
+            "fusion.2.bias": (hidden_size,),
+            "action_head.weight": (NUM_ACTIONS, hidden_size),
             "action_head.bias": (NUM_ACTIONS,),
         }
 
@@ -148,7 +196,7 @@ def dueling_checkpoint_network_spec(checkpoint: dict) -> tuple[str, int, int]:
     )
     if not isinstance(architecture, str) or architecture not in NETWORK_ARCHITECTURES:
         raise ValueError("Чекпоинт имеет некорректное значение архитектуры сети")
-    if architecture == CARD_CONTEXT_ARCHITECTURE:
+    if architecture in CARD_CONTEXT_ARCHITECTURES:
         card_feature_size = checkpoint.get(
             "card_feature_size", checkpoint_config.get("card_feature_size")
         )
@@ -161,6 +209,13 @@ def dueling_checkpoint_network_spec(checkpoint: dict) -> tuple[str, int, int]:
     hidden_size = checkpoint_config.get("hidden_size")
     if isinstance(hidden_size, bool) or not isinstance(hidden_size, int) or hidden_size <= 0:
         raise ValueError("В checkpoint отсутствует корректный hidden_size сети")
+    if architecture == CARD_CONTEXT_V2_ARCHITECTURE:
+        _validate_v2_fusion_metadata(
+            checkpoint,
+            checkpoint_config,
+            input_size=input_size,
+            hidden_size=hidden_size,
+        )
 
     if architecture == MONOLITHIC_ARCHITECTURE:
         trunk_shapes = {
@@ -171,7 +226,7 @@ def dueling_checkpoint_network_spec(checkpoint: dict) -> tuple[str, int, int]:
             "base.4.weight": (hidden_size, hidden_size),
             "base.4.bias": (hidden_size,),
         }
-    else:
+    elif architecture == CARD_CONTEXT_ARCHITECTURE:
         context_size = input_size - CARD_FEATURE_SIZE
         if context_size < 0:
             raise ValueError("Чекпоинт имеет несовместимый размер входа card_context_v1")
@@ -181,17 +236,35 @@ def dueling_checkpoint_network_spec(checkpoint: dict) -> tuple[str, int, int]:
             "context_encoder.0.weight": (hidden_size, context_size),
             "context_encoder.0.bias": (hidden_size,),
         }
+    else:
+        context_size = input_size - CARD_FEATURE_SIZE
+        if context_size < 0:
+            raise ValueError("Чекпоинт имеет несовместимый размер входа card_context_v2")
+        trunk_shapes = {
+            "card_encoder.0.weight": (hidden_size, CARD_FEATURE_SIZE),
+            "card_encoder.0.bias": (hidden_size,),
+            "context_encoder.0.weight": (hidden_size, context_size),
+            "context_encoder.0.bias": (hidden_size,),
+            "fusion.0.weight": (hidden_size, hidden_size * 2),
+            "fusion.0.bias": (hidden_size,),
+            "fusion.2.weight": (hidden_size, hidden_size),
+            "fusion.2.bias": (hidden_size,),
+        }
 
+    head_input_size = hidden_size if architecture in (
+        MONOLITHIC_ARCHITECTURE,
+        CARD_CONTEXT_V2_ARCHITECTURE,
+    ) else hidden_size * 2
     advantage_shapes = {
         **trunk_shapes,
-        "state_value_head.weight": (1, hidden_size if architecture == MONOLITHIC_ARCHITECTURE else hidden_size * 2),
+        "state_value_head.weight": (1, head_input_size),
         "state_value_head.bias": (1,),
-        "action_value_head.weight": (NUM_ACTIONS, hidden_size if architecture == MONOLITHIC_ARCHITECTURE else hidden_size * 2),
+        "action_value_head.weight": (NUM_ACTIONS, head_input_size),
         "action_value_head.bias": (NUM_ACTIONS,),
     }
     strategy_shapes = {
         **trunk_shapes,
-        "action_head.weight": (NUM_ACTIONS, hidden_size if architecture == MONOLITHIC_ARCHITECTURE else hidden_size * 2),
+        "action_head.weight": (NUM_ACTIONS, head_input_size),
         "action_head.bias": (NUM_ACTIONS,),
     }
     for network_key, expected_shapes in (
@@ -382,7 +455,7 @@ class DeepCFRAgent:
 
     @staticmethod
     def _network_hidden_size(network):
-        if network.architecture == CARD_CONTEXT_ARCHITECTURE:
+        if network.architecture in CARD_CONTEXT_ARCHITECTURES:
             return int(network.card_encoder[0].out_features)
         return int(network.base[0].out_features)
 
@@ -402,10 +475,29 @@ class DeepCFRAgent:
             weight_decay=self.advantage_weight_decay,
         )
 
-    def _network_metadata(self):
-        metadata = {"network_architecture": self.network_architecture}
-        if self.network_architecture == CARD_CONTEXT_ARCHITECTURE:
+    def _network_metadata(self, network: PokerNetwork | None = None):
+        network = self.strategy_net if network is None else network
+        metadata: dict[str, int | str] = {"network_architecture": network.architecture}
+        if network.architecture in CARD_CONTEXT_ARCHITECTURES:
             metadata["card_feature_size"] = CARD_FEATURE_SIZE
+        if network.architecture == CARD_CONTEXT_V2_ARCHITECTURE:
+            card_layer = network.card_encoder[0]
+            context_layer = network.context_encoder[0]
+            fusion_layer = network.fusion[0]
+            if (
+                not isinstance(card_layer, nn.Linear)
+                or not isinstance(context_layer, nn.Linear)
+                or not isinstance(fusion_layer, nn.Linear)
+            ):
+                raise ValueError("card_context_v2 имеет некорректные слои fusion")
+            hidden_size = self._network_hidden_size(network)
+            metadata.update({
+                "input_size": int(card_layer.in_features + context_layer.in_features),
+                "hidden_size": hidden_size,
+                "fusion_input_size": int(fusion_layer.in_features),
+                "fusion_output_size": int(fusion_layer.out_features),
+                "num_actions": int(network.action_head.out_features),
+            })
         return metadata
 
     def _d2cfr_checkpoint_metadata(self):
@@ -442,14 +534,27 @@ class DeepCFRAgent:
         if not isinstance(checkpoint_architecture, str):
             raise ValueError("Чекпоинт имеет некорректное значение архитектуры сети")
         if checkpoint_architecture != self.network_architecture:
-            raise ValueError("Чекпоинт имеет несовместимую архитектуру сети")
-        if checkpoint_architecture == CARD_CONTEXT_ARCHITECTURE:
+            raise ValueError(
+                "Чекпоинт имеет несовместимую архитектуру сети: "
+                f"{checkpoint_architecture} != {self.network_architecture}"
+            )
+        if checkpoint_architecture in CARD_CONTEXT_ARCHITECTURES:
             checkpoint_card_feature_size = checkpoint.get(
                 "card_feature_size",
                 checkpoint_config.get("card_feature_size"),
             )
             if checkpoint_card_feature_size != CARD_FEATURE_SIZE:
                 raise ValueError("Чекпоинт имеет несовместимый размер card-признаков")
+        if checkpoint_architecture == CARD_CONTEXT_V2_ARCHITECTURE:
+            _validate_v2_fusion_metadata(
+                checkpoint,
+                checkpoint_config,
+                input_size=int(
+                    self.strategy_net.card_encoder[0].in_features
+                    + self.strategy_net.context_encoder[0].in_features
+                ),
+                hidden_size=self._network_hidden_size(self.strategy_net),
+            )
 
     @staticmethod
     def _network_hidden_size_from_state(state_dict):
@@ -2253,7 +2358,7 @@ class DeepCFRAgent:
         buffer.skip_count = int(payload["skip_count"])
 
     def _build_checkpoint(self, seed=None, extra=None):
-        network_metadata = self._network_metadata()
+        network_metadata = self._network_metadata(self.strategy_net)
         algorithm_variant = "d2cfr_dueling_v1" if self.d2cfr_enabled else "deep_cfr_action_only_v1"
         checkpoint = {
             "checkpoint_format_version": CHECKPOINT_FORMAT_VERSION,
@@ -2325,8 +2430,8 @@ class DeepCFRAgent:
 
     def build_light_checkpoint(self, seed=None):
         """Возвращает inference-артефакт только с усреднённой стратегией."""
-        network_metadata = self._network_metadata()
-        if self.strategy_net.architecture == CARD_CONTEXT_ARCHITECTURE:
+        network_metadata = self._network_metadata(self.strategy_net)
+        if self.strategy_net.architecture in CARD_CONTEXT_ARCHITECTURES:
             strategy_input_size = int(
                 self.strategy_net.card_encoder[0].in_features
                 + self.strategy_net.context_encoder[0].in_features
