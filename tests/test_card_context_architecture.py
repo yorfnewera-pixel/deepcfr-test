@@ -6,10 +6,13 @@ import torch
 from src.core.deep_cfr import DeepCFRAgent
 from src.core.model import (
     CARD_CONTEXT_ARCHITECTURE,
+    CARD_CONTEXT_V2_ARCHITECTURE,
     CARD_FEATURE_SIZE,
+    DuelingRegretNetwork,
     MONOLITHIC_ARCHITECTURE,
     PokerNetwork,
 )
+from policy_runtime.core import PokerNetwork as RuntimePokerNetwork
 from src.utils import config as config_mod
 
 
@@ -53,6 +56,118 @@ def test_monolithic_architecture_remains_default_and_uses_legacy_keys():
         "action_head.weight",
         "action_head.bias",
     }
+
+
+@pytest.mark.parametrize("network_class", (PokerNetwork, RuntimePokerNetwork))
+def test_card_context_v1_keeps_direct_head_input(network_class):
+    network = network_class(181, hidden_size=16, architecture=CARD_CONTEXT_ARCHITECTURE)
+
+    assert network.action_head.in_features == 32
+    assert not hasattr(network, "fusion")
+    assert set(network.state_dict()) == {
+        "card_encoder.0.weight",
+        "card_encoder.0.bias",
+        "context_encoder.0.weight",
+        "context_encoder.0.bias",
+        "action_head.weight",
+        "action_head.bias",
+    }
+
+
+@pytest.mark.parametrize("network_class", (PokerNetwork, RuntimePokerNetwork))
+def test_card_context_v2_fuses_embeddings_before_action_head(network_class):
+    network = network_class(181, hidden_size=16, architecture=CARD_CONTEXT_V2_ARCHITECTURE)
+    logits = network(torch.randn(3, 181))
+
+    assert network.fusion[0].in_features == 32
+    assert network.fusion[0].out_features == 16
+    assert network.fusion[2].in_features == 16
+    assert network.fusion[2].out_features == 16
+    assert network.action_head.in_features == 16
+    assert logits.shape == (3, 6)
+    assert torch.equal(network.action_head.weight, torch.zeros_like(network.action_head.weight))
+    assert torch.equal(network.action_head.bias, torch.zeros_like(network.action_head.bias))
+
+
+def test_dueling_card_context_v2_preserves_exact_action_value_minus_state_value():
+    network = DuelingRegretNetwork(181, hidden_size=16, architecture=CARD_CONTEXT_V2_ARCHITECTURE)
+    result = network.forward_components(torch.randn(3, 181))
+
+    assert network.fusion[0].in_features == 32
+    assert network.fusion[0].out_features == 16
+    assert network.fusion[2].in_features == 16
+    assert network.fusion[2].out_features == 16
+    assert network.state_value_head.in_features == 16
+    assert network.action_value_head.in_features == 16
+    assert result.state_values.shape == (3, 1)
+    assert result.action_values.shape == (3, 6)
+    assert result.regrets.shape == (3, 6)
+    assert torch.equal(result.regrets, result.action_values - result.state_values)
+    assert torch.equal(network.state_value_head.weight, torch.zeros_like(network.state_value_head.weight))
+    assert torch.equal(network.action_value_head.weight, torch.zeros_like(network.action_value_head.weight))
+
+
+def test_card_context_v2_represents_binary_card_context_interaction():
+    inputs = torch.zeros(4, 181)
+    inputs[1, 109] = 1.0
+    inputs[2, 0] = 1.0
+    inputs[3, 0] = 1.0
+    inputs[3, 109] = 1.0
+    v1 = PokerNetwork(181, hidden_size=1, architecture=CARD_CONTEXT_ARCHITECTURE)
+    v2 = PokerNetwork(181, hidden_size=1, architecture=CARD_CONTEXT_V2_ARCHITECTURE)
+
+    with torch.no_grad():
+        for network in (v1, v2):
+            network.card_encoder[0].weight.zero_()
+            network.card_encoder[0].bias.zero_()
+            network.card_encoder[0].weight[0, 0] = 1.0
+            network.context_encoder[0].weight.zero_()
+            network.context_encoder[0].bias.zero_()
+            network.context_encoder[0].weight[0, 0] = 1.0
+
+        v1.action_head.weight.zero_()
+        v1.action_head.bias.zero_()
+        v1.action_head.weight[0, 0] = 1.0
+        v1.action_head.weight[0, 1] = 1.0
+
+        v2.fusion[0].weight.fill_(1.0)
+        v2.fusion[0].bias.fill_(-1.0)
+        v2.fusion[2].weight.fill_(1.0)
+        v2.fusion[2].bias.zero_()
+        v2.action_head.weight.zero_()
+        v2.action_head.bias.zero_()
+        v2.action_head.weight[0, 0] = 1.0
+
+    v1_outputs = v1(inputs)[:, 0]
+    v2_outputs = v2(inputs)[:, 0]
+
+    assert torch.equal(v1_outputs, torch.tensor((0.0, 1.0, 1.0, 2.0)))
+    assert torch.equal(v2_outputs, torch.tensor((0.0, 0.0, 0.0, 1.0)))
+    assert v1_outputs[3] - v1_outputs[2] - v1_outputs[1] + v1_outputs[0] == 0.0
+    assert v2_outputs[3] - v2_outputs[2] - v2_outputs[1] + v2_outputs[0] == 1.0
+
+
+@pytest.mark.parametrize("network_class", (PokerNetwork, RuntimePokerNetwork))
+@pytest.mark.parametrize("architecture", (CARD_CONTEXT_ARCHITECTURE, CARD_CONTEXT_V2_ARCHITECTURE))
+def test_card_context_encoders_are_available_for_both_card_context_architectures(
+    network_class, architecture
+):
+    network = network_class(181, hidden_size=16, architecture=architecture)
+    state = torch.randn(3, 181)
+
+    assert network.encode_cards(state).shape == (3, 16)
+    assert network.encode_context(state).shape == (3, 16)
+
+
+@pytest.mark.parametrize("network_class", (PokerNetwork, RuntimePokerNetwork))
+def test_monolithic_networks_keep_forward_contract_and_reject_card_context_encoders(network_class):
+    network = network_class(181, hidden_size=16, architecture=MONOLITHIC_ARCHITECTURE)
+
+    assert network(torch.randn(3, 181)).shape == (3, 6)
+    with pytest.raises(ValueError, match="Кодировщик карт"):
+        network.encode_cards(torch.randn(1, 181))
+    with pytest.raises(ValueError, match="Контекстный кодировщик"):
+        network.encode_context(torch.randn(1, 181))
 
 
 def test_monolithic_agent_rejects_card_context_checkpoint(tmp_path):

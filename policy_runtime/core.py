@@ -21,7 +21,9 @@ NUM_ACTIONS = 6
 DEFAULT_HIDDEN = 256
 MONOLITHIC_ARCHITECTURE = "monolithic_v1"
 CARD_CONTEXT_ARCHITECTURE = "card_context_v1"
-NETWORK_ARCHITECTURES = (MONOLITHIC_ARCHITECTURE, CARD_CONTEXT_ARCHITECTURE)
+CARD_CONTEXT_V2_ARCHITECTURE = "card_context_v2"
+CARD_CONTEXT_ARCHITECTURES = (CARD_CONTEXT_ARCHITECTURE, CARD_CONTEXT_V2_ARCHITECTURE)
+NETWORK_ARCHITECTURES = (MONOLITHIC_ARCHITECTURE, *CARD_CONTEXT_ARCHITECTURES)
 CARD_FEATURE_SIZE = 109
 @runtime_checkable
 class PlayerState(Protocol):
@@ -316,9 +318,9 @@ class PokerNetwork(nn.Module):
         super().__init__()
         if architecture not in NETWORK_ARCHITECTURES:
             raise ValueError(f"Неизвестная архитектура сети: {architecture}")
-        if architecture == CARD_CONTEXT_ARCHITECTURE and int(input_size) < CARD_FEATURE_SIZE:
+        if architecture in CARD_CONTEXT_ARCHITECTURES and int(input_size) < CARD_FEATURE_SIZE:
             raise ValueError(
-                f"Архитектура {CARD_CONTEXT_ARCHITECTURE} требует не менее {CARD_FEATURE_SIZE} признаков"
+                f"Архитектура {architecture} требует не менее {CARD_FEATURE_SIZE} признаков"
             )
 
         self.num_actions = num_actions
@@ -342,7 +344,16 @@ class PokerNetwork(nn.Module):
                 nn.Linear(int(input_size) - CARD_FEATURE_SIZE, hidden_size),
                 nn.ReLU(),
             )
-            action_input_size = hidden_size * 2
+            if architecture == CARD_CONTEXT_ARCHITECTURE:
+                action_input_size = hidden_size * 2
+            else:
+                self.fusion = nn.Sequential(
+                    nn.Linear(hidden_size * 2, hidden_size),
+                    nn.ReLU(),
+                    nn.Linear(hidden_size, hidden_size),
+                    nn.ReLU(),
+                )
+                action_input_size = hidden_size
         self.action_head = nn.Linear(action_input_size, num_actions)
         self._init_output_layers()
 
@@ -354,11 +365,24 @@ class PokerNetwork(nn.Module):
         if self.architecture == MONOLITHIC_ARCHITECTURE:
             features = self.base(x)
         else:
-            features = torch.cat((
-                self.card_encoder(x[..., :CARD_FEATURE_SIZE]),
-                self.context_encoder(x[..., CARD_FEATURE_SIZE:]),
-            ), dim=-1)
+            features = self._encode_card_context(x)
         return self.action_head(features)
+
+    def _encode_card_context(self, x):
+        features = torch.cat((self.encode_cards(x), self.encode_context(x)), dim=-1)
+        if self.architecture == CARD_CONTEXT_V2_ARCHITECTURE:
+            return self.fusion(features)
+        return features
+
+    def encode_cards(self, x):
+        if self.architecture not in CARD_CONTEXT_ARCHITECTURES:
+            raise ValueError("Кодировщик карт доступен только для card_context архитектур")
+        return self.card_encoder(x[..., :CARD_FEATURE_SIZE])
+
+    def encode_context(self, x):
+        if self.architecture not in CARD_CONTEXT_ARCHITECTURES:
+            raise ValueError("Контекстный кодировщик доступен только для card_context архитектур")
+        return self.context_encoder(x[..., CARD_FEATURE_SIZE:])
 
 
 FEATURE_SPEC = {
