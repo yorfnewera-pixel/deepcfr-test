@@ -9,6 +9,7 @@ sizing_buffer_targets_*.json
 __pycache__/
 *.pyc
 .worktrees/
+.superpowers/
 logs/
 .serena-runtime/logs/
 .serena/logs/
