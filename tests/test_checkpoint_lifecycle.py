@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import cast
 
 import pytest
 import torch
@@ -454,10 +455,13 @@ def test_opponent_pool_schedule_keeps_composition_until_next_checkpoint_slot(mon
 def test_full_checkpoint_retention_keeps_eleven_recent_and_two_historical(tmp_path):
     for iteration in range(1000, 100001, 1000):
         (tmp_path / f"multi_checkpoint_iter_{iteration}.pt").touch()
+    hu_checkpoint = tmp_path / "hu_checkpoint_iter_5000.pt"
+    hu_checkpoint.touch()
 
     train_mod._prune_full_checkpoints(tmp_path, historical_every=50000)
 
     assert sorted(train_mod._heavy_checkpoints(tmp_path)) == [50000, *range(89000, 101000, 1000)]
+    assert hu_checkpoint.exists()
 
 
 def test_checkpoint_pipeline_keeps_full_and_light_history_without_advantage_files(tmp_path):
@@ -487,6 +491,140 @@ def test_hu_light_checkpoint_is_retained_next_to_hu_full_checkpoint(tmp_path):
 
     assert path.name == "light_checkpoint_iter_5000.pt"
     assert path.exists()
+
+
+def test_hu_full_checkpoint_retention_keeps_recent_and_milestones(tmp_path):
+    """Ломается, если HU retention смешивает namespace или удаляет resume checkpoint."""
+    hu_iterations = (5000, 10000, 15000, 50000, 55000, 100000, 105000)
+    for iteration in hu_iterations:
+        (tmp_path / f"hu_checkpoint_iter_{iteration}.pt").touch()
+    (tmp_path / "multi_checkpoint_iter_5000.pt").touch()
+    (tmp_path / "hu_checkpoint_final.pt").touch()
+    (tmp_path / "checkpoint-notes.pt").touch()
+
+    retention = train_mod._prune_hu_full_checkpoints(
+        tmp_path,
+        milestone_every=50000,
+        keep_recent=2,
+        keep_milestones=2,
+    )
+
+    assert sorted(train_mod._checkpoint_paths(tmp_path, "hu_checkpoint_iter_")) == [
+        50000,
+        55000,
+        100000,
+        105000,
+    ]
+    assert retention["recent"] == [55000, 105000]
+    assert retention["milestones"] == [50000, 100000]
+    assert retention["deleted"] == [5000, 10000, 15000]
+    assert (tmp_path / "multi_checkpoint_iter_5000.pt").exists()
+    assert (tmp_path / "hu_checkpoint_final.pt").exists()
+    assert (tmp_path / "checkpoint-notes.pt").exists()
+
+    assert train_mod._prune_hu_full_checkpoints(
+        tmp_path,
+        milestone_every=50000,
+        keep_recent=2,
+        keep_milestones=2,
+    )["deleted"] == []
+
+
+def test_hu_light_pruning_removes_only_orphans_for_retained_full_checkpoints(tmp_path):
+    """Ломается, если light checkpoint удаляется без проверки HU full checkpoint."""
+    for iteration in (55000, 105000):
+        (tmp_path / f"hu_checkpoint_iter_{iteration}.pt").touch()
+        (tmp_path / f"light_checkpoint_iter_{iteration}.pt").touch()
+    orphan = tmp_path / "light_checkpoint_iter_15000.pt"
+    orphan.touch()
+    final_light = tmp_path / "light_checkpoint_final.pt"
+    final_light.touch()
+
+    train_mod._prune_light_checkpoints(
+        tmp_path,
+        full_checkpoint_prefix="hu_checkpoint_iter_",
+    )
+
+    assert (tmp_path / "light_checkpoint_iter_55000.pt").exists()
+    assert (tmp_path / "light_checkpoint_iter_105000.pt").exists()
+    assert not orphan.exists()
+    assert final_light.exists()
+
+
+def test_hu_retention_keeps_latest_resumable_checkpoint_when_limits_are_zero(tmp_path):
+    """Ломается, если некорректный лимит retention удаляет последний HU checkpoint."""
+    for iteration in (5000, 10000, 15000):
+        (tmp_path / f"hu_checkpoint_iter_{iteration}.pt").touch()
+
+    train_mod._prune_hu_full_checkpoints(
+        tmp_path,
+        milestone_every=50000,
+        keep_recent=0,
+        keep_milestones=0,
+    )
+
+    assert sorted(train_mod._checkpoint_paths(tmp_path, "hu_checkpoint_iter_")) == [15000]
+
+
+def test_hu_iteration_checkpoint_saves_full_before_pruning_and_light(tmp_path, monkeypatch):
+    """Ломается, если HU pruning может выполниться до успешного полного сохранения."""
+    events = []
+
+    def save_full(_agent, path, seed=None):
+        events.append(("full", Path(path).name, seed))
+        return Path(path)
+
+    def prune_full(directory):
+        events.append(("prune_full", Path(directory).name))
+        return {"recent": [], "milestones": [], "deleted": []}
+
+    def save_light(_agent, directory, iteration, **kwargs):
+        events.append(("light", Path(directory).name, iteration, kwargs["full_checkpoint_prefix"]))
+        return Path(directory) / f"light_checkpoint_iter_{iteration}.pt"
+
+    monkeypatch.setattr(train_mod, "_save_hu_checkpoint", save_full)
+    monkeypatch.setattr(train_mod, "_prune_hu_full_checkpoints", prune_full)
+    monkeypatch.setattr(train_mod, "_save_iteration_light_checkpoint", save_light)
+
+    full_path, light_path = train_mod._save_hu_iteration_checkpoints(
+        cast(DeepCFRAgent, TinyAgent()),
+        tmp_path,
+        5000,
+        seed=17,
+    )
+
+    assert full_path.name == "hu_checkpoint_iter_5000.pt"
+    assert light_path.name == "light_checkpoint_iter_5000.pt"
+    assert events == [
+        ("full", "hu_checkpoint_iter_5000.pt", 17),
+        ("prune_full", tmp_path.name),
+        ("light", tmp_path.name, 5000, "hu_checkpoint_iter_"),
+    ]
+
+
+def test_hu_iteration_checkpoint_does_not_prune_after_full_save_failure(tmp_path, monkeypatch):
+    """Ломается, если ошибка атомарного HU save удаляет предыдущий resume checkpoint."""
+    previous = tmp_path / "hu_checkpoint_iter_5000.pt"
+    previous.touch()
+
+    def failing_save(_agent, _path, seed=None):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(train_mod, "_save_hu_checkpoint", failing_save)
+    monkeypatch.setattr(
+        train_mod,
+        "_prune_hu_full_checkpoints",
+        lambda _directory: pytest.fail("pruning не должен запускаться после ошибки save"),
+    )
+
+    with pytest.raises(OSError, match="disk full"):
+        train_mod._save_hu_iteration_checkpoints(
+            cast(DeepCFRAgent, TinyAgent()),
+            tmp_path,
+            10000,
+        )
+
+    assert previous.exists()
 
 
 def test_opponent_pool_caches_full_checkpoint_strategy_state(tmp_path, monkeypatch):

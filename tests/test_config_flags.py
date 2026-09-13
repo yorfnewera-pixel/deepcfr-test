@@ -192,6 +192,8 @@ def test_hu_checkpoint_interval_has_separate_default(tmp_path):
         config_mod.load_config(config_path)
 
         assert config_mod.cfg_get("hu_checkpoint_save_every") == 5000
+        assert config_mod.cfg_get("hu_checkpoint_keep_recent") == 2
+        assert config_mod.cfg_get("hu_checkpoint_keep_milestones") == 2
         assert config_mod.cfg_get("checkpoint_save_every") == 1000
     finally:
         config_mod.load_config("config.yaml")

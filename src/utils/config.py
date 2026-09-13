@@ -63,6 +63,8 @@ _DEFAULTS = {
     "checkpoint_save_every": 1000,
     "hu_checkpoint_save_every": 5000,
     "checkpoint_keep_every": 50000,
+    "hu_checkpoint_keep_recent": 2,
+    "hu_checkpoint_keep_milestones": 2,
     "traversal_single_thread": True,
     "training_torch_threads": None,
     "training_preload_to_device": False,

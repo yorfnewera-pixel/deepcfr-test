@@ -8,6 +8,7 @@ import re
 import tempfile
 import time
 import argparse
+import logging
 from copy import deepcopy
 from contextlib import contextmanager
 from pathlib import Path
@@ -68,6 +69,7 @@ _HU_RUNTIME_CONFIG_ALLOWLIST = frozenset({
     "training_preload_to_device",
     "traversal_single_thread",
 })
+_LOGGER = logging.getLogger(__name__)
 
 
 def _teacher_transfer_provenance_payload(provenance: object) -> dict[str, object]:
@@ -191,7 +193,7 @@ def _assign_checkpoint_opponents(
 
 def _heavy_checkpoints(directory: str | Path) -> dict[int, Path]:
     """Возвращает полные checkpoint для продолжения обучения."""
-    return _checkpoint_paths(directory, _HEAVY_CHECKPOINT_PREFIX)
+    return _full_checkpoints(directory, _HEAVY_CHECKPOINT_PREFIX)
 
 
 def _latest_strategy_checkpoint_path(iteration: int, checkpoint_dir: str | Path) -> Path:
@@ -218,27 +220,82 @@ def _checkpoint_paths(directory: str | Path, prefix: str) -> dict[int, Path]:
     return result
 
 
+def _full_checkpoints(directory: str | Path, prefix: str) -> dict[int, Path]:
+    """Возвращает полные checkpoint только явно указанного namespace."""
+    return _checkpoint_paths(directory, prefix)
+
+
 def _checkpoint_save_due(iteration: int, every: int) -> bool:
     """Возвращает, следует ли сохранить checkpoint после итерации."""
     return int(iteration) > 0 and int(iteration) % max(1, int(every)) == 0
 
 
-def _prune_full_checkpoints(directory: str | Path, historical_every: int) -> None:
-    """Оставляет 11 свежих и два последних исторических full checkpoint."""
-    checkpoints = _heavy_checkpoints(directory)
+def _prune_full_checkpoints(
+    directory: str | Path,
+    historical_every: int,
+    *,
+    prefix: str = _HEAVY_CHECKPOINT_PREFIX,
+    keep_recent: int = _OPPONENT_RECENT_CHECKPOINTS,
+    keep_milestones: int = _OPPONENT_HISTORICAL_CHECKPOINTS,
+) -> dict[str, list[int]]:
+    """Очищает full checkpoint заданного namespace, сохраняя recent и milestones."""
+    checkpoints = _full_checkpoints(directory, prefix)
     historical_every = max(1, int(historical_every))
-    historical = sorted(
+    milestone_limit = max(0, int(keep_milestones))
+    milestone_candidates = sorted(
         iteration for iteration in checkpoints if iteration % historical_every == 0
-    )[-_OPPONENT_HISTORICAL_CHECKPOINTS:]
+    )
+    historical = milestone_candidates[-milestone_limit:] if milestone_limit else []
     historical_set = set(historical)
     ordinary = sorted(
         (iteration for iteration in checkpoints if iteration not in historical_set),
         reverse=True,
-    )[:_OPPONENT_RECENT_CHECKPOINTS]
+    )[:max(0, int(keep_recent))]
     retained = historical_set | set(ordinary)
+    if checkpoints and not retained:
+        latest = max(checkpoints)
+        retained.add(latest)
+        ordinary = [latest]
+    deleted: list[int] = []
     for iteration, path in checkpoints.items():
         if iteration not in retained:
             path.unlink(missing_ok=True)
+            deleted.append(iteration)
+    return {
+        "recent": sorted(ordinary),
+        "milestones": sorted(historical_set),
+        "deleted": sorted(deleted),
+    }
+
+
+def _prune_hu_full_checkpoints(
+    directory: str | Path,
+    *,
+    milestone_every: int | None = None,
+    keep_recent: int | None = None,
+    keep_milestones: int | None = None,
+) -> dict[str, list[int]]:
+    """Применяет отдельную retention policy к полным HU checkpoint."""
+    retention = _prune_full_checkpoints(
+        directory,
+        int(cfg_get("checkpoint_keep_every", 50000))
+        if milestone_every is None
+        else milestone_every,
+        prefix=_HU_HEAVY_CHECKPOINT_PREFIX,
+        keep_recent=int(cfg_get("hu_checkpoint_keep_recent", 2))
+        if keep_recent is None
+        else keep_recent,
+        keep_milestones=int(cfg_get("hu_checkpoint_keep_milestones", 2))
+        if keep_milestones is None
+        else keep_milestones,
+    )
+    _LOGGER.info(
+        "HU checkpoint retention: kept recent=%s; kept milestones=%s; deleted=%s",
+        retention["recent"],
+        retention["milestones"],
+        retention["deleted"],
+    )
+    return retention
 
 
 def _prune_light_checkpoints(
@@ -1162,6 +1219,29 @@ def _save_hu_checkpoint(agent: DeepCFRAgent, path: str | Path, seed: int | None 
     return target
 
 
+def _save_hu_iteration_checkpoints(
+    agent: DeepCFRAgent,
+    save_dir: str | Path,
+    iteration: int,
+    seed: int | None = None,
+) -> tuple[Path, Path]:
+    """Сохраняет HU full/light пару, не удаляя resume checkpoint до успешного save."""
+    full_path = _save_hu_checkpoint(
+        agent,
+        Path(save_dir) / f"{_HU_HEAVY_CHECKPOINT_PREFIX}{int(iteration)}.pt",
+        seed=seed,
+    )
+    _prune_hu_full_checkpoints(save_dir)
+    light_path = _save_iteration_light_checkpoint(
+        agent,
+        save_dir,
+        iteration,
+        seed=seed,
+        full_checkpoint_prefix=_HU_HEAVY_CHECKPOINT_PREFIX,
+    )
+    return full_path, light_path
+
+
 def _save_iteration_checkpoint(
     agent: DeepCFRAgent,
     save_dir: str | Path,
@@ -1865,17 +1945,11 @@ def _train_hu_current_policy_self_play(
                     f"raise_freq={evaluation['raise_frequency']:.3f}, игр={int(evaluation['games'])}"
                 )
             if _checkpoint_save_due(iteration, int(cfg_get("hu_checkpoint_save_every", 5000))):
-                checkpoint_path = _save_hu_checkpoint(
-                    agent,
-                    Path(save_dir) / f"hu_checkpoint_iter_{iteration}.pt",
-                    seed=seed,
-                )
-                light_checkpoint_path = _save_iteration_light_checkpoint(
+                checkpoint_path, light_checkpoint_path = _save_hu_iteration_checkpoints(
                     agent,
                     save_dir,
                     iteration,
                     seed=seed,
-                    full_checkpoint_prefix=_HU_HEAVY_CHECKPOINT_PREFIX,
                 )
                 print(f"  HU checkpoint: {checkpoint_path}")
                 print(f"  Light checkpoint: {light_checkpoint_path}")
