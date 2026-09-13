@@ -1,0 +1,833 @@
+Ниже готовый план, который можно целиком передать агенту.
+
+---
+
+# План исправлений после повторного ревью Astra
+
+## 0. Исходная точка и ограничения
+
+Работать от актуальной ветки `main`.
+
+Исходный commit ревью:
+
+```
+994d7cc8bd19082adf9b0bf7c0d2b4bfcfa31356
+```
+
+Перед изменениями:
+
+1. Убедиться, что `HEAD` соответствует этому commit либо является его потомком.
+2. Запустить текущие Python- и Rust-тесты и записать baseline.
+3. Не откатывать исправления commit 153:
+    - стандартные HU blinds;
+    - корректный HU action order в `from_seed/from_deck`;
+    - BB check после limp;
+    - wheel как 5-high straight;
+    - `_size/_total_seen` в reservoir;
+    - версионирование игровых правил;
+    - исправления HU checkpoint и actor conditioning.
+4. Не менять в рамках этого задания:
+    - D2CFR target semantics;
+    - historical reservoir lifecycle;
+    - порядок HU traversal/training;
+    - D2CFR loss;
+    - Huber/MSE A/B;
+    - MC correction;
+    - traversal baseline.
+
+Текущий активный loss сохранить:
+
+```yaml
+d2cfr_loss_mode: anchored
+d2cfr_loss_function: mse
+d2cfr_state_value_loss_weight: 0.5
+```
+
+То есть задача не должна случайно вернуть Huber.
+
+---
+
+# 1. Исправить ограничение `card_context_v1`
+
+## Проблема
+
+В текущей архитектуре:
+
+```python
+card_embedding = card_encoder(cards)
+context_embedding = context_encoder(context)
+embedding = torch.cat([card_embedding, context_embedding])
+output = linear_head(embedding)
+```
+
+После объединения признаков сразу стоит линейная голова. Поэтому выход имеет аддитивную форму:
+
+```
+output(cards, context) = f(cards) + g(context)
+```
+
+Сеть не может полноценно моделировать нелинейные взаимодействия между:
+
+- картами;
+- размером банка;
+- эффективным стеком;
+- позицией;
+- легальными действиями;
+- историей ставок.
+
+## Требуемое решение
+
+### 1.1. Не менять семантику существующей архитектуры
+
+Не модифицировать `card_context_v1` на месте.
+
+Добавить новую архитектуру:
+
+```python
+CARD_CONTEXT_V2_ARCHITECTURE = "card_context_v2"
+```
+
+Причина: старые checkpoints с названием `card_context_v1` должны продолжать однозначно описывать старую структуру.
+
+### 1.2. Добавить общий nonlinear fusion trunk
+
+Для `PokerNetwork` и `DuelingRegretNetwork`:
+
+```python
+card_embedding = card_encoder(card_features)
+context_embedding = context_encoder(context_features)
+combined = torch.cat([card_embedding, context_embedding], dim=-1)
+joint_embedding = fusion(combined)
+```
+
+Базовый вариант:
+
+```python
+self.fusion = nn.Sequential(
+    nn.Linear(hidden_size * 2, hidden_size),
+    nn.ReLU(),
+    nn.Linear(hidden_size, hidden_size),
+    nn.ReLU(),
+)
+```
+
+После этого головы должны получать `joint_embedding`.
+
+Для strategy-сети:
+
+```python
+logits = action_head(joint_embedding)
+```
+
+Для D2CFR:
+
+```python
+V = state_value_head(joint_embedding)
+Q = action_value_head(joint_embedding)
+R = Q - V
+```
+
+Не изменять контракт:
+
+```
+regrets == action_values - state_values
+```
+
+### 1.3. Сохранить отдельный `card_encoder`
+
+Методы должны продолжить работать:
+
+```python
+encode_cards(...)
+encode_context(...)
+```
+
+Это необходимо для HU → 6-max teacher transfer.
+
+При переносе из HU:
+
+- копировать только `card_encoder`;
+- `context_encoder`, `fusion` и головы инициализировать согласно целевой сети;
+- проверять архитектуру и размер card-признаков;
+- не пытаться копировать fusion между несовместимыми HU/6-max сетями.
+
+### 1.4. Обновить конфиг
+
+После реализации переключить активный режим:
+
+```yaml
+network_architecture: card_context_v2
+```
+
+`card_context_v1` оставить поддерживаемым для явной загрузки старых моделей.
+
+### 1.5. Обновить checkpoint metadata
+
+Описание архитектуры должно включать минимум:
+
+```python
+{
+    "network_architecture": "card_context_v2",
+    "card_feature_size": 109,
+    "input_size": ...,
+    "hidden_size": ...,
+    "fusion_input_size": hidden_size * 2,
+    "fusion_output_size": hidden_size,
+    "num_actions": 6,
+}
+```
+
+При resume:
+
+- checkpoint `card_context_v1` не должен загружаться в `card_context_v2`;
+- checkpoint `card_context_v2` не должен загружаться в `card_context_v1`;
+- ошибка должна быть явной до `load_state_dict`;
+- архитектурное изменение не следует маскировать повышением `GAME_RULES_VERSION`, поскольку правила игры здесь не меняются.
+
+### 1.6. Инициализация
+
+Сохранить корректный нулевой старт выходных голов, если он является частью текущего контракта:
+
+```python
+action_head.weight = 0
+action_head.bias = 0
+state_value_head.weight = 0
+state_value_head.bias = 0
+```
+
+Случайно инициализированный fusion при нулевых головах не должен создавать ненулевые начальные regrets или logits.
+
+## Тесты архитектуры
+
+Добавить тесты:
+
+1. `card_context_v1` по-прежнему создаётся и имеет старую структуру.
+2. `card_context_v2` содержит fusion trunk.
+3. `PokerNetwork(card_context_v2)` выдаёт форму:
+    
+    ```
+    [batch, 6]
+    ```
+    
+4. `DuelingRegretNetwork(card_context_v2)` выдаёт:
+    - `V: [batch, 1]`;
+    - `Q: [batch, 6]`;
+    - `R: [batch, 6]`.
+5. Численно выполняется:
+    
+    ```python
+    regrets == action_values - state_values
+    ```
+    
+6. Сеть допускает interaction между card/context, а не только сумму независимых эффектов.
+7. Старый `card_context_v1` checkpoint отвергается при загрузке в v2.
+8. Полный HU checkpoint v2 проходит save/load round-trip.
+9. Light checkpoint v2 загружается runtime-инференсом.
+10. Teacher transfer корректно переносит `card_encoder` из совместимого HU checkpoint.
+
+---
+
+# 2. Исправить `from_mid_hand(stage=Showdown)`
+
+## Проблема
+
+Сейчас можно создать состояние:
+
+```
+stage = Showdown
+final_state = false
+legal_actions = []
+rewards = 0
+```
+
+Такое состояние нельзя корректно продолжить или завершить.
+
+## Предварительная проверка
+
+До изменения API найти все вызовы:
+
+```
+from_mid_hand(
+```
+
+Проверить отдельно:
+
+- runtime search;
+- rollouts;
+- evaluation;
+- tests;
+- восстановление скрытых карт;
+- Python-обёртки.
+
+Определить, требуется ли проекту восстановление уже наступившего Showdown.
+
+## Предпочтительное решение для текущего этапа
+
+Если завершённый Showdown нигде не требуется, запретить его:
+
+```rust
+if stage == Stage::Showdown {
+    return Err(InitStateError {
+        msg: "from_mid_hand cannot restore an unresolved Showdown state".to_owned(),
+    });
+}
+```
+
+Это безопаснее, чем частично реализовать settlement без полного контракта side pots.
+
+## Альтернативное решение
+
+Реализовывать автоматическое завершение Showdown только если проект действительно использует такой вход.
+
+В таком случае конструктор должен сразу:
+
+1. Рассчитать ранги всех активных игроков.
+2. Определить победителей.
+3. Корректно распределить выплаты.
+4. Выставить:
+    
+    ```
+    final_state = true
+    legal_actions = []
+    ```
+    
+5. Заполнить rewards.
+6. Проверить zero-sum.
+
+Не делать упрощённое автоматическое завершение, если оно неправильно работает с:
+
+- несколькими all-in;
+- различными вложениями;
+- side pots;
+- ничьими.
+
+Если полноценный settlement не реализуется сейчас — Showdown нужно отклонять.
+
+## Тесты Showdown
+
+Добавить тесты:
+
+1. `from_mid_hand(stage=Showdown)` выдаёт ожидаемую ошибку, если выбран запрет.
+2. Нельзя получить состояние одновременно:
+    
+    ```
+    final_state == false
+    legal_actions.is_empty()
+    ```
+    
+3. Обычные `Preflop/Flop/Turn/River` состояния продолжают восстанавливаться.
+4. Ошибка конструктора понятная и детерминированная.
+5. Runtime search не передаёт `Showdown` в `from_mid_hand`.
+
+---
+
+# 3. Убрать угадывание `current_player` в `from_mid_hand`
+
+## Проблема
+
+При:
+
+```python
+current_player=None
+```
+
+конструктор выбирает первого активного игрока после button.
+
+Для HU preflop это может назначить BB, хотя в начале preflop первым действует button/SB.
+
+Но просто заменить правило на «button действует первым preflop» недостаточно: `from_mid_hand` может восстанавливать не начало улицы, а произвольную середину торговли.
+
+## Требуемое решение
+
+Сделать `current_player` обязательным по смыслу для `from_mid_hand`.
+
+Предпочтительный безопасный вариант:
+
+- временно сохранить тип `Option<u64>` для совместимости Python API;
+- при `None` возвращать явную ошибку;
+- обновить все внутренние call sites, чтобы они всегда передавали actor.
+
+Например:
+
+```rust
+let current_player = match current_player {
+    Some(player)
+        if player < n_players
+        && players_state[player as usize].active =>
+    {
+        player
+    }
+    Some(_) => {
+        return Err(InitStateError {
+            msg: "current_player must identify an active player".to_owned(),
+        });
+    }
+    None => {
+        return Err(InitStateError {
+            msg: "current_player is required for from_mid_hand".to_owned(),
+        });
+    }
+};
+```
+
+После обновления всех потребителей можно сделать аргумент обязательным и на уровне Python-сигнатуры.
+
+## Что нельзя делать
+
+Не определять actor только по:
+
+- button;
+- stage;
+- списку active players;
+- размеру ставок.
+
+Для произвольной середины улицы этой информации недостаточно.
+
+## Тесты actor contract
+
+Добавить тесты:
+
+1. `current_player=None` отклоняется.
+2. Активный корректный player принимается.
+3. Неактивный player отклоняется.
+4. Player за пределами диапазона отклоняется.
+5. HU preflop можно явно восстановить с button/SB как actor.
+6. HU preflop после raise можно явно восстановить с BB как actor.
+7. HU postflop можно явно восстановить с BB как первым actor.
+8. Six-max восстановление не изменяет идентификаторы игроков.
+9. Все runtime-search вызовы передают actor явно.
+
+---
+
+# 4. Добавить очистку HU full checkpoints
+
+## Проблема
+
+Generic checkpoints проходят pruning, а HU checkpoints сохраняются через отдельный путь:
+
+```python
+_save_hu_checkpoint(...)
+```
+
+и накапливаются без удаления.
+
+Полный HU checkpoint содержит replay-буферы и optimizer state, поэтому длинное обучение может заполнить диск.
+
+## Требуемое решение
+
+### 4.1. Не использовать generic retention без адаптации
+
+Generic checkpoint pool может требовать много прошлых моделей для multiway opponent pool. HU resume не требует хранения такого же количества огромных full checkpoints.
+
+Добавить отдельную HU retention policy.
+
+Предлагаемые параметры:
+
+```yaml
+hu_checkpoint_keep_recent: 2
+hu_checkpoint_keep_milestones: 2
+```
+
+Существующий параметр:
+
+```yaml
+checkpoint_keep_every: 50000
+```
+
+использовать как период milestone.
+
+При:
+
+```yaml
+hu_checkpoint_save_every: 5000
+checkpoint_keep_every: 50000
+hu_checkpoint_keep_recent: 2
+hu_checkpoint_keep_milestones: 2
+```
+
+хранить:
+
+- два последних обычных HU full checkpoint;
+- два последних milestone, кратных `50000`;
+- `hu_checkpoint_final.pt`;
+- соответствующие light checkpoints.
+
+### 4.2. Обобщить поиск checkpoints по префиксу
+
+Например:
+
+```python
+def _prune_full_checkpoints(
+    directory,
+    *,
+    prefix,
+    historical_every,
+    keep_recent,
+    keep_historical,
+):
+    checkpoints = _checkpoint_paths(directory, prefix)
+    ...
+```
+
+Для generic:
+
+```python
+prefix = _HEAVY_CHECKPOINT_PREFIX
+```
+
+Для HU:
+
+```python
+prefix = _HU_HEAVY_CHECKPOINT_PREFIX
+```
+
+Не смешивать:
+
+```
+multi_checkpoint_iter_*.pt
+hu_checkpoint_iter_*.pt
+light_checkpoint_iter_*.pt
+```
+
+### 4.3. Порядок сохранения
+
+На checkpoint-итерации:
+
+1. Атомарно сохранить HU full checkpoint.
+2. Выполнить pruning HU full checkpoints.
+3. Сохранить соответствующий light checkpoint.
+4. Удалить light checkpoints, у которых больше нет соответствующего HU full checkpoint.
+5. Не затрагивать final checkpoint.
+
+Если full checkpoint не сохранился, нельзя удалять предыдущий resumable checkpoint.
+
+### 4.4. Логирование
+
+После pruning выводить кратко:
+
+```
+HU checkpoint retention:
+kept recent: [...]
+kept milestones: [...]
+deleted: [...]
+```
+
+Не печатать содержимое checkpoint или внутренние tensors.
+
+## Тесты checkpoint retention
+
+Добавить тесты во временной директории:
+
+1. Создать HU checkpoints:
+    
+    ```
+    5000, 10000, 15000, 50000, 55000, 100000, 105000
+    ```
+    
+2. Проверить, что остаются:
+    - нужное количество последних;
+    - нужное количество milestone.
+3. Generic checkpoints не удаляются HU-pruning.
+4. HU checkpoints не удаляются generic-pruning.
+5. `hu_checkpoint_final.pt` не удаляется.
+6. Light checkpoint без соответствующего full удаляется.
+7. Light checkpoint с сохранённым full остаётся.
+8. Последний resumable full checkpoint всегда сохраняется.
+9. Повторный pruning идемпотентен.
+10. Неизвестные имена файлов не удаляются.
+
+---
+
+# 5. Проверить взаимодействие исправлений с checkpoints
+
+После добавления `card_context_v2` выполнить полный матричный тест.
+
+## Full HU checkpoint
+
+Проверить сохранение и восстановление:
+
+- двух D2CFR advantage-сетей;
+- двух advantage optimizers;
+- двух historical advantage reservoirs;
+- strategy-сети;
+- strategy optimizer;
+- strategy reservoir;
+- `_size`;
+- `_total_seen`;
+- eviction/skip counters;
+- iteration;
+- Python RNG;
+- NumPy RNG;
+- Torch CPU RNG;
+- Torch CUDA RNG, если доступен;
+- D2CFR config;
+- architecture metadata.
+
+После round-trip выходы сетей на одном входном batch должны совпадать.
+
+## Light checkpoint
+
+Проверить:
+
+- правильный `input_size`;
+- actor conditioning;
+- `card_context_v2`;
+- успешную загрузку в policy runtime;
+- одинаковые logits до и после round-trip;
+- отсутствие training-only replay и optimizer state.
+
+## Старые checkpoints
+
+Ожидаемое поведение:
+
+- checkpoint со старыми игровыми правилами отклоняется;
+- `card_context_v1` не загружается как v2;
+- ошибка сообщает конкретную несовместимость;
+- teacher transfer может принять совместимый `card_encoder`, только если это разрешено отдельным контрактом.
+
+---
+
+# 6. Обновить конфигурацию и документацию
+
+Обновить `config.yaml`:
+
+```yaml
+network_architecture: card_context_v2
+
+hu_checkpoint_save_every: 5000
+checkpoint_keep_every: 50000
+hu_checkpoint_keep_recent: 2
+hu_checkpoint_keep_milestones: 2
+```
+
+Loss оставить:
+
+```yaml
+algorithm_variant: d2cfr_anchored
+d2cfr_enabled: true
+d2cfr_loss_mode: anchored
+d2cfr_loss_function: mse
+d2cfr_state_value_loss_weight: 0.5
+d2cfr_huber_delta: 1.0
+```
+
+`d2cfr_huber_delta` можно пока сохранить как неактивный параметр для возможности контролируемого переключения на Huber, но в startup log должно быть понятно:
+
+```
+D2CFR loss: mse
+Huber delta: inactive
+```
+
+Обновить README/план:
+
+1. Объяснить различие `card_context_v1` и `card_context_v2`.
+2. Указать, что v1 аддитивно разделяет карты и контекст.
+3. Описать fusion в v2.
+4. Указать несовместимость полных checkpoints.
+5. Описать HU checkpoint retention.
+6. Зафиксировать, что `from_mid_hand` требует явный `current_player`.
+7. Зафиксировать запрет unresolved Showdown.
+8. Не называть v2 частью оригинальной статьи D2CFR — это улучшение реализации модели.
+
+---
+
+# 7. Полная тестовая матрица
+
+## Rust
+
+Запустить:
+
+```bash
+cargo fmt --check
+cargo test
+cargo clippy -- -D warnings
+```
+
+Если `clippy` уже имеет unrelated baseline warnings, не маскировать их; отдельно перечислить существующие и новые предупреждения.
+
+Обязательные тесты:
+
+- HU blinds;
+- HU preflop actor;
+- HU postflop actor;
+- BB check after limp;
+- check/call mutual exclusion;
+- wheel;
+- Showdown reconstruction;
+- обязательный `current_player`;
+- zero-sum terminal states.
+
+## Python
+
+Запустить весь существующий набор:
+
+```bash
+pytest -q
+```
+
+Дополнительно:
+
+```bash
+pytest -q tests/...model...
+pytest -q tests/...checkpoint...
+pytest -q tests/...runtime...
+pytest -q tests/...teacher_transfer...
+pytest -q tests/...hu...
+```
+
+Фактические пути выбрать по структуре проекта.
+
+## Smoke training
+
+Запустить короткий CPU smoke test:
+
+```
+HU
+D2CFR anchored
+MSE
+2–3 iterations
+1–2 traversals per player
+малое число train steps
+```
+
+Проверить:
+
+- traversal завершается;
+- legal mask не пустая в nonterminal state;
+- losses конечные;
+- `R = Q − V`;
+- buffer size растёт;
+- `_total_seen >= _size`;
+- full checkpoint сохраняется;
+- resume продолжает со следующей итерации;
+- light checkpoint загружается;
+- pruning не удаляет последний resumable checkpoint.
+
+После этого выполнить отдельный smoke resume:
+
+```
+train → save → load → ещё одна iteration
+```
+
+---
+
+# 8. Рекомендуемое разбиение на commits
+
+## Commit 1 — engine reconstruction contract
+
+```
+fix(engine): reject unresolved showdown and require mid-hand actor
+```
+
+Содержимое:
+
+- `from_mid_hand` Showdown contract;
+- обязательный `current_player`;
+- Rust tests;
+- обновление Python call sites.
+
+## Commit 2 — nonlinear architecture
+
+```
+feat(model): add nonlinear card-context fusion architecture
+```
+
+Содержимое:
+
+- `card_context_v2`;
+- fusion trunk;
+- PokerNetwork;
+- DuelingRegretNetwork;
+- model tests.
+
+## Commit 3 — checkpoint compatibility
+
+```
+fix(checkpoint): version card-context v2 network metadata
+```
+
+Содержимое:
+
+- architecture metadata;
+- strict full/light loading;
+- HU round-trip;
+- runtime loading;
+- teacher-transfer compatibility.
+
+## Commit 4 — HU retention
+
+```
+fix(training): prune historical HU full checkpoints
+```
+
+Содержимое:
+
+- prefix-aware pruning;
+- HU retention policy;
+- light/full synchronization;
+- retention tests.
+
+## Commit 5 — configuration and documentation
+
+```
+docs(config): enable card-context v2 and document HU retention
+```
+
+Содержимое:
+
+- `config.yaml`;
+- README;
+- описание migration;
+- startup log.
+
+Не объединять все изменения в один огромный commit.
+
+---
+
+# 9. Критерии готовности
+
+Работа считается завершённой только если:
+
+- [ ]  `card_context_v1` не изменён задним числом.
+- [ ]  Добавлен отдельный `card_context_v2`.
+- [ ]  После объединения карт и контекста есть nonlinear fusion.
+- [ ]  `Q`, `V` и strategy используют joint embedding.
+- [ ]  Сохраняется точное равенство `R = Q − V`.
+- [ ]  Teacher transfer по-прежнему переносит только `card_encoder`.
+- [ ]  `from_mid_hand` не создаёт unresolved Showdown.
+- [ ]  `from_mid_hand` не угадывает `current_player`.
+- [ ]  Все call sites передают actor явно.
+- [ ]  HU full checkpoints очищаются по отдельной retention policy.
+- [ ]  Generic и HU checkpoint namespaces не смешиваются.
+- [ ]  Последний resumable checkpoint никогда не удаляется.
+- [ ]  Full HU save/load round-trip проходит.
+- [ ]  Light checkpoint загружается runtime-инференсом.
+- [ ]  Старые несовместимые checkpoints отклоняются явно.
+- [ ]  Rust-тесты проходят.
+- [ ]  Python-тесты проходят.
+- [ ]  Короткое HU D2CFR обучение проходит без NaN/Inf.
+- [ ]  Активный loss остаётся `anchored + MSE`.
+- [ ]  Агент предоставляет список изменённых файлов, результаты тестов и известные ограничения.
+
+# 10. Формат итогового отчёта агента
+
+В конце агент должен сообщить:
+
+```
+1. Исходный и итоговый commit.
+2. Список изменённых файлов.
+3. Что сделано по каждому из четырёх замечаний Astra.
+4. Какие решения были выбраны:
+   - Showdown reject или settlement;
+   - current_player API;
+   - структура fusion;
+   - checkpoint retention policy.
+5. Результаты Rust-тестов.
+6. Результаты Python-тестов.
+7. Результат smoke training.
+8. Размер одного полного HU checkpoint.
+9. Какие checkpoints остаются после pruning.
+10. Оставшиеся риски и задачи, не вошедшие в этот план.
+```
+
+Главный принцип: **сначала исправить корректность восстановления состояния, затем добавить `card_context_v2`, после этого обновить checkpoint-контракт и только потом включать новую архитектуру в основном конфиге.**
