@@ -1,0 +1,430 @@
+Да, теперь я полностью прочитал все три статьи в Markdown. Предварительный вывод в целом подтвердился, но по двум ранее недоступным работам теперь можно сказать точнее.
+
+# Короткий итог
+
+**Текущую архитектуру менять на алгоритм из какой-либо из этих статей не нужно.** Ваше направление
+
+```
+D2CFR blueprint
+→ belief по диапазонам
+→ paired/CRN rollouts
+→ root MMDS
+→ statistical fallback к blueprint
+```
+
+сильнее и лучше подходит вашей задаче.
+
+Но из статей можно забрать три полезных направления:
+
+1. **ReBeL-depth:** экспериментальное управление глубиной поиска.
+2. **Rule Embedding:** дополнительное обучение card encoder распознавать покерную структуру.
+3. **li2019:** suit isomorphism, быстрые equity/EHS-диагностики и простой 6-max baseline.
+
+Ни одна из статей не предлагает готовой замены вашему runtime solver.
+
+---
+
+# 1. ReBeL: исследование глубины подыгры
+
+## Что статья действительно проверяет
+
+Авторы строят ограниченную по глубине подыгру в пространстве public belief states:
+
+1. Создают подыгру от текущего PBS.
+2. Инициализируют стратегию.
+3. На границе подыгры используют value network.
+4. Внутри запускают Linear CFR или DCFR.
+5. Собирают значения и средние стратегии.
+6. Семплируют граничный PBS и продолжают рекурсивный self-play.
+
+Они сравнивают:
+
+```
+max_depth = 1, 2, 4, ∞
+CFR iterations = 64 или 256
+solver = Linear CFR или DCFR
+```
+
+Основной эксперимент проведён на **Liar’s Dice**, а не на полноценном HUNL/6-max.
+
+Для DCFR с 256 итерациями результаты такие:
+
+| Глубина | Exploitability |
+| --- | --- |
+| 1 | 0.253124 |
+| 2 | 0.113118 |
+| 4 | 0.001591 |
+| Полное дерево | 0.000461 |
+
+То есть увеличение глубины помогает, но появляется убывающая отдача.
+
+## Что применимо к вашему solver
+
+Это подтверждает, что ваш будущий переход от root-only обновления к более глубокому поиску имеет смысл:
+
+```
+depth 1: обновить только root
+depth 2: обновить root и ближайшие будущие решения
+depth 4: более полноценная подыгра
+```
+
+Но статью нельзя использовать как доказательство, что вам обязательно нужен именно `depth=4`:
+
+- эксперименты — Liar’s Dice;
+- дерево и branching factor совершенно другие;
+- нет полноценной проверки HUNL или 6-max;
+- используется CFR/DCFR внутри подыгры, а у вас — MMDS;
+- нет сравнения при одинаковом wall-clock бюджете именно с MMDS;
+- корректность глубокой границы зависит от качества value network.
+
+## Практический вывод
+
+Не заменять MMDS на ReBeL/DCFR. Использовать статью как основание для **depth sweep**:
+
+```
+root-only MMDS
+→ root + один будущий decision point
+→ depth 2 public actions
+→ depth 4 только если latency позволяет
+```
+
+Сравнивать нужно при одинаковых:
+
+- количестве particles;
+- числе runouts;
+- wall-clock budget;
+- случайных seed;
+- игровых ситуациях;
+- правилах noise gate/fallback.
+
+Метрики:
+
+- paired EV против blueprint;
+- standard error;
+- доля fallback;
+- средняя latency;
+- p95/p99 latency;
+- устойчивость результата между seed;
+- изменение стратегии относительно blueprint.
+
+### Важное ограничение
+
+Глубина больше одного становится безопасной только после появления нормального **boundary value**:
+
+```
+V(public belief state, ranges, pot, stacks, history)
+```
+
+Голой showdown equity на границе недостаточно. Иначе более глубокий поиск может просто размножить ошибку неправильной terminal approximation.
+
+**Вердикт по статье:** полезна для планирования экспериментов, но не содержит solver, который стоит переносить вместо вашей архитектуры.
+
+---
+
+# 2. Rule Embedding для аппроксимации winrate
+
+## Что конкретно сделано
+
+Авторы решают значительно более узкую задачу:
+
+```
+карты hero + board
+→ ожидаемый showdown winrate
+```
+
+Они не решают стратегию, не выполняют CFR и не строят subgame solver.
+
+Используется специальное представление:
+
+- матрица `5 × 14`;
+- ранги расположены по столбцам;
+- масти — по строкам;
+- туз дублируется, чтобы распознавать wheel `A-2-3-4-5`;
+- отдельные части для hole cards и общей комбинации.
+
+Затем используются жёстко спроектированные операции, обнаруживающие:
+
+- одинаковые ранги;
+- одинаковые масти;
+- последовательности рангов;
+- второе по величине совпадение через `hypo-max-pool`.
+
+Последнее нужно, например, чтобы отличать:
+
+- одну пару;
+- две пары;
+- сет;
+- фулл-хаус.
+
+Сначала сеть `RebNet` обучается классифицировать девять категорий рук, а затем её признаки подключаются к сети `WRNet`, предсказывающей winrate.
+
+## Результаты статьи
+
+На их датасете:
+
+| Модель | MAE winrate |
+| --- | --- |
+| WRNet с rule embedding | **0.01430** |
+| Аналогичная сеть без rule embedding | 0.02030 |
+| Feature engineering network | около 0.0342 |
+
+То есть rule embedding снизил MAE примерно на:
+
+- **29.6%** относительно их сети без rule embedding;
+- примерно **58%** относительно старого feature-engineering подхода.
+
+Для 1000 примеров:
+
+- WRNet: около `0.182 s`;
+- feature-engineering вариант: около `2.928 s`.
+
+Однако здесь большая часть выигрыша объясняется тем, что старый baseline тратил почти всё время на ручное вычисление признаков.
+
+## Что стоит взять вам
+
+Не стоит буквально переносить их `5×14 CNN + hypo-max-pool` в D2CFR.
+
+У вас уже есть `card_context_v2`, поэтому более современный и безопасный вариант — добавить **auxiliary heads**:
+
+```
+card encoder
+├── D2CFR Q/V/regret heads
+├── hand-category head
+├── showdown-equity head
+└── optional draw/potential head
+```
+
+Возможные auxiliary targets:
+
+- категория готовой руки;
+- strength rank;
+- showdown equity против равномерного диапазона;
+- equity против текущего belief;
+- flush draw;
+- open-ended straight draw;
+- gutshot;
+- pair/two-pair/trips/full-house/quads;
+- positive/negative hand potential.
+
+Общий loss, например:
+
+```
+L = L_D2CFR
+  + λcategory · L_category
+  + λequity · L_equity
+  + λpotential · L_potential
+```
+
+При этом:
+
+- D2CFR loss остаётся основным;
+- auxiliary losses должны иметь небольшие веса;
+- их нужно отключать после A/B, если они ухудшают regret/policy quality;
+- rule targets лучше использовать для обучения encoder, а не напрямую для выбора действия.
+
+## Чего делать нельзя
+
+Нельзя подменять rollout action value:
+
+```
+Q(state, action)
+```
+
+предсказанным winrate.
+
+Потому что winrate не учитывает:
+
+- fold equity;
+- размер вложения;
+- размер банка;
+- будущие ставки;
+- stack-to-pot ratio;
+- диапазон противника после наблюдаемых действий;
+- возможность блефа;
+- continuation policy;
+- utility конкретного действия.
+
+Например, две линии могут иметь одинаковую showdown equity, но совершенно разный EV из-за fold equity и размера банка.
+
+**Вердикт по статье:** полезна как идея дополнительного supervision для `card_encoder`, но не как solver и не как boundary value в исходном виде.
+
+---
+
+# 3. li2019: Solving Six-Player Games via Online Situation Estimation
+
+Теперь Markdown подтверждает предыдущий разбор PDF.
+
+## Что там используется
+
+Это шестиместный эвристический агент:
+
+```
+hand isomorphism
+→ HS
+→ positive/negative hand potential
+→ EHS
+→ handcrafted betting rules
+→ вероятностный выбор fold/call/raise
+```
+
+Основные формулы:
+
+```
+HS = (NBetter − NWorse) / N
+```
+
+```
+Pr(win) = HS × (1 − NPot) + (1 − HS) × PPot
+```
+
+```
+EHS = HS + (1 − HS) × PPot
+```
+
+Эксперимент:
+
+- 6-player no-limit;
+- stack `200 BB`;
+- blinds `50/100`;
+- 3000 рук на матч;
+- 2 секунды на руку;
+- 64 CPU cores;
+- 256 GB RAM;
+- третье место в ACPC 2018.
+
+## Что действительно полезно
+
+### 1. Suit/hand isomorphism
+
+Это самый практически ценный элемент статьи.
+
+Канонизация эквивалентных по мастям состояний может:
+
+- уменьшить количество повторяющихся card states;
+- улучшить эффективность replay;
+- повысить sample efficiency;
+- использоваться в cache runtime evaluation;
+- ускорить equity/boundary inference.
+
+Но нужно очень осторожно сохранять:
+
+- соответствие hole cards и board;
+- flush blockers;
+- suit-dependent ranges;
+- отображение обратно в исходные масти.
+
+### 2. EHS как diagnostic baseline
+
+EHS можно использовать для:
+
+- проверки card encoder;
+- sanity check rollout values;
+- поиска явно аномальных состояний;
+- построения очень быстрого fallback;
+- auxiliary supervision;
+- тестирования 6-max pipeline до готовности полноценной сети.
+
+### 3. Эвристический 6-max baseline
+
+Перед переходом к полноценному 6-max D2CFR полезно иметь дешёвого противника:
+
+```
+EHS + pot odds + простые betting rules
+```
+
+Такой агент не является хорошим solver, но помогает проверять:
+
+- legality;
+- side pots;
+- turn order;
+- seat rotation;
+- multiway showdown;
+- performance;
+- сохранение chip conservation.
+
+## Почему он не лучше вашего подхода
+
+Статья не решает полноценно стратегическую задачу. Ее betting strategy — набор эвристик, преобразующих EHS в `fold/call/raise`.
+
+Она не моделирует полноценно:
+
+- action-conditioned ranges;
+- equilibrium mixed strategies;
+- counterfactual values;
+- стратегическое bluffing;
+- exploitation protection;
+- subgame solving;
+- regret minimization.
+
+Кроме того, результаты ACPC не изолируют вклад алгоритма: представлены итоговые результаты соревнования против разных закрытых агентов, а не строгий A/B против современного solver.
+
+**Вердикт по статье:** хороший engineering reference для 6-max инфраструктуры и baseline, но алгоритмически значительно слабее D2CFR + belief-aware runtime search.
+
+---
+
+# Сравнение трёх статей с вашей системой
+
+| Работа | Что решает | Что взять | Не переносить |
+| --- | --- | --- | --- |
+| ReBeL depth | Глубина belief-state подыгры | Depth sweep, boundary values, распределение compute | Полную замену MMDS на DCFR |
+| Rule Embedding | Быстрый showdown winrate | Auxiliary heads для card encoder | Winrate как action value |
+| li2019 | Эвристический online 6-max | Suit isomorphism, EHS diagnostics, baseline | Betting rules как основной solver |
+
+# Итоговая рекомендуемая архитектура
+
+```
+D2CFR blueprint
+→ blocker-aware joint belief
+→ sequential action-likelihood weighting
+→ particles + ESS/resampling
+→ CRN lockstep rollouts
+→ boundary value network
+→ root MMDS
+→ позднее future-node MMDS
+→ statistical gate
+→ fallback к blueprint
+```
+
+Дополнительные, необязательные компоненты:
+
+```
+card encoder
+├── hand-category auxiliary head
+├── equity auxiliary head
+└── hand-potential auxiliary head
+```
+
+Для 6-max:
+
+```
+suit isomorphism/cache
++ EHS heuristic baseline
++ side-pot correctness
++ seat-rotated evaluation
++ multiway belief coordinator
+```
+
+# Приоритет внедрения
+
+1. **Закончить и проверить текущий root MMDS.**
+    - Исправить `NaN/±inf`;
+    - добавить `min_root_gap_samples`;
+    - доказать paired-тестом, что `blueprint + MMDS > blueprint`.
+2. **Провести compute-normalized sweep.**
+    - particles;
+    - runouts;
+    - MMDS `eta`;
+    - depth 1/2, позднее 4;
+    - одинаковый latency budget.
+3. **Разработать boundary value network.**
+    - Не ограничиваться showdown equity;
+    - учитывать belief, историю, pot, stacks и continuation policy.
+4. **Добавить rule-based auxiliary targets через A/B.**
+    - Начать с hand category и equity;
+    - не менять D2CFR loss;
+    - переносить только то, что реально улучшает validation EV/regret.
+5. **Добавить suit isomorphism/cache**, если профилирование показывает заметный выигрыш.
+6. **Только после этого пробовать future-node MMDS.**
+7. **При переходе на 6-max** использовать li2019 как baseline и набор инженерных идей, а не как конечный алгоритм.
+
+Итак, **нынешнее направление оптимальнее всех трёх статей как основная архитектура**. ReBeL-depth даёт следующий этап развития поиска, Rule Embedding — возможное улучшение представления карт, а li2019 — полезные инструменты и 6-max baseline. Переписывать solver ради них не нужно.
