@@ -2086,6 +2086,17 @@ def _train_hu_current_policy_self_play(
                     f"  Оценка против random: reward={evaluation['mean_reward']:.4f}, "
                     f"raise_freq={evaluation['raise_frequency']:.3f}, игр={int(evaluation['games'])}"
                 )
+                if writer is not None:
+                    writer.add_scalar(
+                        "Evaluation/RandomMeanReward",
+                        evaluation["mean_reward"],
+                        iteration,
+                    )
+                    writer.add_scalar(
+                        "Evaluation/RandomRaiseFrequency",
+                        evaluation["raise_frequency"],
+                        iteration,
+                    )
             if _checkpoint_save_due(iteration, int(cfg_get("hu_checkpoint_save_every", 5000))):
                 checkpoint_path, light_checkpoint_path = _save_hu_iteration_checkpoints(
                     agent,

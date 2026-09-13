@@ -158,6 +158,57 @@ def test_hu_training_uses_coordinator_without_opponent_pool(monkeypatch, tmp_pat
     assert "обе фазы обходов P0/P1 на frozen snapshots -> обучение advantage P0/P1 -> обучение shared strategy" in output
 
 
+def test_hu_evaluation_writes_random_metrics_to_tensorboard(monkeypatch, tmp_path):
+    class Writer:
+        def __init__(self):
+            self.scalars = []
+
+        def add_scalar(self, name, value, iteration):
+            self.scalars.append((name, value, iteration))
+
+        def flush(self):
+            pass
+
+        def close(self):
+            pass
+
+    writer = Writer()
+    agent = _HuAgent()
+    monkeypatch.setattr(train_mod, "DeepCFRAgent", lambda **_kwargs: agent)
+    monkeypatch.setattr(train_mod, "cfg_get", _cfg)
+    monkeypatch.setattr(train_mod, "_create_writer", lambda *_args, **_kwargs: writer)
+    monkeypatch.setattr(train_mod, "_prepare_hu_current_policy_iteration", lambda _agent: None)
+    monkeypatch.setattr(
+        train_mod,
+        "_create_hu_current_policy_coordinator",
+        lambda _agent: _ResumeCoordinator([]),
+    )
+    monkeypatch.setattr(
+        train_mod,
+        "evaluate_against_random",
+        lambda *_args, **_kwargs: {
+            "mean_reward": 1.25,
+            "raise_frequency": 0.4,
+            "games": 500.0,
+        },
+    )
+    monkeypatch.setattr(train_mod, "_save_hu_checkpoint", lambda _agent, path, seed=None: path)
+    monkeypatch.setattr(train_mod, "_save_light_checkpoint", lambda _agent, path, seed=None: path)
+
+    train_mod.train_self_play_multi(
+        num_iterations=1,
+        traversals_per_iteration=1,
+        evaluate_every=1,
+        save_dir=tmp_path,
+        num_players=2,
+        trainable_players=2,
+        hu_current_policy_self_play=True,
+    )
+
+    assert ("Evaluation/RandomMeanReward", 1.25, 1) in writer.scalars
+    assert ("Evaluation/RandomRaiseFrequency", 0.4, 1) in writer.scalars
+
+
 def test_hu_strategy_schedule_runs_periodically_and_once_at_finish(monkeypatch, tmp_path):
     events = []
     final_strategy_steps = []
