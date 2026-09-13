@@ -26,10 +26,12 @@ from src.core.action_space import (
 )
 from src.core.buffers import AdvantageBuffer, DuelingAdvantageBuffer, StrategyBuffer
 from src.core.checkpoint_kinds import (
+    HU_FULL_CHECKPOINT_VERSION,
     HU_STRATEGY_ONLY_CHECKPOINT_KIND,
     STRATEGY_ONLY_CHECKPOINT_KIND,
 )
 from src.core.checkpointing import _resolve_model_save_path
+from src.core.game_contract import FIXED_HU_GAME_CONTRACT
 from src.core.model import (
     CARD_CONTEXT_ARCHITECTURE,
     CARD_CONTEXT_ARCHITECTURES,
@@ -2483,6 +2485,9 @@ class DeepCFRAgent:
             },
         }
         run_id = getattr(self, "hu_run_id", None)
+        if strategy_actor_conditioned:
+            checkpoint["hu_checkpoint_version"] = HU_FULL_CHECKPOINT_VERSION
+            checkpoint["game_contract"] = FIXED_HU_GAME_CONTRACT.metadata()
         if run_id is not None:
             checkpoint["run_id"] = str(run_id)
         return checkpoint

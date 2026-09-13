@@ -121,7 +121,7 @@ def test_hu_full_checkpoint_round_trip_restores_all_training_state_and_rng(tmp_p
     assert restored.iteration_count == 7
     checkpoint = train_mod._build_hu_checkpoint(source, seed=91)
     assert checkpoint["config"]["hu_current_policy_self_play"] is True
-    assert checkpoint["hu_checkpoint_version"] == 3
+    assert checkpoint["hu_checkpoint_version"] == 4
     assert checkpoint["game_rules_version"] == "holdem_standard_hu_v2"
     assert checkpoint["update_order"] == [
         "traverse_p0", "traverse_p1", "train_advantage_p0", "train_advantage_p1", "train_strategy"

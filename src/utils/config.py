@@ -8,6 +8,7 @@ from copy import deepcopy
 import yaml
 
 from src.core.action_space import NUM_ACTIONS
+from src.core.game_contract import FIXED_HU_GAME_CONTRACT
 from src.core.model import (
     HISTORY_SUMMARY_V3_ENCODING_VERSION,
     LEGACY_ENCODING_VERSION,
@@ -87,6 +88,22 @@ _DEFAULTS = {
 
 _config = None
 _raw_config = {}
+
+_LEGACY_STAKE_CONFIGURATION_KEYS = frozenset(
+    {"small_blind", "big_blind", "starting_stack", "stake", "stack_size"}
+)
+
+
+def _validate_fixed_hu_game_contract_configuration(raw_config: Mapping[str, object]) -> None:
+    """Отклоняет устаревшие YAML-ставки вместо неявного игнорирования."""
+    configured_stakes = sorted(_LEGACY_STAKE_CONFIGURATION_KEYS.intersection(raw_config))
+    if configured_stakes:
+        raise ValueError(
+            "Конфигурируемые ставки не поддерживаются: HU-ставки фиксированы на "
+            f"{FIXED_HU_GAME_CONTRACT.description()}; ключи "
+            + ", ".join(configured_stakes)
+            + " нельзя использовать для настройки training hand"
+        )
 
 
 def _validate_d2cfr_configuration(
@@ -195,6 +212,7 @@ def load_config(path=None):
         if not isinstance(loaded, dict):
             raise ValueError("config.yaml должен содержать YAML-словарь")
         candidate_config = _deep_merge(_DEFAULTS, loaded)
+        _validate_fixed_hu_game_contract_configuration(loaded)
         _validate_d2cfr_configuration(candidate_config, loaded)
         _raw_config = loaded.copy()
         _config = candidate_config

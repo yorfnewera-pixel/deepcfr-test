@@ -46,6 +46,7 @@ save_replay_buffers_in_checkpoint: true
 
 advantage_regret_norm: none
 advantage_regret_clip: null
+# Масштабирование D2CFR targets, а не размер стартового стека.
 advantage_reward_scale: 200
 advantage_loss: mse
 advantage_huber_delta: 1.0
@@ -62,7 +63,6 @@ d2cfr_mc_correction_enabled: false
 traversal_baseline_enabled: false
 
 policy_runtime_min_action_prob: 0.05
-big_blind: 2.0
 checkpoint_save_every: 1000
 # HU full и light checkpoint сохраняются отдельно от six-max каждые 5000 итераций.
 hu_checkpoint_save_every: 5000

@@ -28,6 +28,7 @@ from src.core.deep_cfr import (
     full_checkpoint_network_spec,
     GAME_RULES_VERSION,
 )
+from src.core.game_contract import validate_fixed_hu_game_contract
 from src.core.model import (
     CARD_CONTEXT_ARCHITECTURE,
     CARD_CONTEXT_V2_ARCHITECTURE,
@@ -198,6 +199,7 @@ class FrozenBlueprintPolicy:
             raise ValueError("Ожидался полный HU checkpoint")
         if checkpoint.get("hu_checkpoint_version") != HU_FULL_CHECKPOINT_VERSION:
             raise ValueError("HU full checkpoint имеет несовместимую версию")
+        validate_fixed_hu_game_contract(checkpoint.get("game_contract"), "HU full checkpoint")
         if checkpoint.get("checkpoint_format_version") != CHECKPOINT_FORMAT_VERSION:
             raise ValueError("HU full checkpoint имеет несовместимую версию формата")
         if checkpoint.get("game_rules_version") != GAME_RULES_VERSION:
@@ -414,6 +416,9 @@ class FrozenBlueprintPolicy:
         if isinstance(strategy_actor_count, bool) or not isinstance(strategy_actor_count, int):
             raise ValueError("Light checkpoint не содержит число actor features")
         if is_hu_strategy:
+            if checkpoint.get("hu_checkpoint_version") != HU_FULL_CHECKPOINT_VERSION:
+                raise ValueError("HU light checkpoint имеет несовместимую версию")
+            validate_fixed_hu_game_contract(checkpoint.get("game_contract"), "HU light checkpoint")
             if (
                 int(checkpoint.get("num_players", -1)) != 2
                 or int(num_players) != 2

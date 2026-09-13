@@ -71,6 +71,12 @@ Full checkpoint сохраняет training state; light checkpoint содерж
 strategy и предназначен для runtime. После исправления правил HU начинайте
 новое обучение, а не продолжайте модели, созданные до этих изменений.
 
+HU-обучение использует фиксированный игровой контракт: SB 1, BB 2, стартовый
+stack 200 (глубина 100 BB). `config.yaml` не может менять ставки или stack:
+для других значений требуется изменение game-contract в коде. Старые HU
+checkpoint могут быть несовместимы с этим контрактом. Параметр
+`advantage_reward_scale: 200` масштабирует D2CFR targets и не задаёт stack.
+
 Переход HU → 6-max — это новый запуск с пустыми replay-буферами. Разрешён
 только warm-start `card_encoder` через `teacher_transfer_checkpoint`; HU
 replay, optimizers, strategy head и номер итерации не переносятся.

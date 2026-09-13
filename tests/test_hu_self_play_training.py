@@ -154,6 +154,7 @@ def test_hu_training_uses_coordinator_without_opponent_pool(monkeypatch, tmp_pat
     assert events == ["prepare", ("run", 1, 3)]
     output = capsys.readouterr().out
     assert "HU current-policy self-play" in output
+    assert "Фиксированный игровой контракт HU: SB=1, BB=2, stack=200 (100 BB)." in output
     assert "обе фазы обходов P0/P1 на frozen snapshots -> обучение advantage P0/P1 -> обучение shared strategy" in output
 
 

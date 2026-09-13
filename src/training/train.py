@@ -29,6 +29,7 @@ from src.core.checkpoint_kinds import (
     HU_FULL_CHECKPOINT_VERSION,
 )
 from src.core.deep_cfr import CHECKPOINT_FORMAT_VERSION, GAME_RULES_VERSION, DeepCFRAgent
+from src.core.game_contract import FIXED_HU_GAME_CONTRACT, validate_fixed_hu_game_contract
 from src.core.hu_self_play import (
     HuCurrentPolicySelfPlayCoordinator,
     HuStrategyBuffer,
@@ -561,6 +562,7 @@ def _hu_run_manifest(agent: DeepCFRAgent, run_id: str, seed: int | None) -> dict
         "run_id": run_id,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "checkpoint_kind": _HU_CHECKPOINT_KIND,
+        "game_contract": FIXED_HU_GAME_CONTRACT.metadata(),
         "network_architecture": getattr(strategy_net, "architecture", None),
         "game_rules_version": GAME_RULES_VERSION,
         "action_space_version": ACTION_SPACE_VERSION,
@@ -586,6 +588,7 @@ def _load_hu_run_manifest(directory: str | Path) -> dict[str, Any]:
         raise ValueError("Manifest HU run не содержит run_id")
     if manifest.get("checkpoint_kind") != _HU_CHECKPOINT_KIND:
         raise ValueError("Manifest принадлежит не HU current-policy серии")
+    validate_fixed_hu_game_contract(manifest.get("game_contract"), "Manifest HU run")
     return manifest
 
 
@@ -612,6 +615,7 @@ def _prepare_hu_run_directory(
         expected_contract = _hu_run_manifest(agent, str(manifest["run_id"]), manifest.get("seed"))
         for key in (
             "checkpoint_kind",
+            "game_contract",
             "network_architecture",
             "game_rules_version",
             "action_space_version",
@@ -1099,6 +1103,7 @@ def _build_hu_checkpoint(agent: DeepCFRAgent, seed: int | None = None) -> dict[s
         "checkpoint_format_version": CHECKPOINT_FORMAT_VERSION,
         "game_rules_version": GAME_RULES_VERSION,
         "checkpoint_kind": _HU_CHECKPOINT_KIND,
+        "game_contract": FIXED_HU_GAME_CONTRACT.metadata(),
         "algorithm_variant": "d2cfr_dueling_v1" if d2cfr_enabled else "deep_cfr_action_only_v1",
         "hu_checkpoint_version": _HU_CHECKPOINT_VERSION,
         "action_space_version": ACTION_SPACE_VERSION,
@@ -1177,6 +1182,7 @@ def _validate_hu_checkpoint(agent: DeepCFRAgent, checkpoint: object) -> dict[str
         raise ValueError("HU checkpoint имеет несовместимый общий формат")
     if checkpoint.get("game_rules_version") != GAME_RULES_VERSION:
         raise ValueError("HU checkpoint создан до исправления правил; нужен новый запуск")
+    validate_fixed_hu_game_contract(checkpoint.get("game_contract"), "HU checkpoint")
     if checkpoint.get("action_space_version") != ACTION_SPACE_VERSION or checkpoint.get("num_actions") != NUM_ACTIONS:
         raise ValueError("HU checkpoint имеет другое пространство действий")
     if checkpoint.get("action_labels") != list(ACTION_LABELS):
@@ -1604,13 +1610,14 @@ def _create_writer(log_dir: str | Path | None):
     return SummaryWriter(log_dir=str(log_dir))
 
 
-def _new_hand(num_players: int, seed: int) -> pkrs.State:
+def _new_hand(num_players: int, seed: int, button: int | None = None) -> pkrs.State:
+    resolved_button = seed % num_players if button is None else button
     return pkrs.State.from_seed(
         n_players=num_players,
-        button=seed % num_players,
-        sb=1.0,
-        bb=2.0,
-        stake=200.0,
+        button=resolved_button,
+        sb=FIXED_HU_GAME_CONTRACT.small_blind,
+        bb=FIXED_HU_GAME_CONTRACT.big_blind,
+        stake=FIXED_HU_GAME_CONTRACT.starting_stack,
         seed=seed,
     )
 
@@ -1998,6 +2005,7 @@ def _train_hu_current_policy_self_play(
             "Старт HU current-policy self-play: "
             f"итераций={num_iterations}, обходов/итерацию={traversals_per_iteration}, device={agent.device}"
         )
+        print(f"Фиксированный игровой контракт HU: {FIXED_HU_GAME_CONTRACT.description()}.")
         if bool(getattr(agent, "d2cfr_enabled", False)):
             _print_d2cfr_startup_contract(agent.d2cfr_loss_function)
         print(
