@@ -34,12 +34,16 @@ def test_hu_d2_smoke_creates_full_and_light_checkpoint_and_resumes(tmp_path, cap
             hu_current_policy_self_play=True,
             seed=20260910,
         )
-        full_checkpoint = tmp_path / "hu_checkpoint_final.pt"
-        light_checkpoint = tmp_path / "hu_light_checkpoint_final.pt"
+        run_directories = list(tmp_path.glob("run_*"))
+        assert len(run_directories) == 1
+        run_directory = run_directories[0]
+        assert (run_directory / "run_manifest.json").is_file()
+        full_checkpoint = run_directory / "hu_checkpoint_final.pt"
+        light_checkpoint = run_directory / "hu_light_checkpoint_final.pt"
         assert full_checkpoint.is_file()
         assert light_checkpoint.is_file()
-        assert (tmp_path / "hu_checkpoint_iter_1.pt").is_file()
-        assert (tmp_path / "hu_light_checkpoint_iter_1.pt").is_file()
+        assert (run_directory / "hu_checkpoint_iter_1.pt").is_file()
+        assert (run_directory / "hu_light_checkpoint_iter_1.pt").is_file()
         assert agent.iteration_count == 1
         assert agent.hu_advantage_target_nets is None
         _finite_dueling_outputs(agent)

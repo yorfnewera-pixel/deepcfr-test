@@ -2441,7 +2441,7 @@ class DeepCFRAgent:
         strategy_actor_conditioned = (
             self.num_players == 2 and strategy_input_size == self.input_size + 2
         )
-        return {
+        checkpoint = {
             "checkpoint_format_version": CHECKPOINT_FORMAT_VERSION,
             "game_rules_version": GAME_RULES_VERSION,
             "checkpoint_kind": "hu_strategy_only" if strategy_actor_conditioned else "strategy_only",
@@ -2474,6 +2474,10 @@ class DeepCFRAgent:
                 **network_metadata,
             },
         }
+        run_id = getattr(self, "hu_run_id", None)
+        if run_id is not None:
+            checkpoint["run_id"] = str(run_id)
+        return checkpoint
 
     def _load_checkpoint(self, path):
         checkpoint = torch.load(path, map_location=self.device, weights_only=False)

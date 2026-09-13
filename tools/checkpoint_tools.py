@@ -47,7 +47,11 @@ def run_weight_sanity(checkpoint_path: str | Path) -> dict:
     if int(payload.get("num_actions", -1)) != NUM_ACTIONS:
         errors.append(f"требуется num_actions={NUM_ACTIONS}")
     encoding_version = payload.get("encoding_version")
-    use_multi_agent = bool(payload.get("config", {}).get("use_multi_agent_advantage", False))
+    checkpoint_config = payload.get("config", {})
+    if not isinstance(checkpoint_config, dict):
+        errors.append("checkpoint содержит некорректный config")
+        checkpoint_config = {}
+    use_multi_agent = bool(checkpoint_config.get("use_multi_agent_advantage", False))
     try:
         expected_input_size = encoder_input_size(
             int(payload.get("num_players", -1)),
@@ -60,7 +64,7 @@ def run_weight_sanity(checkpoint_path: str | Path) -> dict:
         if int(payload.get("encoder_input_size", -1)) != expected_input_size:
             errors.append(f"требуется encoder_input_size={expected_input_size}")
     network_keys = ("strategy_net",)
-    if payload.get("checkpoint_kind") != "strategy_only":
+    if payload.get("checkpoint_kind") not in {"strategy_only", "hu_strategy_only"}:
         network_keys = ("advantage_net", "advantage_target_net", "strategy_net")
     for key in network_keys:
         if key not in payload:

@@ -1,4 +1,5 @@
 """Регрессии подключения HU current-policy self-play к training loop."""
+import json
 from types import SimpleNamespace
 
 import numpy as np
@@ -90,6 +91,23 @@ def _cfg(key, default=None):
         "clear_strategy_buffer_each_iteration": False,
     }
     return values.get(key, default)
+
+
+def test_hu_new_run_uses_dedicated_directory_with_manifest(tmp_path):
+    run_dir, manifest = train_mod._prepare_hu_run_directory(
+        tmp_path,
+        agent=_HuAgent(),
+        seed=17,
+        initial_checkpoint=None,
+    )
+
+    persisted = json.loads((run_dir / "run_manifest.json").read_text(encoding="utf-8"))
+    assert run_dir.parent == tmp_path
+    assert run_dir.name.startswith("run_")
+    assert persisted["run_id"] == manifest["run_id"]
+    assert persisted["seed"] == 17
+    assert persisted["initial_checkpoint"] is None
+    assert persisted["checkpoint_kind"] == "hu_current_policy_self_play"
 
 
 def test_hu_training_uses_coordinator_without_opponent_pool(monkeypatch, tmp_path, capsys):
@@ -337,6 +355,14 @@ def test_hu_resume_continues_from_next_iteration_and_writes_periodic_and_final_c
     events = []
     saved_paths = []
     agent = _HuAgent()
+    resume_dir, manifest = train_mod._prepare_hu_run_directory(
+        tmp_path,
+        agent=agent,
+        seed=9,
+        initial_checkpoint=None,
+    )
+    resume_path = resume_dir / "resume.pt"
+    resume_path.touch()
     monkeypatch.setattr(train_mod, "DeepCFRAgent", lambda **_kwargs: agent)
     monkeypatch.setattr(
         train_mod,
@@ -355,22 +381,27 @@ def test_hu_resume_continues_from_next_iteration_and_writes_periodic_and_final_c
         lambda _agent: events.append("prepare"),
     )
 
-    def load_checkpoint(loaded_agent, path):
+    def load_checkpoint(loaded_agent, path, *, expected_run_id=None):
         assert str(path).endswith("resume.pt")
+        assert expected_run_id == manifest["run_id"]
         events.append("load")
         loaded_agent.iteration_count = 4
-        return {"seed": 9}
+        return {"seed": 9, "run_id": manifest["run_id"]}
 
     monkeypatch.setattr(train_mod, "_load_hu_checkpoint", load_checkpoint)
     monkeypatch.setattr(
         train_mod,
         "_save_hu_checkpoint",
-        lambda _agent, path, seed=None: saved_paths.append((path.name, seed)) or path,
+        lambda _agent, path, seed=None: (
+            saved_paths.append((path.name, seed)), path.touch(), path
+        )[-1],
     )
     monkeypatch.setattr(
         train_mod,
         "_save_light_checkpoint",
-        lambda _agent, path, seed=None: saved_paths.append((path.name, seed)) or path,
+        lambda _agent, path, seed=None: (
+            saved_paths.append((path.name, seed)), path.touch(), path
+        )[-1],
     )
 
     train_mod.train_self_play_multi(
@@ -380,7 +411,7 @@ def test_hu_resume_continues_from_next_iteration_and_writes_periodic_and_final_c
         save_dir=tmp_path,
         num_players=2,
         trainable_players=2,
-        initial_checkpoint=tmp_path / "resume.pt",
+        initial_checkpoint=resume_path,
         hu_current_policy_self_play=True,
     )
 
@@ -416,12 +447,16 @@ def test_hu_writes_full_and_light_checkpoints_on_hu_schedule_and_at_finish(monke
     monkeypatch.setattr(
         train_mod,
         "_save_hu_checkpoint",
-        lambda _agent, path, seed=None: saved_paths.append(("full", path.name, seed)) or path,
+        lambda _agent, path, seed=None: (
+            saved_paths.append(("full", path.name, seed)), path.touch(), path
+        )[-1],
     )
     monkeypatch.setattr(
         train_mod,
         "_save_light_checkpoint",
-        lambda _agent, path, seed=None: saved_paths.append(("light", path.name, seed)) or path,
+        lambda _agent, path, seed=None: (
+            saved_paths.append(("light", path.name, seed)), path.touch(), path
+        )[-1],
         raising=False,
     )
 

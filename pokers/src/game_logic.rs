@@ -343,7 +343,17 @@ impl State {
             min_bet: bet_chips.iter().cloned().fold(0.0, f64::max),
             sb,
             bb,
-            last_raise_increment: last_raise_increment.unwrap_or(bb).max(bb),
+            last_raise_increment: {
+                let increment = last_raise_increment.ok_or_else(|| InitStateError {
+                    msg: "last_raise_increment must be provided for mid-hand reconstruction".to_owned(),
+                })?;
+                if !increment.is_finite() || increment + CHIP_EPSILON < bb {
+                    return Err(InitStateError {
+                        msg: "last_raise_increment must be finite and at least bb".to_owned(),
+                    });
+                }
+                increment
+            },
             status: StateStatus::Ok,
             verbose,
         };

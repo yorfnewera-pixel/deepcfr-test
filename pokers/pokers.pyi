@@ -60,8 +60,8 @@ class State:
         pot_chips: list[float],
         active: list[bool],
         last_stage_action: list[Optional[ActionEnum]],
-        current_player: Optional[int] = None,
-        last_raise_increment: Optional[float] = None,
+        current_player: int,
+        last_raise_increment: float,
         verbose: bool = False,
     ) -> State: ...
     def apply_action(self, action: Action) -> State: ...

@@ -9,10 +9,13 @@ import tempfile
 import time
 import argparse
 import logging
+import json
+from datetime import datetime, timezone
 from copy import deepcopy
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 import numpy as np
 import pokers as pkrs
@@ -51,6 +54,7 @@ _OPPONENT_RECENT_CHECKPOINTS = 11
 _OPPONENT_HISTORICAL_CHECKPOINTS = 2
 _HU_CHECKPOINT_KIND = "hu_current_policy_self_play"
 _HU_CHECKPOINT_VERSION = 3
+_HU_RUN_MANIFEST_NAME = "run_manifest.json"
 _HU_UPDATE_ORDER = [
     "traverse_p0",
     "traverse_p1",
@@ -238,6 +242,7 @@ def _prune_full_checkpoints(
     prefix: str = _HEAVY_CHECKPOINT_PREFIX,
     keep_recent: int = _OPPONENT_RECENT_CHECKPOINTS,
     keep_milestones: int = _OPPONENT_HISTORICAL_CHECKPOINTS,
+    protected_iterations: set[int] | None = None,
 ) -> dict[str, list[int]]:
     """Очищает full checkpoint заданного namespace, сохраняя recent и milestones."""
     checkpoints = _full_checkpoints(directory, prefix)
@@ -252,7 +257,12 @@ def _prune_full_checkpoints(
         (iteration for iteration in checkpoints if iteration not in historical_set),
         reverse=True,
     )[:max(0, int(keep_recent))]
-    retained = historical_set | set(ordinary)
+    protected = {
+        int(iteration)
+        for iteration in (protected_iterations or set())
+        if int(iteration) in checkpoints
+    }
+    retained = historical_set | set(ordinary) | protected
     if checkpoints and not retained:
         latest = max(checkpoints)
         retained.add(latest)
@@ -275,6 +285,7 @@ def _prune_hu_full_checkpoints(
     milestone_every: int | None = None,
     keep_recent: int | None = None,
     keep_milestones: int | None = None,
+    protected_iterations: set[int] | None = None,
 ) -> dict[str, list[int]]:
     """Применяет отдельную retention policy к полным HU checkpoint."""
     retention = _prune_full_checkpoints(
@@ -289,6 +300,7 @@ def _prune_hu_full_checkpoints(
         keep_milestones=int(cfg_get("hu_checkpoint_keep_milestones", 2))
         if keep_milestones is None
         else keep_milestones,
+        protected_iterations=protected_iterations,
     )
     _LOGGER.info(
         "HU checkpoint retention: kept recent=%s; kept milestones=%s; deleted=%s",
@@ -516,6 +528,97 @@ def _atomic_torch_save(payload: dict[str, Any], path: str | Path) -> None:
         os.replace(temporary, target)
     finally:
         temporary.unlink(missing_ok=True)
+
+
+def _atomic_json_save(payload: dict[str, Any], path: str | Path) -> None:
+    """Атомарно записывает JSON manifest run, не оставляя частичный файл."""
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(
+        mode="w",
+        encoding="utf-8",
+        dir=target.parent,
+        suffix=".json",
+        delete=False,
+    ) as file:
+        temporary = Path(file.name)
+        json.dump(payload, file, ensure_ascii=False, indent=2, sort_keys=True)
+        file.write("\n")
+    try:
+        os.replace(temporary, target)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def _hu_run_manifest(agent: DeepCFRAgent, run_id: str, seed: int | None) -> dict[str, Any]:
+    """Строит неизменяемый контракт серии HU checkpoint-ов."""
+    strategy_net = getattr(agent, "strategy_net", None)
+    return {
+        "run_id": run_id,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "checkpoint_kind": _HU_CHECKPOINT_KIND,
+        "network_architecture": getattr(strategy_net, "architecture", None),
+        "game_rules_version": GAME_RULES_VERSION,
+        "action_space_version": ACTION_SPACE_VERSION,
+        "encoding_version": getattr(agent, "encoding_version", None),
+        "base_encoder_input_size": getattr(agent, "input_size", None),
+        "num_players": getattr(agent, "num_players", None),
+        "seed": seed,
+        "initial_checkpoint": None,
+    }
+
+
+def _load_hu_run_manifest(directory: str | Path) -> dict[str, Any]:
+    """Загружает и проверяет минимальный контракт существующей серии HU."""
+    path = Path(directory) / _HU_RUN_MANIFEST_NAME
+    try:
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise ValueError(f"Не удалось прочитать manifest HU run: {path}") from error
+    if not isinstance(manifest, dict):
+        raise ValueError("Manifest HU run должен быть JSON object")
+    run_id = manifest.get("run_id")
+    if not isinstance(run_id, str) or not run_id:
+        raise ValueError("Manifest HU run не содержит run_id")
+    if manifest.get("checkpoint_kind") != _HU_CHECKPOINT_KIND:
+        raise ValueError("Manifest принадлежит не HU current-policy серии")
+    return manifest
+
+
+def _prepare_hu_run_directory(
+    save_dir: str | Path,
+    *,
+    agent: DeepCFRAgent,
+    seed: int | None,
+    initial_checkpoint: str | Path | None,
+) -> tuple[Path, dict[str, Any]]:
+    """Создаёт новую серию HU или выбирает и валидирует серию для resume."""
+    if initial_checkpoint is None:
+        run_id = str(uuid4())
+        created_at = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        run_directory = Path(save_dir) / f"run_{created_at}_{run_id[:8]}"
+        manifest = _hu_run_manifest(agent, run_id, seed)
+        _atomic_json_save(manifest, run_directory / _HU_RUN_MANIFEST_NAME)
+    else:
+        checkpoint_path = Path(initial_checkpoint).resolve()
+        run_directory = checkpoint_path.parent
+        manifest = _load_hu_run_manifest(run_directory)
+        if seed is not None and manifest.get("seed") != seed:
+            raise ValueError("HU resume требует тот же seed, что и в manifest run")
+        expected_contract = _hu_run_manifest(agent, str(manifest["run_id"]), manifest.get("seed"))
+        for key in (
+            "checkpoint_kind",
+            "network_architecture",
+            "game_rules_version",
+            "action_space_version",
+            "encoding_version",
+            "base_encoder_input_size",
+            "num_players",
+        ):
+            if manifest.get(key) != expected_contract[key]:
+                raise ValueError(f"Manifest HU run несовместим с текущим запуском: {key}")
+    setattr(agent, "hu_run_id", manifest["run_id"])
+    return run_directory, manifest
 
 
 def _network_architecture(network: PokerNetwork) -> dict[str, int | str]:
@@ -999,6 +1102,7 @@ def _build_hu_checkpoint(agent: DeepCFRAgent, seed: int | None = None) -> dict[s
         "num_actions": NUM_ACTIONS,
         "iteration": int(agent.iteration_count),
         "seed": seed,
+        "run_id": getattr(agent, "hu_run_id", None),
         "mode": mode,
         "config": {**mode, **_hu_trajectory_configuration(agent)},
         **(agent._d2cfr_checkpoint_metadata() if d2cfr_enabled else {}),
@@ -1164,13 +1268,20 @@ def _validate_hu_checkpoint(agent: DeepCFRAgent, checkpoint: object) -> dict[str
     return checkpoint
 
 
-def _load_hu_checkpoint(agent: DeepCFRAgent, path: str | Path) -> dict[str, Any]:
+def _load_hu_checkpoint(
+    agent: DeepCFRAgent,
+    path: str | Path,
+    *,
+    expected_run_id: str | None = None,
+) -> dict[str, Any]:
     """Строго восстанавливает HU training state до следующей итерации."""
     try:
         payload = torch.load(path, map_location="cpu", weights_only=True)
     except (pickle.UnpicklingError, RuntimeError, ValueError) as error:
         raise ValueError("HU checkpoint не удалось безопасно прочитать") from error
     checkpoint = _validate_hu_checkpoint(agent, payload)
+    if expected_run_id is not None and checkpoint.get("run_id") != expected_run_id:
+        raise ValueError("HU checkpoint не принадлежит manifest выбранной серии")
     if bool(getattr(agent, "d2cfr_enabled", False)):
         for leg, network, optimizer, buffer in zip(
             checkpoint["advantage_legs"],
@@ -1233,7 +1344,9 @@ def _save_hu_iteration_checkpoints(
         Path(save_dir) / f"{_HU_HEAVY_CHECKPOINT_PREFIX}{int(iteration)}.pt",
         seed=seed,
     )
-    _prune_hu_full_checkpoints(save_dir)
+    _prune_hu_full_checkpoints(save_dir, protected_iterations={int(iteration)})
+    if not full_path.is_file():
+        raise RuntimeError("HU retention удалил checkpoint текущей сохранённой итерации")
     light_path = _save_iteration_light_checkpoint(
         agent,
         save_dir,
@@ -1242,6 +1355,8 @@ def _save_hu_iteration_checkpoints(
         seed=seed,
         full_checkpoint_prefix=_HU_HEAVY_CHECKPOINT_PREFIX,
     )
+    if not light_path.is_file():
+        raise RuntimeError("HU light checkpoint текущей сохранённой итерации отсутствует")
     return full_path, light_path
 
 
@@ -1859,7 +1974,12 @@ def _train_hu_current_policy_self_play(
     """Выполняет HU current-policy self-play без внешних opponent/checkpoint policy."""
     coordinator = _create_hu_current_policy_coordinator(agent)
     if initial_checkpoint is not None:
-        checkpoint = _load_hu_checkpoint(agent, initial_checkpoint)
+        run_id = getattr(agent, "hu_run_id", None)
+        checkpoint = _load_hu_checkpoint(
+            agent,
+            initial_checkpoint,
+            expected_run_id=run_id,
+        )
         checkpoint_seed = checkpoint.get("seed")
         if seed is not None and checkpoint_seed != seed:
             raise ValueError("HU resume требует тот же seed, что и в checkpoint")
@@ -2106,11 +2226,17 @@ def train_self_play_multi(
             opponent_checkpoint_dir=opponent_checkpoint_dir,
             teacher_strategy_checkpoint=teacher_strategy_checkpoint,
         )
+        hu_save_dir, _manifest = _prepare_hu_run_directory(
+            save_dir,
+            agent=agent,
+            seed=seed,
+            initial_checkpoint=initial_checkpoint,
+        )
         return _train_hu_current_policy_self_play(
             agent=agent,
             num_iterations=num_iterations,
             traversals_per_iteration=traversals_per_iteration,
-            save_dir=save_dir,
+            save_dir=hu_save_dir,
             evaluate_every=evaluate_every,
             evaluation_games=evaluation_games,
             num_players=num_players,

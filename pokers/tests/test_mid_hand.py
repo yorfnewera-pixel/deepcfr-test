@@ -52,11 +52,38 @@ def test_from_mid_hand_requires_explicit_active_actor_and_rejects_showdown():
         pkrs.State.from_mid_hand(**mid_hand_arguments(current_player=1, active=[True, False]))
 
 
+@pytest.mark.parametrize("increment", (None, float("nan"), float("inf"), 0.0, -1.0, 1.0))
+def test_from_mid_hand_requires_valid_last_raise_increment(increment):
+    with pytest.raises(OSError, match="last_raise_increment"):
+        pkrs.State.from_mid_hand(**mid_hand_arguments(last_raise_increment=increment))
+
+
 def test_from_mid_hand_accepts_explicit_actor_for_non_terminal_streets():
     for stage in (pkrs.Stage.Preflop, pkrs.Stage.Flop, pkrs.Stage.Turn, pkrs.Stage.River):
         state = pkrs.State.from_mid_hand(**mid_hand_arguments(stage, current_player=1))
         assert state.stage == stage
         assert state.current_player == 1
+
+
+def test_from_mid_hand_preserves_minimum_raise_after_large_prior_raise():
+    state = pkrs.State.from_mid_hand(
+        **mid_hand_arguments(
+            stake=100.0,
+            pot=12.0,
+            bet_chips=[10.0, 0.0],
+            pot_chips=[0.0, 2.0],
+            last_stage_action=[pkrs.ActionEnum.Raise, None],
+            current_player=1,
+            last_raise_increment=8.0,
+        )
+    )
+
+    too_small = state.apply_action(pkrs.Action(pkrs.ActionEnum.Raise, amount=2.0))
+    full_raise = state.apply_action(pkrs.Action(pkrs.ActionEnum.Raise, amount=8.0))
+
+    assert too_small.status == pkrs.StateStatus.IllegalAction
+    assert full_raise.status == pkrs.StateStatus.Ok
+    assert full_raise.players_state[1].bet_chips == pytest.approx(18.0)
 
 
 def test_from_mid_hand_preserves_folded_players_and_turn_owner():
@@ -134,6 +161,7 @@ def test_mid_hand_rejects_incomplete_public_history_copy():
         active=[True, True],
         last_stage_action=[None, None],
         current_player=0,
+        last_raise_increment=2.0,
     )
     target = source.__copy__()
 

@@ -1,0 +1,551 @@
+Прочитал новое углублённое ревью Astra и проверил соответствующие места на актуальном commit:
+
+```
+ab16d41e2eeb7a3bab9d84fb11d3aa76b73b45fa
+commit 154
+```
+
+Все три новые проблемы **подтверждаются**. Это не повторы предыдущих четырёх пунктов, а дополнительные пограничные случаи.
+
+## Итог
+
+| № | Проблема | Подтверждение | Риск |
+| --- | --- | --- | --- |
+| 1 | Pruning может удалить только что сохранённый checkpoint | Да | Высокий |
+| 2 | `FrozenBlueprintPolicy` не загружает HU light checkpoint | Да | Средний, блокирует нормальную оценку |
+| 3 | `last_raise_increment=None` меняет правила рейза | Да | Средний, latent engine bug |
+
+При этом Astra подтверждает, что предыдущие исправления действительно внесены:
+
+- nonlinear fusion v2 присутствует;
+- Showdown в `from_mid_hand` запрещён;
+- `current_player` требуется явно;
+- HU checkpoint pruning подключён.
+
+---
+
+# 1. Новый HU checkpoint может быть сразу удалён
+
+## Почему Astra права
+
+Текущий pruning рассматривает все файлы в каталоге с префиксом:
+
+```
+hu_checkpoint_iter_*.pt
+```
+
+и сортирует их только по номеру итерации.
+
+Допустим, в каталоге остались checkpoints старого запуска:
+
+```
+hu_checkpoint_iter_50000.pt
+hu_checkpoint_iter_100000.pt
+hu_checkpoint_iter_140000.pt
+hu_checkpoint_iter_145000.pt
+```
+
+После этого запускается новое обучение с нуля в том же `save_dir`. Оно сохраняет:
+
+```
+hu_checkpoint_iter_5000.pt
+```
+
+Затем вызывается:
+
+```python
+_prune_hu_full_checkpoints(save_dir)
+```
+
+При политике:
+
+```
+keep_recent = 2
+keep_milestones = 2
+```
+
+итерация `5000` считается самым старым обычным checkpoint и может быть немедленно удалена.
+
+После этого создаётся:
+
+```
+hu_light_checkpoint_iter_5000.pt
+```
+
+Но light pruning видит, что соответствующего full checkpoint `5000` уже нет, и удаляет light-файл тоже.
+
+При этом функция возвращает:
+
+```python
+(full_path, light_path)
+```
+
+хотя оба пути уже могут не существовать.
+
+Это реальная угроза сохранности обучения.
+
+## Правильное решение
+
+Просто сохранять ещё больше последних checkpoints недостаточно. Нужно отделить **серии обучения** друг от друга.
+
+### Обязательный базовый вариант
+
+Каждый независимый запуск должен иметь собственный каталог:
+
+```
+models/
+  run_20260913_041500/
+    run_manifest.json
+    hu_checkpoint_iter_5000.pt
+    hu_light_checkpoint_iter_5000.pt
+```
+
+Resume должен писать в каталог исходной серии либо в явно выбранную новую серию.
+
+### Manifest запуска
+
+При старте создать, например:
+
+```json
+{
+  "run_id": "uuid",
+  "created_at": "...",
+  "checkpoint_kind": "hu_current_policy_self_play",
+  "initial_checkpoint": null,
+  "network_architecture": "card_context_v2",
+  "game_rules_version": "holdem_standard_hu_v2",
+  "action_space_version": "...",
+  "encoding_version": "history_summary_v3",
+  "seed": 123
+}
+```
+
+Для resume:
+
+- прочитать `run_manifest.json`;
+- проверить совместимость;
+- убедиться, что checkpoint принадлежит этой серии;
+- только после этого разрешать pruning.
+
+### Минимальная fail-safe защита
+
+Даже при наличии отдельного каталога pruning не должен удалять только что сохранённый файл.
+
+После сохранения:
+
+```python
+full_path = _save_hu_checkpoint(...)
+retention = _prune_hu_full_checkpoints(...)
+```
+
+обязательно проверить:
+
+```python
+if not full_path.exists():
+    raise RuntimeError(
+        "HU retention removed the checkpoint saved by the current run"
+    )
+```
+
+Но лучше перед удалением передавать защищённую итерацию:
+
+```python
+_prune_hu_full_checkpoints(
+    save_dir,
+    protected_iterations={iteration},
+)
+```
+
+Текущий checkpoint должен входить в retained независимо от номера.
+
+## Важное правило
+
+Нельзя определять принадлежность к одной серии только по тому, что файлы лежат в одном каталоге. Пользователь мог:
+
+- начать новый run в старом `models`;
+- продолжить ранний checkpoint;
+- скопировать checkpoint вручную;
+- сменить seed или конфигурацию;
+- вернуться к более ранней итерации.
+
+## Тесты
+
+Добавить тест со старыми номерами:
+
+```
+existing: 50000, 100000, 140000, 145000
+new current run: 5000
+```
+
+Проверить:
+
+- `5000` не удалён;
+- его light-пара не удалена;
+- оба возвращённых пути существуют;
+- чужая серия либо изолирована, либо операция отклоняется;
+- pruning не выполняется через границу `run_id`.
+
+**Приоритет: самый высокий. Исправить до следующего длинного запуска.**
+
+---
+
+# 2. HU light checkpoint не загружается в `FrozenBlueprintPolicy`
+
+## Почему Astra права
+
+Экспорт HU strategy пишет:
+
+```python
+checkpoint_kind = "hu_strategy_only"
+```
+
+Но `FrozenBlueprintPolicy.from_checkpoint()` распознаёт только:
+
+```python
+if checkpoint.get("checkpoint_kind") == "strategy_only":
+```
+
+Поэтому HU light checkpoint проваливается в ветку загрузки полного checkpoint:
+
+```python
+full_checkpoint_network_spec(checkpoint)
+```
+
+А light checkpoint не содержит:
+
+- `advantage_net`;
+- `advantage_target_net`;
+- optimizer state;
+- replay state.
+
+Загрузчик ожидаемо его отвергает.
+
+## Почему нельзя просто дописать второе имя
+
+Недостаточно сделать:
+
+```python
+if checkpoint_kind in {"strategy_only", "hu_strategy_only"}:
+```
+
+Обычный encoder HU имеет размер:
+
+```
+181
+```
+
+Но shared HU strategy получает:
+
+```
+181 base features + 2 actor features = 183
+```
+
+В light metadata это уже отражено:
+
+```python
+base_encoder_input_size
+strategy_input_size
+strategy_actor_conditioned
+strategy_actor_count
+```
+
+Следовательно, загрузчик должен понимать actor conditioning.
+
+## Требуемое исправление
+
+`FrozenBlueprintPolicy` должен хранить отдельные признаки:
+
+```python
+self.base_input_size
+self.strategy_input_size
+self.strategy_actor_conditioned
+self.strategy_actor_count
+```
+
+Для `hu_strategy_only` проверять:
+
+```
+num_players == 2
+strategy_actor_conditioned == true
+strategy_actor_count == 2
+strategy_input_size == base_encoder_input_size + 2
+```
+
+Создавать сеть с:
+
+```python
+PokerNetwork(
+    strategy_input_size,
+    hidden_size,
+    NUM_ACTIONS,
+    architecture,
+)
+```
+
+При кодировании:
+
+```python
+base = encode_state_for_version(state, player_id, encoding_version)
+
+actor = np.zeros(2, dtype=np.float32)
+actor[player_id] = 1.0
+
+encoded = np.concatenate([base, actor])
+```
+
+Не путать это со старым:
+
+```python
+use_multi_agent_advantage
+```
+
+HU actor conditioning shared strategy — отдельный контракт.
+
+### Batch inference
+
+В `probabilities_batch()` для каждого состояния добавлять one-hot по:
+
+```python
+state.current_player
+```
+
+В `probabilities(state, player_id=...)` — по явно выбранному `player_id`.
+
+## Необходимые проверки checkpoint
+
+До `load_state_dict` проверить:
+
+- checkpoint kind;
+- format version;
+- game rules version;
+- action space;
+- `num_players == 2`;
+- architecture;
+- base encoder size;
+- strategy input size;
+- actor count;
+- формы всех tensors;
+- наличие fusion-слоёв для `card_context_v2`.
+
+## Тесты
+
+1. Сохранить настоящий HU light checkpoint.
+2. Загрузить через:
+    
+    ```python
+    FrozenBlueprintPolicy.from_checkpoint(path, num_players=2)
+    ```
+    
+3. Сравнить logits до и после сохранения.
+4. Сравнить probabilities для P0.
+5. Сравнить probabilities для P1.
+6. Убедиться, что замена actor one-hot меняет правильные входные признаки.
+7. Проверить batch с состояниями, где ходят разные игроки.
+8. Проверить legal mask.
+9. Обычный `strategy_only` продолжает загружаться.
+10. `hu_strategy_only` с `num_players=6` отклоняется.
+11. Несогласованные `181/183` metadata отклоняются.
+12. Full HU checkpoint не принимается как light.
+
+Это не ломает встроенную оценку обучаемого агента против random, но блокирует корректную внешнюю frozen evaluation, включая нормальные A/B и paired tests.
+
+---
+
+# 3. `last_raise_increment=None` меняет правила рейзов
+
+## Подтверждение
+
+Сейчас `from_mid_hand` уже требует `current_player`, но всё ещё допускает:
+
+```python
+last_raise_increment=None
+```
+
+При этом Rust делает:
+
+```rust
+last_raise_increment.unwrap_or(bb).max(bb)
+```
+
+То есть потерянная информация молча заменяется на BB.
+
+Пример:
+
+```
+SB = 1
+BB = 2
+предыдущий игрок повысил до 10
+фактический raise increment = 8
+```
+
+Следующий полный рейз должен повысить минимум ещё на `8`, то есть минимальный total bet:
+
+```
+18
+```
+
+Если при восстановлении подставить:
+
+```
+last_raise_increment = BB = 2
+```
+
+движок ошибочно разрешит повышение до:
+
+```
+12
+```
+
+Это меняет legal action semantics восстановленной раздачи.
+
+## Правильное исправление
+
+Как и `current_player`, `last_raise_increment` должен быть обязательным для произвольного `from_mid_hand`.
+
+Сохранить `Option<f64>` на переходный период можно, но `None` необходимо отклонять:
+
+```rust
+let last_raise_increment = last_raise_increment.ok_or_else(|| {
+    InitStateError {
+        msg: "last_raise_increment must be provided for mid-hand reconstruction".to_owned(),
+    }
+})?;
+```
+
+Затем проверить:
+
+```rust
+if !last_raise_increment.is_finite()
+    || last_raise_increment + CHIP_EPSILON < bb
+{
+    return Err(...);
+}
+```
+
+Не выводить его автоматически из:
+
+- `min_bet`;
+- текущих `bet_chips`;
+- `last_stage_action`;
+- BB.
+
+Этого недостаточно для восстановления истории полного рейза и short all-in.
+
+Штатный путь в `rollouts.py` уже передаёт:
+
+```python
+last_raise_increment=state.last_raise_increment
+```
+
+поэтому основной runtime search этим конкретным багом сейчас не затронут. Но сам публичный контракт конструктора остаётся опасным.
+
+## Тесты
+
+### Полный рейз
+
+Восстановить состояние:
+
+```
+blinds 1/2
+current max bet = 10
+last full raise increment = 8
+```
+
+Проверить:
+
+- raise до `12` незаконен;
+- raise до `18` законен;
+- all-in меньше минимального полного рейза обрабатывается по текущим правилам short all-in.
+
+### Валидация
+
+Проверить, что отклоняются:
+
+```
+None
+NaN
+Inf
+0
+отрицательное значение
+значение меньше BB
+```
+
+### Round-trip
+
+Для состояния, полученного обычной игрой:
+
+```python
+restored = from_mid_hand(
+    ...,
+    current_player=state.current_player,
+    last_raise_increment=state.last_raise_increment,
+)
+```
+
+Проверить совпадение:
+
+- legal actions;
+- минимального допустимого рейза;
+- результата одинакового следующего действия;
+- `last_raise_increment` после действия.
+
+---
+
+# Дополнение к предыдущему плану для агента
+
+Добавить после уже реализованных четырёх исправлений следующие три этапа.
+
+## Этап 5 — изоляция checkpoint-серий
+
+```
+fix(training): isolate checkpoint retention by run identity
+```
+
+- отдельный каталог каждого run;
+- `run_manifest.json`;
+- проверка `run_id`;
+- защита только что сохранённой итерации;
+- post-save existence assertion;
+- тест смешивания старой и новой серии;
+- запрет pruning чужой серии.
+
+## Этап 6 — загрузка HU light policy
+
+```
+fix(evaluation): support actor-conditioned HU light checkpoints
+```
+
+- распознать `hu_strategy_only`;
+- использовать `strategy_input_size`;
+- добавить два actor features;
+- проверить v2 fusion metadata;
+- full round-trip logits/probabilities;
+- P0/P1 и batch tests.
+
+## Этап 7 — полный контракт восстановления рейза
+
+```
+fix(engine): require last raise increment for reconstruction
+```
+
+- отклонить `last_raise_increment=None`;
+- проверить finite и допустимый диапазон;
+- обновить все call sites;
+- тест min-raise после крупного рейза;
+- тест short all-in;
+- reconstruction round-trip.
+
+# Новый порядок приоритетов
+
+1. **Изоляция checkpoint-серий** — иначе можно потерять только что сохранённый resumable checkpoint.
+2. **HU light loader** — иначе внешний evaluation pipeline не может использовать текущий экспорт.
+3. **Обязательный `last_raise_increment`** — закрывает изменение правил при неполной реконструкции.
+4. После этого повторно прогнать:
+    - Rust tests;
+    - Python tests;
+    - HU full save/resume;
+    - HU light load/evaluation;
+    - pruning с несколькими сериями;
+    - короткий D2CFR smoke training.
+
+Эти три замечания не требуют менять математику D2CFR, MSE/Huber, replay lifecycle или порядок обучения P0/P1. Это проблемы **сохранности артефактов, загрузки evaluation policy и точности восстановления состояния игры**.

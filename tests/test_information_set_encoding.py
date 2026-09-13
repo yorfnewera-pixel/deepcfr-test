@@ -148,6 +148,7 @@ def test_history_summary_rejects_incomplete_public_history() -> None:
         active=[True, True],
         last_stage_action=[None, None],
         current_player=0,
+        last_raise_increment=2.0,
     )
 
     with pytest.raises(ValueError, match="полной публичной истории"):

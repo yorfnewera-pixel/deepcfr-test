@@ -519,6 +519,26 @@ def test_hu_iteration_light_uses_own_namespace_without_overwriting_generic_light
     assert hu_light.exists()
 
 
+def test_hu_retention_protects_current_checkpoint_from_older_series(tmp_path, monkeypatch):
+    """Текущий HU checkpoint не должен удаляться из-за больших номеров старого запуска."""
+    for iteration in (50000, 100000, 140000, 145000):
+        (tmp_path / f"hu_checkpoint_iter_{iteration}.pt").touch()
+
+    def save_full(_agent, path, seed=None):
+        Path(path).touch()
+        return Path(path)
+
+    monkeypatch.setattr(train_mod, "_save_hu_checkpoint", save_full)
+    full_path, light_path = train_mod._save_hu_iteration_checkpoints(
+        cast(DeepCFRAgent, LightCheckpointAgent()),
+        tmp_path,
+        5000,
+    )
+
+    assert full_path.is_file()
+    assert light_path.is_file()
+
+
 def test_hu_and_generic_light_pruning_are_namespace_isolated(tmp_path):
     """Ломается, если pruning одного режима удаляет light checkpoint другого режима."""
     (tmp_path / "multi_checkpoint_iter_5000.pt").touch()
@@ -630,9 +650,11 @@ def test_hu_iteration_checkpoint_saves_full_before_pruning_and_light(tmp_path, m
 
     def save_full(_agent, path, seed=None):
         events.append(("full", Path(path).name, seed))
+        Path(path).touch()
         return Path(path)
 
-    def prune_full(directory):
+    def prune_full(directory, **kwargs):
+        assert kwargs["protected_iterations"] == {5000}
         events.append(("prune_full", Path(directory).name))
         return {"recent": [], "milestones": [], "deleted": []}
 
@@ -640,7 +662,9 @@ def test_hu_iteration_checkpoint_saves_full_before_pruning_and_light(tmp_path, m
         events.append(
             ("light", Path(directory).name, iteration, kwargs["prefix"], kwargs["full_checkpoint_prefix"])
         )
-        return Path(directory) / f"{kwargs['prefix']}{iteration}.pt"
+        path = Path(directory) / f"{kwargs['prefix']}{iteration}.pt"
+        path.touch()
+        return path
 
     monkeypatch.setattr(train_mod, "_save_hu_checkpoint", save_full)
     monkeypatch.setattr(train_mod, "_prune_hu_full_checkpoints", prune_full)

@@ -5,6 +5,7 @@ import torch
 from src.core import deep_cfr as deep_cfr_mod
 from src.core.deep_cfr import DeepCFRAgent
 from src.core.model import CARD_CONTEXT_ARCHITECTURE
+from src.training import train as train_mod
 from src.utils import config as config_mod
 from tools import checkpoint_tools
 
@@ -35,6 +36,38 @@ def test_diagnose_accepts_strategy_only_light_checkpoint(tmp_path):
 
     assert result["ok"] is True
     assert result["errors"] == []
+
+
+def test_hu_actor_conditioned_light_checkpoint_works_in_diagnostics_and_paired_evaluation(tmp_path):
+    config_path = tmp_path / "hu.yaml"
+    config_path.write_text(
+        "\n".join(
+            (
+                "num_actions: 6",
+                "num_players: 2",
+                "num_trainable_players: 2",
+                "hu_current_policy_self_play: true",
+                "hidden_size: 8",
+                "network_architecture: monolithic_v1",
+            )
+        ) + "\n",
+        encoding="utf-8",
+    )
+    config_mod.load_config(config_path)
+    try:
+        checkpoint = tmp_path / "hu_light.pt"
+        agent = DeepCFRAgent(player_id=0, num_players=2)
+        train_mod._create_hu_current_policy_coordinator(agent)
+        torch.save(agent.build_light_checkpoint(), checkpoint)
+
+        assert checkpoint_tools.run_weight_sanity(checkpoint)["ok"] is True
+        result = checkpoint_tools.evaluate_paired_checkpoints(
+            checkpoint, checkpoint, games=1, seed=7
+        )
+        assert result["seats"] == 2
+        assert result["mean_difference"] == 0.0
+    finally:
+        config_mod.load_config("config.yaml")
 
 
 def test_paired_evaluation_of_identical_checkpoints_has_zero_difference(tmp_path):

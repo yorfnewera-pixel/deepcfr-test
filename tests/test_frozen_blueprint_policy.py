@@ -6,7 +6,8 @@ import torch
 from src.core.action_space import NUM_ACTIONS, legal_action_mask
 from src.core import deep_cfr as deep_cfr_mod
 from src.core.deep_cfr import DeepCFRAgent
-from src.core.model import CARD_CONTEXT_ARCHITECTURE, CARD_FEATURE_SIZE
+from src.core.model import CARD_CONTEXT_ARCHITECTURE, CARD_CONTEXT_V2_ARCHITECTURE, CARD_FEATURE_SIZE
+from src.core.model import encode_state_for_version
 from src.evaluation.blueprint_policy import FrozenBlueprintPolicy
 from src.evaluation.paired_harness import evaluate_paired
 from src.utils import config as config_mod
@@ -173,3 +174,81 @@ def test_frozen_policy_rejects_explicit_null_architecture_metadata(tmp_path):
 
     with pytest.raises(ValueError, match="некорректное значение архитектуры"):
         FrozenBlueprintPolicy.from_checkpoint(checkpoint, num_players=2)
+
+
+def test_frozen_policy_rejects_wrong_v2_card_feature_metadata_before_loading(tmp_path):
+    checkpoint = tmp_path / "card-context-v2-wrong-card-features.pt"
+    payload = DeepCFRAgent(
+        player_id=0,
+        num_players=2,
+        network_architecture=CARD_CONTEXT_V2_ARCHITECTURE,
+    ).build_light_checkpoint()
+    payload["card_feature_size"] = CARD_FEATURE_SIZE + 1
+    payload["config"]["card_feature_size"] = CARD_FEATURE_SIZE + 1
+    torch.save(payload, checkpoint)
+
+    with pytest.raises(ValueError, match="размер card-признаков"):
+        FrozenBlueprintPolicy.from_checkpoint(checkpoint, num_players=2)
+
+
+def test_frozen_policy_rejects_non_mapping_light_config_before_loading(tmp_path):
+    checkpoint = tmp_path / "malformed-config-light.pt"
+    payload = DeepCFRAgent(player_id=0, num_players=2).build_light_checkpoint()
+    payload["config"] = []
+    torch.save(payload, checkpoint)
+
+    with pytest.raises(ValueError, match="config"):
+        FrozenBlueprintPolicy.from_checkpoint(checkpoint, num_players=2)
+
+
+def test_frozen_policy_loads_actor_conditioned_hu_light_checkpoint_for_each_player(tmp_path):
+    config_path = tmp_path / "hu.yaml"
+    config_path.write_text(
+        "\n".join(
+            (
+                "num_actions: 6",
+                "num_players: 2",
+                "num_trainable_players: 2",
+                "hu_current_policy_self_play: true",
+                "hidden_size: 8",
+                "network_architecture: monolithic_v1",
+            )
+        ) + "\n",
+        encoding="utf-8",
+    )
+    config_mod.load_config(config_path)
+    try:
+        agent = DeepCFRAgent(player_id=0, num_players=2, device="cpu")
+        from src.training import train as train_mod
+
+        train_mod._create_hu_current_policy_coordinator(agent)
+        checkpoint_path = tmp_path / "hu-light.pt"
+        torch.save(agent.build_light_checkpoint(seed=19), checkpoint_path)
+
+        policy = FrozenBlueprintPolicy.from_checkpoint(checkpoint_path, num_players=2)
+        first = pkrs.State.from_seed(
+            n_players=2, button=0, sb=1.0, bb=2.0, stake=100.0, seed=19
+        )
+        second = first.apply_action(pkrs.Action(pkrs.ActionEnum.Call))
+
+        def expected_probabilities(state, player_id):
+            base = encode_state_for_version(state, player_id, agent.encoding_version)
+            actor = np.zeros(2, dtype=np.float32)
+            actor[player_id] = 1.0
+            with torch.inference_mode():
+                logits = agent.strategy_net(
+                    torch.from_numpy(np.concatenate((base, actor))).unsqueeze(0)
+                )
+            logits = logits.clone()
+            mask = legal_action_mask(state)
+            logits[0, mask == 0.0] = -1e20
+            return torch.softmax(logits, dim=1)[0].numpy()
+
+        assert np.allclose(policy.probabilities(first, player_id=0), expected_probabilities(first, 0))
+        assert np.allclose(policy.probabilities(second, player_id=1), expected_probabilities(second, 1))
+        assert np.allclose(
+            policy.probabilities_batch((first, second)),
+            np.stack((expected_probabilities(first, 0), expected_probabilities(second, 1))),
+        )
+    finally:
+        config_mod.load_config("config.yaml")
