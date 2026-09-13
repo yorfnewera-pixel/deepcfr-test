@@ -1745,12 +1745,19 @@ def _create_hu_current_policy_coordinator(
     return coordinator
 
 
-def _print_d2cfr_startup_contract() -> None:
+def _print_d2cfr_startup_contract(loss_function: str | None = None) -> None:
     """Явно фиксирует математический режим, чтобы лог не путал его с baseline."""
+    active_loss_function = (
+        str(cfg_get("d2cfr_loss_function", "mse"))
+        if loss_function is None
+        else loss_function
+    )
+    huber_delta_status = "inactive" if active_loss_function == "mse" else "active"
     print(
         "Алгоритм: D2CFR anchored; advantage history: historical reservoir; "
         "advantage target network: выключен; DCFR bootstrap: выключен."
     )
+    print(f"D2CFR loss: {active_loss_function}; Huber delta: {huber_delta_status}.")
     print(
         "discount_alpha: не поддерживается; negative regret target clamp: выключен; "
         "regret-matching positive clamp: включён; strategy history: historical reservoir."
@@ -1868,7 +1875,7 @@ def _train_hu_current_policy_self_play(
             f"итераций={num_iterations}, обходов/итерацию={traversals_per_iteration}, device={agent.device}"
         )
         if bool(getattr(agent, "d2cfr_enabled", False)):
-            _print_d2cfr_startup_contract()
+            _print_d2cfr_startup_contract(agent.d2cfr_loss_function)
         print(
             "Порядок фаз HU: обе фазы обходов P0/P1 на frozen snapshots -> "
             "обучение advantage P0/P1 -> обучение shared strategy."
@@ -2143,7 +2150,7 @@ def train_self_play_multi(
             f"обходов/итерацию={traversals_per_iteration}, device={device}"
         )
         if bool(getattr(agent, "d2cfr_enabled", False)):
-            _print_d2cfr_startup_contract()
+            _print_d2cfr_startup_contract(agent.d2cfr_loss_function)
         for iteration in range(start_iteration, start_iteration + int(num_iterations)):
             iteration_started = time.perf_counter()
             agent.iteration_count = iteration

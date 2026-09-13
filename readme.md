@@ -6,6 +6,26 @@
 historical reservoir, затем общая actor-conditioned strategy-сеть обучает
 среднюю policy. Six-max остаётся экспериментальной multiplayer-адаптацией.
 
+## Активная архитектура и совместимость
+
+Активный HU-конфиг использует `card_context_v2`: после отдельных card- и
+context-encoder применяется нелинейное fusion. `card_context_v1` сохраняется
+как аддитивная архитектура только для явно выбранной загрузки legacy-артефактов.
+Полные checkpoint v1 и v2 несовместимы между собой; для продолжения обучения
+нужно выбирать checkpoint с совпадающей архитектурой.
+
+`card_context_v2` — практическое улучшение реализации, а не утверждение, что
+такое нелинейное fusion описано в исходной статье D2CFR.
+
+HU сохраняет full и light checkpoint каждые 5000 итераций в раздельных
+namespace. Для full checkpoint milestone-интервал — 50000 итераций; retention
+оставляет два последних и два milestone checkpoint. Это не смешивается с
+retention six-max.
+
+При создании состояния через `State.from_mid_hand` необходимо явно передать
+`current_player`. Неразрешённое состояние `Showdown` для такого восстановления
+отклоняется.
+
 ## Возможности
 
 - HU D2CFR anchored для Texas Hold'em;

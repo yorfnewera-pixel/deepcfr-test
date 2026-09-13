@@ -163,3 +163,13 @@ def test_hu_d2_reinitialize_keeps_agent_p0_leg_in_sync_with_coordinator(d2_hu_ag
     assert d2_hu_agent.advantage_net is coordinator.advantage_nets[0]
     assert d2_hu_agent.optimizer is coordinator.advantage_optimizers[0]
     assert d2_hu_agent.d2cfr_buffer is coordinator.advantage_buffers[0]
+
+
+def test_d2cfr_startup_contract_declares_mse_and_inactive_huber(capsys):
+    """Стартовый лог не должен создавать впечатление, что активен Huber-loss."""
+    train_mod._print_d2cfr_startup_contract("mse")
+
+    output = capsys.readouterr().out
+
+    assert "D2CFR loss: mse" in output
+    assert "Huber delta: inactive" in output

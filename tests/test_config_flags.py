@@ -1,9 +1,24 @@
+from pathlib import Path
+
 import pytest
+import yaml
 
 from src.training import train as _train_mod
 from src.utils import config as config_mod
 
 del _train_mod
+
+
+def test_active_hu_config_declares_v2_and_retention_contract():
+    """Активный HU запуск явно закрепляет v2 и независимый retention."""
+    config_path = Path(__file__).parents[1] / "config.yaml"
+    active_config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+
+    assert active_config["network_architecture"] == "card_context_v2"
+    assert active_config["hu_checkpoint_save_every"] == 5000
+    assert active_config["checkpoint_keep_every"] == 50000
+    assert active_config["hu_checkpoint_keep_recent"] == 2
+    assert active_config["hu_checkpoint_keep_milestones"] == 2
 
 
 def test_clear_strategy_buffer_each_iteration_uses_explicit_config(tmp_path):

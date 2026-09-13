@@ -6,8 +6,8 @@ num_trainable_players: 2
 hu_current_policy_self_play: true
 # Public history summary, несовместим с legacy_v2 чекпоинтами.
 encoding_version: history_summary_v3
-# Архитектура сети; monolithic_v1 сохраняет совместимость со старыми checkpoint.
-network_architecture: card_context_v1
+# Активный HU запуск использует нелинейное слияние карточного и контекстного embeddings.
+network_architecture: card_context_v2
 
 hidden_size: 256
 advantage_lr: 1.0e-4
@@ -66,7 +66,10 @@ big_blind: 2.0
 checkpoint_save_every: 1000
 # HU full и light checkpoint сохраняются отдельно от six-max каждые 5000 итераций.
 hu_checkpoint_save_every: 5000
+# Milestone-интервал для HU full checkpoint; retention full/light изолирован по namespace.
 checkpoint_keep_every: 50000
+hu_checkpoint_keep_recent: 2
+hu_checkpoint_keep_milestones: 2
 traversal_single_thread: true
 training_torch_threads: 12
 training_preload_to_device: true
