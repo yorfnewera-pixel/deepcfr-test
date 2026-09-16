@@ -1188,6 +1188,13 @@ def test_agent_policy_and_checkpoint_use_six_fixed_actions(tmp_path):
     assert "strategy_optimizer" in payload
 
 
+def test_agent_uses_adam_for_advantage_and_strategy_optimizers():
+    agent = DeepCFRAgent(player_id=0, num_players=2)
+
+    assert type(agent.optimizer) is torch.optim.Adam
+    assert type(agent.strategy_optimizer) is torch.optim.Adam
+
+
 def test_history_summary_v3_agent_persists_encoder_contract(tmp_path, monkeypatch):
     import src.core.deep_cfr as deep_cfr_module
 
@@ -1284,6 +1291,42 @@ def test_strategy_training_steps_override_epoch_budget():
 
     assert agent.last_strategy_profile["actual_steps"] == 7
     assert agent.last_strategy_profile["expected_steps"] == 7
+
+
+def test_strategy_training_profile_reports_full_epoch_completion(capsys):
+    train_mod._log_strategy_training_profile({
+        "buffer_size": 1_000,
+        "batch_size": 200,
+        "epochs": 20,
+        "configured_steps": None,
+        "expected_steps": 100,
+        "actual_steps": 100,
+    })
+
+    output = capsys.readouterr().out
+
+    assert "Strategy training: buffer=1000 | batch=200 | mode=epochs" in output
+    assert "configured_epochs=20" in output
+    assert "expected_steps=100 | actual_steps=100" in output
+    assert "equivalent_epochs=20.000" in output
+
+
+def test_strategy_training_profile_reports_fixed_step_coverage(capsys):
+    train_mod._log_strategy_training_profile({
+        "buffer_size": 1_000,
+        "batch_size": 200,
+        "epochs": 1,
+        "configured_steps": 75,
+        "expected_steps": 75,
+        "actual_steps": 75,
+    })
+
+    output = capsys.readouterr().out
+
+    assert "Strategy training: buffer=1000 | batch=200 | mode=steps" in output
+    assert "configured_steps=75" in output
+    assert "expected_steps=75 | actual_steps=75" in output
+    assert "equivalent_epochs=15.000" in output
 
 
 def test_strategy_discount_weights_are_normalized_in_batch():

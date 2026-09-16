@@ -16,6 +16,11 @@ from PyQt5.QtGui import QPixmap, QIcon, QFont, QColor, QPalette
 # Import the DeepCFR agent
 from src.core.deep_cfr import DeepCFRAgent
 from src.core.action_space import resolve_action
+from src.core.checkpoint_kinds import (
+    HU_STRATEGY_ONLY_CHECKPOINT_KIND,
+    STRATEGY_ONLY_CHECKPOINT_KIND,
+)
+from src.core.game_contract import FIXED_HU_GAME_CONTRACT
 from src.core.model import set_verbose
 from src.agents.random_agent import RandomAgent
 from policy_runtime.core import PolicyRuntimeAgent
@@ -37,12 +42,7 @@ class PolicyRuntimeAdapter:
 def create_playing_agent(model_path, player_id, device):
     """Загружает модель в адаптер, совместимый с игровым движком GUI."""
     checkpoint = torch.load(model_path, map_location="cpu", weights_only=False)
-    is_inference = (
-        "strategy_net" in checkpoint
-        and checkpoint.get("action_space_version") == "six_fixed_v2"
-        and "base.0.weight" in checkpoint.get("strategy_net", {})
-    )
-    if is_inference:
+    if is_policy_runtime_checkpoint(checkpoint):
         return PolicyRuntimeAdapter(model_path, player_id=player_id, device=str(device))
 
     agent = DeepCFRAgent(player_id=player_id, device=device)
@@ -50,11 +50,49 @@ def create_playing_agent(model_path, player_id, device):
     return agent
 
 
+def is_policy_runtime_checkpoint(checkpoint):
+    """Определяет light-checkpoint, который должен загружаться через policy runtime."""
+    return (
+        isinstance(checkpoint, dict)
+        and checkpoint.get("checkpoint_kind")
+        in {STRATEGY_ONLY_CHECKPOINT_KIND, HU_STRATEGY_ONLY_CHECKPOINT_KIND}
+        and isinstance(checkpoint.get("strategy_net"), dict)
+    )
+
+
 _POSITION_NAMES = {0: "BTN", 1: "SB", 2: "BB", 3: "UTG", 4: "MP", 5: "CO"}
+
+
+def table_player_ids(num_players):
+    """Возвращает порядок мест за столом для поддерживаемого формата игры."""
+    if num_players == 2:
+        return (1, 0)
+    if num_players == 6:
+        return (1, 2, 3, 0, 5, 4)
+    raise ValueError("GUI поддерживает только HU или 6-max")
+
+
+def create_game_state(num_players, seed, stake=200.0, sb=1.0, bb=2.0):
+    """Создаёт состояние раздачи, сохраняя неизменяемый контракт HU."""
+    table_player_ids(num_players)
+    if num_players == 2:
+        stake = FIXED_HU_GAME_CONTRACT.starting_stack
+        sb = FIXED_HU_GAME_CONTRACT.small_blind
+        bb = FIXED_HU_GAME_CONTRACT.big_blind
+    return pkrs.State.from_seed(
+        n_players=num_players,
+        button=seed % num_players,
+        sb=sb,
+        bb=bb,
+        stake=stake,
+        seed=seed,
+    )
 
 
 def position_label(player_id, button, num_players=6):
     rel = (player_id - button) % num_players
+    if num_players == 2:
+        return "BTN/SB" if rel == 0 else "BB"
     return _POSITION_NAMES.get(rel, f"P{player_id}")
 
 
@@ -284,8 +322,14 @@ class PlayerWidget(QGroupBox):
 
 class PokerTable(QWidget):
     """Widget that displays the poker table and game information"""
-    def __init__(self, parent=None):
+    def __init__(self, num_players=6, human_player_id=0, parent=None):
         super().__init__(parent)
+        if num_players not in (2, 6):
+            raise ValueError("GUI поддерживает только HU или 6-max")
+        if not 0 <= human_player_id < num_players:
+            raise ValueError("Позиция человека выходит за пределы стола")
+        self.num_players = num_players
+        self.human_player_id = human_player_id
         self.setMinimumSize(800, 600)
         
         # Main layout
@@ -313,18 +357,21 @@ class PokerTable(QWidget):
         # Player layouts
         self.players = []
         
-        # Top row (3 players)
+        # Верхний ряд игроков.
         top_layout = QHBoxLayout()
-        for i in [1, 2, 3]:
-            player = PlayerWidget(i)
+        player_ids = table_player_ids(num_players)
+        top_player_ids = player_ids[:num_players // 2]
+        for i in top_player_ids:
+            player = PlayerWidget(i, is_human=(i == human_player_id))
             self.players.append(player)
             top_layout.addWidget(player)
         main_layout.addLayout(top_layout)
         
-        # Bottom row (3 players, with player 0 as human)
+        # Нижний ряд игроков.
         bottom_layout = QHBoxLayout()
-        for i in [0, 5, 4]:
-            is_human = (i == 0)
+        bottom_player_ids = player_ids[num_players // 2:]
+        for i in bottom_player_ids:
+            is_human = (i == human_player_id)
             player = PlayerWidget(i, is_human=is_human)
             self.players.append(player)
             bottom_layout.addWidget(player)
@@ -452,7 +499,7 @@ class PokerTable(QWidget):
                 is_current = player.player_id == current_player
                 is_button = player.player_id == button_position
                 player.highlight_current(is_current, is_button)
-                pos_name = position_label(player.player_id, button_position)
+                pos_name = position_label(player.player_id, button_position, len(player_states))
                 player.set_position(pos_name)
     
     def set_action_buttons_enabled(self, enabled, legal_actions=None):
@@ -503,8 +550,9 @@ class PokerTable(QWidget):
 
 class ModelSelectionDialog(QWidget):
     """Dialog for selecting model checkpoints"""
-    def __init__(self, parent=None):
+    def __init__(self, num_players=6, parent=None):
         super().__init__(parent)
+        self.num_players = num_players
         self.setWindowTitle("Select AI Models")
         
         layout = QVBoxLayout()
@@ -523,8 +571,8 @@ class ModelSelectionDialog(QWidget):
         # Number of models to load
         num_models_layout = QHBoxLayout()
         self.num_models_spinner = QSpinBox()
-        self.num_models_spinner.setRange(1, 5)
-        self.num_models_spinner.setValue(5)
+        self.num_models_spinner.setRange(1, num_players - 1)
+        self.num_models_spinner.setValue(num_players - 1)
         num_models_layout.addWidget(QLabel("Number of AI opponents:"))
         num_models_layout.addWidget(self.num_models_spinner)
         layout.addLayout(num_models_layout)
@@ -532,7 +580,11 @@ class ModelSelectionDialog(QWidget):
         # Player position
         position_layout = QHBoxLayout()
         self.position_combo = QComboBox()
-        self.position_combo.addItems(["BTN", "SB", "BB", "UTG", "MP", "CO"])
+        if num_players == 2:
+            self.position_combo.addItem("Hero (BTN/SB)")
+            self.position_combo.setEnabled(False)
+        else:
+            self.position_combo.addItems(["BTN", "SB", "BB", "UTG", "MP", "CO"])
         self.position_combo.setCurrentIndex(0)
         position_layout.addWidget(QLabel("Your position:"))
         position_layout.addWidget(self.position_combo)
@@ -554,6 +606,14 @@ class ModelSelectionDialog(QWidget):
         self.bb_spinner.setRange(1, 20)
         self.bb_spinner.setValue(2)
         self.bb_spinner.setSingleStep(1)
+
+        if num_players == 2:
+            self.stake_spinner.setValue(FIXED_HU_GAME_CONTRACT.starting_stack)
+            self.sb_spinner.setValue(FIXED_HU_GAME_CONTRACT.small_blind)
+            self.bb_spinner.setValue(FIXED_HU_GAME_CONTRACT.big_blind)
+            self.stake_spinner.setEnabled(False)
+            self.sb_spinner.setEnabled(False)
+            self.bb_spinner.setEnabled(False)
         
         game_layout.addRow("Starting Chips:", self.stake_spinner)
         game_layout.addRow("Small Blind:", self.sb_spinner)
@@ -616,10 +676,13 @@ class ModelSelectionDialog(QWidget):
 
 class PokerGUI(QMainWindow):
     """Main window for the poker GUI application"""
-    def __init__(self):
+    def __init__(self, num_players=6):
         super().__init__()
+        if num_players not in (2, 6):
+            raise ValueError("GUI поддерживает только HU или 6-max")
         
         # Initialize variables
+        self.num_players = num_players
         self.agents = None  # Initialize to None instead of empty list
         self.state = None
         self.human_player_id = 0
@@ -647,7 +710,7 @@ class PokerGUI(QMainWindow):
         main_layout = QVBoxLayout()
         
         # Poker table
-        self.table = PokerTable()
+        self.table = PokerTable(num_players=self.num_players, human_player_id=self.human_player_id)
         main_layout.addWidget(self.table)
         
         # Game history
@@ -677,7 +740,7 @@ class PokerGUI(QMainWindow):
         self.table.show_cards_button.clicked.connect(self.toggle_show_cards)
         
         # Setup the model selection dialog
-        self.model_dialog = ModelSelectionDialog(self)
+        self.model_dialog = ModelSelectionDialog(num_players=self.num_players, parent=self)
         self.model_dialog.start_button.clicked.connect(self.load_models_and_start)
         self.model_dialog.cancel_button.clicked.connect(lambda: self.close())
     
@@ -723,7 +786,7 @@ class PokerGUI(QMainWindow):
     def load_ai_models(self, models_dir, num_models):
         """Load AI models from the specified directory"""
         # Clear existing agents
-        self.agents = [None] * 6
+        self.agents = [None] * self.num_players
         
         # Find model checkpoint files (exclude _light.pt which lacks advantage_net)
         model_files = [f for f in glob.glob(os.path.join(models_dir, "*.pt"))
@@ -738,7 +801,7 @@ class PokerGUI(QMainWindow):
             self.log_message(f"No model files found in {models_dir}, using random agents")
             
             # Create random agents for all positions except human
-            for i in range(6):
+            for i in range(self.num_players):
                 if i != self.human_player_id:
                     self.agents[i] = RandomAgent(i)
             
@@ -758,7 +821,7 @@ class PokerGUI(QMainWindow):
         
         # Load models for positions other than human player's
         model_idx = 0
-        for pos in range(6):
+        for pos in range(self.num_players):
             if pos == self.human_player_id:
                 continue
                 
@@ -792,13 +855,12 @@ class PokerGUI(QMainWindow):
         seed = random.randint(0, 10000)
         
         # Create a new poker game
-        self.state = pkrs.State.from_seed(
-            n_players=6,
-            button=seed % 6,  # Rotate button position
+        self.state = create_game_state(
+            num_players=self.num_players,
+            seed=seed,
+            stake=stake,
             sb=sb,
             bb=bb,
-            stake=stake,
-            seed=seed
         )
         
         # Reset UI
@@ -1152,6 +1214,7 @@ def parse_arguments():
     model_group.add_argument('--models_folder', type=str, help='Folder containing model checkpoints')
     
     # Game settings
+    parser.add_argument('--hu', action='store_true', help='Запустить двухместный HU-стол')
     parser.add_argument('--position', type=int, default=0, help='Your position at the table (0-5)')
     parser.add_argument('--stake', type=float, default=200.0, help='Initial chip stack')
     parser.add_argument('--sb', type=float, default=1.0, help='Small blind amount')
@@ -1165,11 +1228,13 @@ if __name__ == "__main__":
     
     # Set up the application
     app = QApplication(sys.argv)
-    window = PokerGUI()
+    num_players = 2 if args.hu else 6
+    window = PokerGUI(num_players=num_players)
     
     # Initialize with command line arguments if provided
     if args.models or args.models_folder:
-        window.agents = [None] * 6
+        window.model_dialog.hide()
+        window.agents = [None] * num_players
         
         # Load specified models
         if args.models:
@@ -1178,7 +1243,7 @@ if __name__ == "__main__":
             device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
             
             model_idx = 0
-            for pos in range(6):
+            for pos in range(num_players):
                 if pos == window.human_player_id:
                     continue
                     
@@ -1216,7 +1281,7 @@ if __name__ == "__main__":
                         window.agents[pos] = RandomAgent(pos)
             else:
                 # Use up to 5 random models from the folder
-                num_models = min(5, len(model_files))
+                num_models = min(num_players - 1, len(model_files))
                 selected_models = random.sample(model_files, num_models)
                 window.log_message(f"Selected {num_models} models from folder")
                 
@@ -1224,7 +1289,7 @@ if __name__ == "__main__":
                 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
                 model_idx = 0
                 
-                for pos in range(6):
+                for pos in range(num_players):
                     if pos == window.human_player_id:
                         continue
                         

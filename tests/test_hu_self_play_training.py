@@ -403,6 +403,21 @@ def test_hu_adapter_primenyaet_obshchuyu_normalizatsiyu_regretov_k_p0_i_p1(
         assert np.allclose(adapter.normalize_regrets(state, regrets, mask), expected)
 
 
+def test_hu_setup_uses_adam_for_all_trainable_networks():
+    agent = DeepCFRAgent(
+        player_id=0,
+        num_players=2,
+        device="cpu",
+        hidden_size=8,
+        network_architecture=MONOLITHIC_ARCHITECTURE,
+    )
+
+    train_mod._create_hu_current_policy_coordinator(agent)
+
+    assert all(type(optimizer) is torch.optim.Adam for optimizer in agent.hu_advantage_optimizers)
+    assert type(agent.strategy_optimizer) is torch.optim.Adam
+
+
 def test_hu_resume_continues_from_next_iteration_and_writes_periodic_and_final_checkpoint(monkeypatch, tmp_path):
     events = []
     saved_paths = []

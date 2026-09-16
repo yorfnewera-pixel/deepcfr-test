@@ -370,7 +370,7 @@ class DeepCFRAgent:
         self.strategy_net = PokerNetwork(
             self.input_size, hidden_size, NUM_ACTIONS, self.network_architecture
         ).to(self.device)
-        self.strategy_optimizer = optim.AdamW(
+        self.strategy_optimizer = optim.Adam(
             self.strategy_net.parameters(),
             lr=float(cfg_get("strategy_lr", 5e-5)),
             weight_decay=float(cfg_get("strategy_weight_decay", 1e-5)),
@@ -475,7 +475,7 @@ class DeepCFRAgent:
         ).to(self.device)
 
     def _new_advantage_optimizer(self, network):
-        return optim.AdamW(
+        return optim.Adam(
             network.parameters(),
             lr=self.advantage_lr,
             weight_decay=self.advantage_weight_decay,

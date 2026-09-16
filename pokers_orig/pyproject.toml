@@ -1,0 +1,23 @@
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "pokers"
+dynamic = ["version"]
+description = "Embarrassingly simple No Limit Texas Holdem environment for RL"
+readme = "README.md"
+requires-python = ">=3.10,<3.12"
+keywords = ["poker", "reinforcement learning"]
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<9", "pokerkit==0.7.5; python_version >= '3.11'", "ruff>=0.11,<1"]
+
+
+[tool.maturin]
+features = ["pyo3/extension-module"]

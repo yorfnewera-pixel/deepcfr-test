@@ -1719,7 +1719,7 @@ def _create_hu_current_policy_coordinator(
                 parameter.requires_grad_(False)
     advantage_optimizers = [
         agent.optimizer,
-        torch.optim.AdamW(
+        torch.optim.Adam(
             advantage_nets[1].parameters(),
             lr=float(cfg_get("advantage_lr", 1e-4)),
             weight_decay=float(cfg_get("advantage_weight_decay", 1e-5)),
@@ -1746,7 +1746,7 @@ def _create_hu_current_policy_coordinator(
         hidden_size,
         architecture=agent.strategy_net.architecture,
     ).to(agent.device)
-    strategy_optimizer = torch.optim.AdamW(
+    strategy_optimizer = torch.optim.Adam(
         strategy_net.parameters(),
         lr=float(cfg_get("strategy_lr", 5e-5)),
         weight_decay=float(cfg_get("strategy_weight_decay", 1e-5)),
@@ -1929,6 +1929,31 @@ def _log_d2cfr_component_losses(
                 writer.add_scalar(f"D2CFR/Diagnostics/P{player_id}/{key}", value, iteration)
 
 
+def _log_strategy_training_profile(profile: dict[str, Any] | None) -> None:
+    """Выводит фактическое покрытие strategy-буфера одним обучающим вызовом."""
+    if not profile:
+        return
+    buffer_size = int(profile["buffer_size"])
+    batch_size = int(profile["batch_size"])
+    configured_steps = profile["configured_steps"]
+    expected_steps = int(profile["expected_steps"])
+    actual_steps = int(profile["actual_steps"])
+    if configured_steps is None:
+        mode = "epochs"
+        configured_budget = f"configured_epochs={int(profile['epochs'])}"
+        equivalent_epochs = float(profile["epochs"])
+    else:
+        mode = "steps"
+        configured_budget = f"configured_steps={int(configured_steps)}"
+        equivalent_epochs = actual_steps * batch_size / max(buffer_size, 1)
+    print(
+        "  Strategy training: "
+        f"buffer={buffer_size} | batch={batch_size} | mode={mode} | "
+        f"{configured_budget} | expected_steps={expected_steps} | "
+        f"actual_steps={actual_steps} | equivalent_epochs={equivalent_epochs:.3f}"
+    )
+
+
 def _prepare_hu_current_policy_iteration(agent: DeepCFRAgent) -> None:
     """Очищает только HU replay-буферы, не затрагивая legacy lifecycle."""
     if not agent.d2cfr_enabled and not agent.advantage_buffer_reservoir:
@@ -2062,6 +2087,8 @@ def _train_hu_current_policy_self_play(
                     "  Strategy training пропущен: "
                     f"ожидается на каждой {strategy_train_every}-й итерации."
                 )
+            else:
+                _log_strategy_training_profile(getattr(agent, "last_strategy_profile", None))
             if bool(getattr(agent, "d2cfr_enabled", False)):
                 _log_d2cfr_component_losses(
                     coordinator.d2cfr_component_losses, writer, iteration
