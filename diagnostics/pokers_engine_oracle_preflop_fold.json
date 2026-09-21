@@ -1,0 +1,137 @@
+{
+  "mode": "pokers_preflop_fold_oracle",
+  "passed": true,
+  "config": "config.yaml",
+  "root": {
+    "seed": 123,
+    "button": 0,
+    "sb": 1.0,
+    "bb": 2.0,
+    "stake": 200.0,
+    "current_player": 0,
+    "pot": 3.0,
+    "legal_mask": [
+      1.0,
+      0.0,
+      1.0,
+      0.0,
+      1.0,
+      1.0
+    ],
+    "fold_action": "<builtins.Action object at 0x0000016FF0742610>"
+  },
+  "engine": {
+    "terminal": true,
+    "status": "StateStatus.Ok",
+    "expected_rewards": [
+      -1.0,
+      1.0
+    ],
+    "actual_rewards": [
+      -1.0,
+      1.0
+    ],
+    "reward_abs_errors": [
+      0.0,
+      0.0
+    ]
+  },
+  "target": {
+    "root_return": -1.0,
+    "expected": {
+      "action_values": [
+        -0.004999999888241291,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "state_value": -0.004999999888241291,
+      "regrets": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "mask": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "recorded": {
+      "action_values": [
+        -0.004999999888241291,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "state_value": -0.004999999888241291,
+      "regrets": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "mask": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "iteration": 11.0
+    },
+    "max_abs_errors": {
+      "action_value": 0.0,
+      "state_value": 0.0,
+      "regret": 0.0,
+      "mask": 0.0,
+      "iteration": 0.0,
+      "root_return": 0.0
+    }
+  },
+  "traversal_stats": {
+    "attempted": 0,
+    "successful": 0,
+    "failed": 0,
+    "failure_reasons": {},
+    "failure_diagnostics": [],
+    "cancelled_samples": 0,
+    "depth_limit_hits": 0,
+    "nodes": 2,
+    "terminal_nodes": 1,
+    "max_depth": 1,
+    "max_depth_hits": 0,
+    "traversing_decision_nodes": 1,
+    "opponent_decision_nodes": 0,
+    "recorded_nodes": 1,
+    "evicted_nodes": 0,
+    "buffer_skip_nodes": 0,
+    "buffer_attempted_nodes": 1,
+    "buffer_skip_ratio": 0.0,
+    "buffer_waste_ratio": 0.0,
+    "traverser_children_total": 1,
+    "opponent_children_total": 0,
+    "traverser_children_per_node": 1.0,
+    "opponent_children_per_node": 0.0,
+    "traverser_child_fanout": {
+      "1": 1
+    },
+    "opponent_child_fanout": {},
+    "action_decisions": 0,
+    "action_raise_count": 0,
+    "opponent_raise_frequency": 0.0
+  }
+}

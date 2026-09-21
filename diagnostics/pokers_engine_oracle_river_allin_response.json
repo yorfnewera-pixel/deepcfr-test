@@ -1,0 +1,149 @@
+{
+  "mode": "pokers_river_allin_response_oracle",
+  "passed": true,
+  "config": "config.yaml",
+  "root": {
+    "stage": "Stage.River",
+    "current_player": 1,
+    "pot": 200.0,
+    "legal_mask": [
+      1.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "branches": {
+    "fold_rewards": [
+      0.0,
+      -0.0
+    ],
+    "call_rewards": [
+      200.0,
+      -200.0
+    ]
+  },
+  "expected": {
+    "strategy": [
+      0.25,
+      0.0,
+      0.75,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "raw_action_values": [
+      -0.0,
+      0.0,
+      -200.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "raw_state_value": -150.0,
+    "raw_regrets": [
+      150.0,
+      0.0,
+      -50.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "action_values": [
+      -0.0,
+      0.0,
+      -1.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "state_value": -0.75,
+    "regrets": [
+      0.75,
+      0.0,
+      -0.25,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "mask": [
+      1.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "recorded": {
+    "action_values": [
+      -0.0,
+      0.0,
+      -1.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "state_value": -0.75,
+    "regrets": [
+      0.75,
+      0.0,
+      -0.25,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "mask": [
+      1.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "iteration": 13.0
+  },
+  "root_return": -150.0,
+  "max_abs_errors": {
+    "action_value": 0.0,
+    "state_value": 0.0,
+    "regret": 0.0,
+    "mask": 0.0,
+    "iteration": 0.0,
+    "root_return": 0.0
+  },
+  "traversal_stats": {
+    "attempted": 0,
+    "successful": 0,
+    "failed": 0,
+    "failure_reasons": {},
+    "failure_diagnostics": [],
+    "cancelled_samples": 0,
+    "depth_limit_hits": 0,
+    "nodes": 3,
+    "terminal_nodes": 2,
+    "max_depth": 1,
+    "max_depth_hits": 0,
+    "traversing_decision_nodes": 1,
+    "opponent_decision_nodes": 0,
+    "recorded_nodes": 1,
+    "evicted_nodes": 0,
+    "buffer_skip_nodes": 0,
+    "buffer_attempted_nodes": 1,
+    "buffer_skip_ratio": 0.0,
+    "buffer_waste_ratio": 0.0,
+    "traverser_children_total": 2,
+    "opponent_children_total": 0,
+    "traverser_children_per_node": 2.0,
+    "opponent_children_per_node": 0.0,
+    "traverser_child_fanout": {
+      "2": 1
+    },
+    "opponent_child_fanout": {},
+    "action_decisions": 0,
+    "action_raise_count": 0,
+    "opponent_raise_frequency": 0.0
+  }
+}

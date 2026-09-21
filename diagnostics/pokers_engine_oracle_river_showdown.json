@@ -1,0 +1,141 @@
+{
+  "mode": "pokers_river_showdown_oracle",
+  "passed": true,
+  "config": "config.yaml",
+  "root": {
+    "stage": "Stage.River",
+    "public_cards": [
+      "<builtins.Card object at 0x0000022B98B15CF0>",
+      "<builtins.Card object at 0x0000022BAA723F30>",
+      "<builtins.Card object at 0x0000022BAA723E90>",
+      "<builtins.Card object at 0x0000022BAA723F50>",
+      "<builtins.Card object at 0x0000022BAA790070>"
+    ],
+    "current_player": 0,
+    "pot": 20.0,
+    "legal_mask": [
+      0.0,
+      1.0,
+      0.0,
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  "engine": {
+    "terminal": true,
+    "status": "StateStatus.Ok",
+    "expected_rewards": [
+      10.0,
+      -10.0
+    ],
+    "actual_rewards": [
+      10.0,
+      -10.0
+    ],
+    "reward_abs_errors": [
+      0.0,
+      0.0
+    ]
+  },
+  "target": {
+    "root_return": 10.0,
+    "expected": {
+      "action_values": [
+        0.0,
+        0.05000000074505806,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "state_value": 0.05000000074505806,
+      "regrets": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "mask": [
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "recorded": {
+      "action_values": [
+        0.0,
+        0.05000000074505806,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "state_value": 0.05000000074505806,
+      "regrets": [
+        -0.0,
+        0.0,
+        -0.0,
+        -0.0,
+        -0.0,
+        -0.0
+      ],
+      "mask": [
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "iteration": 12.0
+    },
+    "max_abs_errors": {
+      "action_value": 0.0,
+      "state_value": 0.0,
+      "regret": 0.0,
+      "mask": 0.0,
+      "iteration": 0.0,
+      "root_return": 0.0
+    }
+  },
+  "traversal_stats": {
+    "attempted": 0,
+    "successful": 0,
+    "failed": 0,
+    "failure_reasons": {},
+    "failure_diagnostics": [],
+    "cancelled_samples": 0,
+    "depth_limit_hits": 0,
+    "nodes": 3,
+    "terminal_nodes": 1,
+    "max_depth": 2,
+    "max_depth_hits": 0,
+    "traversing_decision_nodes": 1,
+    "opponent_decision_nodes": 1,
+    "recorded_nodes": 1,
+    "evicted_nodes": 0,
+    "buffer_skip_nodes": 0,
+    "buffer_attempted_nodes": 1,
+    "buffer_skip_ratio": 0.0,
+    "buffer_waste_ratio": 0.0,
+    "traverser_children_total": 1,
+    "opponent_children_total": 1,
+    "traverser_children_per_node": 1.0,
+    "opponent_children_per_node": 1.0,
+    "traverser_child_fanout": {
+      "1": 1
+    },
+    "opponent_child_fanout": {
+      "1": 1
+    },
+    "action_decisions": 1,
+    "action_raise_count": 0,
+    "opponent_raise_frequency": 0.0
+  }
+}

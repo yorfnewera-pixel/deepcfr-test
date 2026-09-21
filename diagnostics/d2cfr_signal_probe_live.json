@@ -1,0 +1,93 @@
+{
+  "targets": {
+    "samples": 16,
+    "legal_slots": 55,
+    "q_minus_v_ok": true,
+    "q_minus_v_max_abs_error": 5.960464477539063e-08,
+    "action_value_legal": {
+      "count": 55,
+      "mean": -0.054161328822374344,
+      "std": 0.5379236936569214,
+      "min": -1.0,
+      "max": 1.0,
+      "abs_mean": 0.41688859462738037,
+      "zero_fraction": 0.0
+    },
+    "regret_legal": {
+      "count": 55,
+      "mean": 5.418603898910135e-10,
+      "std": 0.34427958726882935,
+      "min": -0.8399999737739563,
+      "max": 0.7250000238418579,
+      "abs_mean": 0.259316623210907,
+      "zero_fraction": 0.0
+    },
+    "state_value": {
+      "count": 16,
+      "mean": -0.04459176957607269,
+      "std": 0.45567038655281067,
+      "min": -0.762499988079071,
+      "max": 0.9200000166893005,
+      "abs_mean": 0.3936542868614197,
+      "zero_fraction": 0.0
+    },
+    "iterations": {
+      "count": 16,
+      "mean": 1.0,
+      "std": 0.0,
+      "min": 1.0,
+      "max": 1.0,
+      "abs_mean": 1.0,
+      "zero_fraction": 0.0
+    }
+  },
+  "one_step": {
+    "loss_before": 0.25612673163414,
+    "loss_after": 0.2561037242412567,
+    "loss_delta": -2.300739288330078e-05,
+    "losses_before": {
+      "regret_loss": 0.20372074842453003,
+      "state_value_loss": 0.10481196641921997,
+      "total_loss": 0.25612673163414
+    },
+    "losses_after": {
+      "regret_loss": 0.20369836688041687,
+      "state_value_loss": 0.10481070727109909,
+      "total_loss": 0.2561037242412567
+    },
+    "grad_norm_total": 0.15172682744657023,
+    "clipped_grad_norm": null,
+    "update_norm_total": 0.00015172682748733316,
+    "modules": {
+      "action_value_head": {
+        "grad_norm": 0.14964505957781762,
+        "update_norm": 0.00014964505948465817
+      },
+      "base": {
+        "grad_norm": 0.0,
+        "update_norm": 0.0
+      },
+      "state_value_head": {
+        "grad_norm": 0.025047680749975945,
+        "update_norm": 2.504768155347064e-05
+      }
+    },
+    "per_sample_regret_alignment": {
+      "samples": 16,
+      "mean_dot": 2.2393644030671567e-05,
+      "positive_fraction": 0.5625,
+      "negative_fraction": 0.4375
+    }
+  },
+  "live_collection": {
+    "mode": "live_traversal",
+    "traversals": 5,
+    "buffer_size": 32,
+    "iteration": 1,
+    "traversing_player": 0,
+    "samples_requested": 16,
+    "samples_used": 16,
+    "num_players": 2,
+    "config": "configs\\hu_d2cfr_smoke.yaml"
+  }
+}

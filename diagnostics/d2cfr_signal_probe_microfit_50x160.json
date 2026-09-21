@@ -1,0 +1,3517 @@
+{
+  "targets": {
+    "samples": 160,
+    "legal_slots": 484,
+    "q_minus_v_ok": true,
+    "q_minus_v_max_abs_error": 1.1920928955078125e-07,
+    "action_value_legal": {
+      "count": 484,
+      "mean": -0.09486074000597,
+      "std": 0.5591345429420471,
+      "min": -1.0,
+      "max": 1.0,
+      "abs_mean": 0.4352133572101593,
+      "zero_fraction": 0.039256200194358826
+    },
+    "regret_legal": {
+      "count": 484,
+      "mean": 4.926003493999076e-10,
+      "std": 0.3723250925540924,
+      "min": -0.949999988079071,
+      "max": 1.036666750907898,
+      "abs_mean": 0.29350677132606506,
+      "zero_fraction": 0.01859504170715809
+    },
+    "state_value": {
+      "count": 160,
+      "mean": -0.11286689341068268,
+      "std": 0.441330224275589,
+      "min": -0.949999988079071,
+      "max": 0.7699999809265137,
+      "abs_mean": 0.3838648498058319,
+      "zero_fraction": 0.01875000074505806
+    },
+    "iterations": {
+      "count": 160,
+      "mean": 1.0,
+      "std": 0.0,
+      "min": 1.0,
+      "max": 1.0,
+      "abs_mean": 1.0,
+      "zero_fraction": 0.0
+    }
+  },
+  "one_step": {
+    "loss_before": 0.5230991840362549,
+    "loss_after": 0.5230305790901184,
+    "loss_delta": -6.860494613647461e-05,
+    "losses_before": {
+      "regret_loss": 0.4193435609340668,
+      "state_value_loss": 0.207511305809021,
+      "total_loss": 0.5230991840362549
+    },
+    "losses_after": {
+      "regret_loss": 0.41929253935813904,
+      "state_value_loss": 0.20747610926628113,
+      "total_loss": 0.5230305790901184
+    },
+    "grad_norm_total": 0.2620911119980306,
+    "clipped_grad_norm": null,
+    "update_norm_total": 0.00026209112379338553,
+    "modules": {
+      "action_value_head": {
+        "grad_norm": 0.22605002131638663,
+        "update_norm": 0.0002260500318366299
+      },
+      "card_encoder": {
+        "grad_norm": 0.0,
+        "update_norm": 0.0
+      },
+      "context_encoder": {
+        "grad_norm": 0.0,
+        "update_norm": 0.0
+      },
+      "fusion": {
+        "grad_norm": 0.0,
+        "update_norm": 0.0
+      },
+      "state_value_head": {
+        "grad_norm": 0.1326391301661217,
+        "update_norm": 0.00013263913554429683
+      }
+    },
+    "per_sample_regret_alignment": {
+      "samples": 160,
+      "mean_dot": 2.5549306883476675e-05,
+      "positive_fraction": 0.53125,
+      "negative_fraction": 0.44999998807907104
+    }
+  },
+  "microfit": {
+    "steps": 100,
+    "learning_rate": 0.01,
+    "initial_loss": 0.5230991840362549,
+    "final_loss": 0.5063917636871338,
+    "loss_delta": -0.016707420349121094,
+    "max_module_grad_norms": {
+      "action_value_head": 0.22605002131638663,
+      "card_encoder": 0.0029755253720498568,
+      "context_encoder": 0.004323462660506094,
+      "fusion": 0.013187822880107468,
+      "state_value_head": 0.1326391301661217
+    },
+    "history": [
+      {
+        "step": 1,
+        "loss_before": 0.5230991840362549,
+        "loss_after": 0.522426187992096,
+        "losses_before": {
+          "regret_loss": 0.4193435609340668,
+          "state_value_loss": 0.207511305809021,
+          "total_loss": 0.5230991840362549
+        },
+        "losses_after": {
+          "regret_loss": 0.4188452661037445,
+          "state_value_loss": 0.2071618139743805,
+          "total_loss": 0.522426187992096
+        },
+        "grad_norm_total": 0.2620911119980306,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.22605002131638663
+          },
+          "card_encoder": {
+            "grad_norm": 0.0
+          },
+          "context_encoder": {
+            "grad_norm": 0.0
+          },
+          "fusion": {
+            "grad_norm": 0.0
+          },
+          "state_value_head": {
+            "grad_norm": 0.1326391301661217
+          }
+        }
+      },
+      {
+        "step": 2,
+        "loss_before": 0.522426187992096,
+        "loss_after": 0.5218044519424438,
+        "losses_before": {
+          "regret_loss": 0.4188452661037445,
+          "state_value_loss": 0.2071618139743805,
+          "total_loss": 0.522426187992096
+        },
+        "losses_after": {
+          "regret_loss": 0.41837891936302185,
+          "state_value_loss": 0.20685112476348877,
+          "total_loss": 0.5218044519424438
+        },
+        "grad_norm_total": 0.2516930719596533,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.2215414939877695
+          },
+          "card_encoder": {
+            "grad_norm": 6.830321133689259e-05
+          },
+          "context_encoder": {
+            "grad_norm": 0.00016686099174591178
+          },
+          "fusion": {
+            "grad_norm": 0.0006693410093106029
+          },
+          "state_value_head": {
+            "grad_norm": 0.11944994093279537
+          }
+        }
+      },
+      {
+        "step": 3,
+        "loss_before": 0.5218044519424438,
+        "loss_after": 0.5212265253067017,
+        "losses_before": {
+          "regret_loss": 0.41837891936302185,
+          "state_value_loss": 0.20685112476348877,
+          "total_loss": 0.5218044519424438
+        },
+        "losses_after": {
+          "regret_loss": 0.41793936491012573,
+          "state_value_loss": 0.20657429099082947,
+          "total_loss": 0.5212265253067017
+        },
+        "grad_norm_total": 0.24250031668785355,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.2172535991255341
+          },
+          "card_encoder": {
+            "grad_norm": 0.0001332989535854665
+          },
+          "context_encoder": {
+            "grad_norm": 0.0003199873196686053
+          },
+          "fusion": {
+            "grad_norm": 0.001273825147500145
+          },
+          "state_value_head": {
+            "grad_norm": 0.10772898620941719
+          }
+        }
+      },
+      {
+        "step": 4,
+        "loss_before": 0.5212265253067017,
+        "loss_after": 0.5206862092018127,
+        "losses_before": {
+          "regret_loss": 0.41793936491012573,
+          "state_value_loss": 0.20657429099082947,
+          "total_loss": 0.5212265253067017
+        },
+        "losses_after": {
+          "regret_loss": 0.41752272844314575,
+          "state_value_loss": 0.20632696151733398,
+          "total_loss": 0.5206862092018127
+        },
+        "grad_norm_total": 0.23432488838496487,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.21315336419372174
+          },
+          "card_encoder": {
+            "grad_norm": 0.00019559173590676836
+          },
+          "context_encoder": {
+            "grad_norm": 0.00046167612456874497
+          },
+          "fusion": {
+            "grad_norm": 0.0018246232388393925
+          },
+          "state_value_head": {
+            "grad_norm": 0.09731503480238803
+          }
+        }
+      },
+      {
+        "step": 5,
+        "loss_before": 0.5206862092018127,
+        "loss_after": 0.520178496837616,
+        "losses_before": {
+          "regret_loss": 0.41752272844314575,
+          "state_value_loss": 0.20632696151733398,
+          "total_loss": 0.5206862092018127
+        },
+        "losses_after": {
+          "regret_loss": 0.41712579131126404,
+          "state_value_loss": 0.20610542595386505,
+          "total_loss": 0.520178496837616
+        },
+        "grad_norm_total": 0.22700639636805567,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.20921437361472506
+          },
+          "card_encoder": {
+            "grad_norm": 0.00025562586543194523
+          },
+          "context_encoder": {
+            "grad_norm": 0.0005937263095635094
+          },
+          "fusion": {
+            "grad_norm": 0.0023305856293231045
+          },
+          "state_value_head": {
+            "grad_norm": 0.08806475106488226
+          }
+        }
+      },
+      {
+        "step": 6,
+        "loss_before": 0.520178496837616,
+        "loss_after": 0.5196993947029114,
+        "losses_before": {
+          "regret_loss": 0.41712579131126404,
+          "state_value_loss": 0.20610542595386505,
+          "total_loss": 0.520178496837616
+        },
+        "losses_after": {
+          "regret_loss": 0.4167461395263672,
+          "state_value_loss": 0.2059064656496048,
+          "total_loss": 0.5196993947029114
+        },
+        "grad_norm_total": 0.22040886930400708,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.20541538934442696
+          },
+          "card_encoder": {
+            "grad_norm": 0.0003137646559485009
+          },
+          "context_encoder": {
+            "grad_norm": 0.0007176620925622802
+          },
+          "fusion": {
+            "grad_norm": 0.002798648845080126
+          },
+          "state_value_head": {
+            "grad_norm": 0.07985074555601762
+          }
+        }
+      },
+      {
+        "step": 7,
+        "loss_before": 0.5196993947029114,
+        "loss_after": 0.5192456245422363,
+        "losses_before": {
+          "regret_loss": 0.4167461395263672,
+          "state_value_loss": 0.2059064656496048,
+          "total_loss": 0.5196993947029114
+        },
+        "losses_after": {
+          "regret_loss": 0.41638192534446716,
+          "state_value_loss": 0.20572733879089355,
+          "total_loss": 0.5192456245422363
+        },
+        "grad_norm_total": 0.21441783925549845,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.20173942264230674
+          },
+          "card_encoder": {
+            "grad_norm": 0.0003703206552002773
+          },
+          "context_encoder": {
+            "grad_norm": 0.0008346239730478325
+          },
+          "fusion": {
+            "grad_norm": 0.003234561795447701
+          },
+          "state_value_head": {
+            "grad_norm": 0.07255976170283977
+          }
+        }
+      },
+      {
+        "step": 8,
+        "loss_before": 0.5192456245422363,
+        "loss_after": 0.5188143849372864,
+        "losses_before": {
+          "regret_loss": 0.41638192534446716,
+          "state_value_loss": 0.20572733879089355,
+          "total_loss": 0.5192456245422363
+        },
+        "losses_after": {
+          "regret_loss": 0.4160315990447998,
+          "state_value_loss": 0.20556560158729553,
+          "total_loss": 0.5188143849372864
+        },
+        "grad_norm_total": 0.20893744904041947,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.19817289071445746
+          },
+          "card_encoder": {
+            "grad_norm": 0.00042533466481889246
+          },
+          "context_encoder": {
+            "grad_norm": 0.0009452100697072901
+          },
+          "fusion": {
+            "grad_norm": 0.0036420442101482765
+          },
+          "state_value_head": {
+            "grad_norm": 0.06609102949502253
+          }
+        }
+      },
+      {
+        "step": 9,
+        "loss_before": 0.5188143849372864,
+        "loss_after": 0.5184035897254944,
+        "losses_before": {
+          "regret_loss": 0.4160315990447998,
+          "state_value_loss": 0.20556560158729553,
+          "total_loss": 0.5188143849372864
+        },
+        "losses_after": {
+          "regret_loss": 0.415693998336792,
+          "state_value_loss": 0.2054191529750824,
+          "total_loss": 0.5184035897254944
+        },
+        "grad_norm_total": 0.20388782268739117,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.19470490121838654
+          },
+          "card_encoder": {
+            "grad_norm": 0.00047901996549556546
+          },
+          "context_encoder": {
+            "grad_norm": 0.0010502477576213812
+          },
+          "fusion": {
+            "grad_norm": 0.00402475078483446
+          },
+          "state_value_head": {
+            "grad_norm": 0.060354905205655264
+          }
+        }
+      },
+      {
+        "step": 10,
+        "loss_before": 0.5184035897254944,
+        "loss_after": 0.5180111527442932,
+        "losses_before": {
+          "regret_loss": 0.415693998336792,
+          "state_value_loss": 0.2054191529750824,
+          "total_loss": 0.5184035897254944
+        },
+        "losses_after": {
+          "regret_loss": 0.4153680205345154,
+          "state_value_loss": 0.20528621971607208,
+          "total_loss": 0.5180111527442932
+        },
+        "grad_norm_total": 0.19920268404629446,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.19132677199265766
+          },
+          "card_encoder": {
+            "grad_norm": 0.0005313246532126413
+          },
+          "context_encoder": {
+            "grad_norm": 0.0011499265712509377
+          },
+          "fusion": {
+            "grad_norm": 0.0043855141111065685
+          },
+          "state_value_head": {
+            "grad_norm": 0.055271496081545614
+          }
+        }
+      },
+      {
+        "step": 11,
+        "loss_before": 0.5180111527442932,
+        "loss_after": 0.5176355838775635,
+        "losses_before": {
+          "regret_loss": 0.4153680205345154,
+          "state_value_loss": 0.20528621971607208,
+          "total_loss": 0.5180111527442932
+        },
+        "losses_after": {
+          "regret_loss": 0.41505303978919983,
+          "state_value_loss": 0.2051651030778885,
+          "total_loss": 0.5176355838775635
+        },
+        "grad_norm_total": 0.19482720603202314,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.18803148887790913
+          },
+          "card_encoder": {
+            "grad_norm": 0.0005826344910782807
+          },
+          "context_encoder": {
+            "grad_norm": 0.0012457392033189193
+          },
+          "fusion": {
+            "grad_norm": 0.004727433880184656
+          },
+          "state_value_head": {
+            "grad_norm": 0.050769670477527486
+          }
+        }
+      },
+      {
+        "step": 12,
+        "loss_before": 0.5176355838775635,
+        "loss_after": 0.5172756314277649,
+        "losses_before": {
+          "regret_loss": 0.41505303978919983,
+          "state_value_loss": 0.2051651030778885,
+          "total_loss": 0.5176355838775635
+        },
+        "losses_after": {
+          "regret_loss": 0.4147483706474304,
+          "state_value_loss": 0.20505447685718536,
+          "total_loss": 0.5172756314277649
+        },
+        "grad_norm_total": 0.1907161669911823,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.18481347299212603
+          },
+          "card_encoder": {
+            "grad_norm": 0.0006329520928368326
+          },
+          "context_encoder": {
+            "grad_norm": 0.0013377210135801813
+          },
+          "fusion": {
+            "grad_norm": 0.005052001191975746
+          },
+          "state_value_head": {
+            "grad_norm": 0.046785934964383345
+          }
+        }
+      },
+      {
+        "step": 13,
+        "loss_before": 0.5172756314277649,
+        "loss_after": 0.5169299840927124,
+        "losses_before": {
+          "regret_loss": 0.4147483706474304,
+          "state_value_loss": 0.20505447685718536,
+          "total_loss": 0.5172756314277649
+        },
+        "losses_after": {
+          "regret_loss": 0.4144534468650818,
+          "state_value_loss": 0.20495310425758362,
+          "total_loss": 0.5169299840927124
+        },
+        "grad_norm_total": 0.18683221603128708,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.181668135907928
+          },
+          "card_encoder": {
+            "grad_norm": 0.0006821876140814106
+          },
+          "context_encoder": {
+            "grad_norm": 0.0014256724503363908
+          },
+          "fusion": {
+            "grad_norm": 0.005359798614716105
+          },
+          "state_value_head": {
+            "grad_norm": 0.04326361034210349
+          }
+        }
+      },
+      {
+        "step": 14,
+        "loss_before": 0.5169299840927124,
+        "loss_after": 0.5165978074073792,
+        "losses_before": {
+          "regret_loss": 0.4144534468650818,
+          "state_value_loss": 0.20495310425758362,
+          "total_loss": 0.5169299840927124
+        },
+        "losses_after": {
+          "regret_loss": 0.4141678810119629,
+          "state_value_loss": 0.2048598825931549,
+          "total_loss": 0.5165978074073792
+        },
+        "grad_norm_total": 0.1831448381915013,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.17859183443932825
+          },
+          "card_encoder": {
+            "grad_norm": 0.000730165749126432
+          },
+          "context_encoder": {
+            "grad_norm": 0.0015106889206035602
+          },
+          "fusion": {
+            "grad_norm": 0.005655686455355427
+          },
+          "state_value_head": {
+            "grad_norm": 0.04015203999138081
+          }
+        }
+      },
+      {
+        "step": 15,
+        "loss_before": 0.5165978074073792,
+        "loss_after": 0.5162782073020935,
+        "losses_before": {
+          "regret_loss": 0.4141678810119629,
+          "state_value_loss": 0.2048598825931549,
+          "total_loss": 0.5165978074073792
+        },
+        "losses_after": {
+          "regret_loss": 0.4138912558555603,
+          "state_value_loss": 0.2047739028930664,
+          "total_loss": 0.5162782073020935
+        },
+        "grad_norm_total": 0.17962871976643352,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.17558158024695164
+          },
+          "card_encoder": {
+            "grad_norm": 0.0007775468792363942
+          },
+          "context_encoder": {
+            "grad_norm": 0.0015923993497172473
+          },
+          "fusion": {
+            "grad_norm": 0.005936493058303729
+          },
+          "state_value_head": {
+            "grad_norm": 0.03740592704694684
+          }
+        }
+      },
+      {
+        "step": 16,
+        "loss_before": 0.5162782073020935,
+        "loss_after": 0.5159704089164734,
+        "losses_before": {
+          "regret_loss": 0.4138912558555603,
+          "state_value_loss": 0.2047739028930664,
+          "total_loss": 0.5162782073020935
+        },
+        "losses_after": {
+          "regret_loss": 0.41362324357032776,
+          "state_value_loss": 0.20469431579113007,
+          "total_loss": 0.5159704089164734
+        },
+        "grad_norm_total": 0.17626306426866692,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.17263484558926037
+          },
+          "card_encoder": {
+            "grad_norm": 0.0008238963831887856
+          },
+          "context_encoder": {
+            "grad_norm": 0.0016705485057704
+          },
+          "fusion": {
+            "grad_norm": 0.00620291480669089
+          },
+          "state_value_head": {
+            "grad_norm": 0.03498474273298297
+          }
+        }
+      },
+      {
+        "step": 17,
+        "loss_before": 0.5159704089164734,
+        "loss_after": 0.5156736969947815,
+        "losses_before": {
+          "regret_loss": 0.41362324357032776,
+          "state_value_loss": 0.20469431579113007,
+          "total_loss": 0.5159704089164734
+        },
+        "losses_after": {
+          "regret_loss": 0.413363516330719,
+          "state_value_loss": 0.2046203911304474,
+          "total_loss": 0.5156736969947815
+        },
+        "grad_norm_total": 0.17303086220925706,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.16974957818188177
+          },
+          "card_encoder": {
+            "grad_norm": 0.0008693621686859647
+          },
+          "context_encoder": {
+            "grad_norm": 0.0017460127273549652
+          },
+          "fusion": {
+            "grad_norm": 0.0064573355306253065
+          },
+          "state_value_head": {
+            "grad_norm": 0.03285206920077658
+          }
+        }
+      },
+      {
+        "step": 18,
+        "loss_before": 0.5156736969947815,
+        "loss_after": 0.5153875350952148,
+        "losses_before": {
+          "regret_loss": 0.413363516330719,
+          "state_value_loss": 0.2046203911304474,
+          "total_loss": 0.5156736969947815
+        },
+        "losses_after": {
+          "regret_loss": 0.41311177611351013,
+          "state_value_loss": 0.20455148816108704,
+          "total_loss": 0.5153875350952148
+        },
+        "grad_norm_total": 0.16991804953687673,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.16692402212477253
+          },
+          "card_encoder": {
+            "grad_norm": 0.0009139806238147316
+          },
+          "context_encoder": {
+            "grad_norm": 0.0018187737202358032
+          },
+          "fusion": {
+            "grad_norm": 0.006700513609243259
+          },
+          "state_value_head": {
+            "grad_norm": 0.030975380789445662
+          }
+        }
+      },
+      {
+        "step": 19,
+        "loss_before": 0.5153875350952148,
+        "loss_after": 0.5151113867759705,
+        "losses_before": {
+          "regret_loss": 0.41311177611351013,
+          "state_value_loss": 0.20455148816108704,
+          "total_loss": 0.5153875350952148
+        },
+        "losses_after": {
+          "regret_loss": 0.41286784410476685,
+          "state_value_loss": 0.20448704063892365,
+          "total_loss": 0.5151113867759705
+        },
+        "grad_norm_total": 0.166912995411989,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.16415667101844
+          },
+          "card_encoder": {
+            "grad_norm": 0.0009577510764703041
+          },
+          "context_encoder": {
+            "grad_norm": 0.0018889964356495188
+          },
+          "fusion": {
+            "grad_norm": 0.006933028684058454
+          },
+          "state_value_head": {
+            "grad_norm": 0.02932546531862653
+          }
+        }
+      },
+      {
+        "step": 20,
+        "loss_before": 0.5151113867759705,
+        "loss_after": 0.5148447155952454,
+        "losses_before": {
+          "regret_loss": 0.41286784410476685,
+          "state_value_loss": 0.20448704063892365,
+          "total_loss": 0.5151113867759705
+        },
+        "losses_after": {
+          "regret_loss": 0.41263142228126526,
+          "state_value_loss": 0.20442655682563782,
+          "total_loss": 0.5148447155952454
+        },
+        "grad_norm_total": 0.16400608367072178,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.16144622031786612
+          },
+          "card_encoder": {
+            "grad_norm": 0.0010006316777786974
+          },
+          "context_encoder": {
+            "grad_norm": 0.0019569301334852905
+          },
+          "fusion": {
+            "grad_norm": 0.007155745701661506
+          },
+          "state_value_head": {
+            "grad_norm": 0.027876116842811303
+          }
+        }
+      },
+      {
+        "step": 21,
+        "loss_before": 0.5148447155952454,
+        "loss_after": 0.5145871043205261,
+        "losses_before": {
+          "regret_loss": 0.41263142228126526,
+          "state_value_loss": 0.20442655682563782,
+          "total_loss": 0.5148447155952454
+        },
+        "losses_after": {
+          "regret_loss": 0.41240233182907104,
+          "state_value_loss": 0.20436957478523254,
+          "total_loss": 0.5145871043205261
+        },
+        "grad_norm_total": 0.16118936221882815,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.1587915222099454
+          },
+          "card_encoder": {
+            "grad_norm": 0.0010430868966087815
+          },
+          "context_encoder": {
+            "grad_norm": 0.002022727055762644
+          },
+          "fusion": {
+            "grad_norm": 0.007369799795237936
+          },
+          "state_value_head": {
+            "grad_norm": 0.026603938857302976
+          }
+        }
+      },
+      {
+        "step": 22,
+        "loss_before": 0.5145871043205261,
+        "loss_after": 0.5143381357192993,
+        "losses_before": {
+          "regret_loss": 0.41240233182907104,
+          "state_value_loss": 0.20436957478523254,
+          "total_loss": 0.5145871043205261
+        },
+        "losses_after": {
+          "regret_loss": 0.4121802747249603,
+          "state_value_loss": 0.20431570708751678,
+          "total_loss": 0.5143381357192993
+        },
+        "grad_norm_total": 0.15845600449199276,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.15619149751983719
+          },
+          "card_encoder": {
+            "grad_norm": 0.0010844405187066615
+          },
+          "context_encoder": {
+            "grad_norm": 0.002085911013559348
+          },
+          "fusion": {
+            "grad_norm": 0.007573486536877675
+          },
+          "state_value_head": {
+            "grad_norm": 0.02548797221745488
+          }
+        }
+      },
+      {
+        "step": 23,
+        "loss_before": 0.5143381357192993,
+        "loss_after": 0.5140973925590515,
+        "losses_before": {
+          "regret_loss": 0.4121802747249603,
+          "state_value_loss": 0.20431570708751678,
+          "total_loss": 0.5143381357192993
+        },
+        "losses_after": {
+          "regret_loss": 0.4119650721549988,
+          "state_value_loss": 0.2042645961046219,
+          "total_loss": 0.5140973925590515
+        },
+        "grad_norm_total": 0.15580053595144355,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.1536452106824209
+          },
+          "card_encoder": {
+            "grad_norm": 0.0011250029315385192
+          },
+          "context_encoder": {
+            "grad_norm": 0.0021466806408023636
+          },
+          "fusion": {
+            "grad_norm": 0.007769477736862465
+          },
+          "state_value_head": {
+            "grad_norm": 0.02450954066151346
+          }
+        }
+      },
+      {
+        "step": 24,
+        "loss_before": 0.5140973925590515,
+        "loss_after": 0.5138645768165588,
+        "losses_before": {
+          "regret_loss": 0.4119650721549988,
+          "state_value_loss": 0.2042645961046219,
+          "total_loss": 0.5140973925590515
+        },
+        "losses_after": {
+          "regret_loss": 0.41175657510757446,
+          "state_value_loss": 0.20421597361564636,
+          "total_loss": 0.5138645768165588
+        },
+        "grad_norm_total": 0.15321840212104954,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.15115172217340228
+          },
+          "card_encoder": {
+            "grad_norm": 0.001165451007821803
+          },
+          "context_encoder": {
+            "grad_norm": 0.0022092639402188268
+          },
+          "fusion": {
+            "grad_norm": 0.007961117125906619
+          },
+          "state_value_head": {
+            "grad_norm": 0.023652000410972707
+          }
+        }
+      },
+      {
+        "step": 25,
+        "loss_before": 0.5138645768165588,
+        "loss_after": 0.5136392712593079,
+        "losses_before": {
+          "regret_loss": 0.41175657510757446,
+          "state_value_loss": 0.20421597361564636,
+          "total_loss": 0.5138645768165588
+        },
+        "losses_after": {
+          "regret_loss": 0.4115545153617859,
+          "state_value_loss": 0.20416951179504395,
+          "total_loss": 0.5136392712593079
+        },
+        "grad_norm_total": 0.15070509178221167,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.14871021992034572
+          },
+          "card_encoder": {
+            "grad_norm": 0.0012047585282858975
+          },
+          "context_encoder": {
+            "grad_norm": 0.002267002335367901
+          },
+          "fusion": {
+            "grad_norm": 0.008140486972819248
+          },
+          "state_value_head": {
+            "grad_norm": 0.022900587535532136
+          }
+        }
+      },
+      {
+        "step": 26,
+        "loss_before": 0.5136392712593079,
+        "loss_after": 0.5134212970733643,
+        "losses_before": {
+          "regret_loss": 0.4115545153617859,
+          "state_value_loss": 0.20416951179504395,
+          "total_loss": 0.5136392712593079
+        },
+        "losses_after": {
+          "regret_loss": 0.4113587439060211,
+          "state_value_loss": 0.2041250765323639,
+          "total_loss": 0.5134212970733643
+        },
+        "grad_norm_total": 0.14825737983102388,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.14631986917565745
+          },
+          "card_encoder": {
+            "grad_norm": 0.0012431482686616308
+          },
+          "context_encoder": {
+            "grad_norm": 0.0023225924959874413
+          },
+          "fusion": {
+            "grad_norm": 0.008312040439512542
+          },
+          "state_value_head": {
+            "grad_norm": 0.022242227608551105
+          }
+        }
+      },
+      {
+        "step": 27,
+        "loss_before": 0.5134212970733643,
+        "loss_after": 0.5132101774215698,
+        "losses_before": {
+          "regret_loss": 0.4113587439060211,
+          "state_value_loss": 0.2041250765323639,
+          "total_loss": 0.5134212970733643
+        },
+        "losses_after": {
+          "regret_loss": 0.41116905212402344,
+          "state_value_loss": 0.20408229529857635,
+          "total_loss": 0.5132101774215698
+        },
+        "grad_norm_total": 0.14587217814229542,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.1439798410739825
+          },
+          "card_encoder": {
+            "grad_norm": 0.0012807749205874183
+          },
+          "context_encoder": {
+            "grad_norm": 0.002376226882775908
+          },
+          "fusion": {
+            "grad_norm": 0.008474876567535908
+          },
+          "state_value_head": {
+            "grad_norm": 0.02166534903613852
+          }
+        }
+      },
+      {
+        "step": 28,
+        "loss_before": 0.5132101774215698,
+        "loss_after": 0.5130057334899902,
+        "losses_before": {
+          "regret_loss": 0.41116905212402344,
+          "state_value_loss": 0.20408229529857635,
+          "total_loss": 0.5132101774215698
+        },
+        "losses_after": {
+          "regret_loss": 0.41098517179489136,
+          "state_value_loss": 0.20404109358787537,
+          "total_loss": 0.5130057334899902
+        },
+        "grad_norm_total": 0.14354761675695346,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.14168940647520695
+          },
+          "card_encoder": {
+            "grad_norm": 0.0013179102013701255
+          },
+          "context_encoder": {
+            "grad_norm": 0.0024329972632451445
+          },
+          "fusion": {
+            "grad_norm": 0.00863934136973817
+          },
+          "state_value_head": {
+            "grad_norm": 0.021159768123022164
+          }
+        }
+      },
+      {
+        "step": 29,
+        "loss_before": 0.5130057334899902,
+        "loss_after": 0.5128077268600464,
+        "losses_before": {
+          "regret_loss": 0.41098517179489136,
+          "state_value_loss": 0.20404109358787537,
+          "total_loss": 0.5130057334899902
+        },
+        "losses_after": {
+          "regret_loss": 0.4108070731163025,
+          "state_value_loss": 0.2040012776851654,
+          "total_loss": 0.5128077268600464
+        },
+        "grad_norm_total": 0.1412802145461265,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.1394477783107786
+          },
+          "card_encoder": {
+            "grad_norm": 0.0013542085990644894
+          },
+          "context_encoder": {
+            "grad_norm": 0.0024836579720541488
+          },
+          "fusion": {
+            "grad_norm": 0.008788507052013027
+          },
+          "state_value_head": {
+            "grad_norm": 0.0207165598575696
+          }
+        }
+      },
+      {
+        "step": 30,
+        "loss_before": 0.5128077268600464,
+        "loss_after": 0.5126157999038696,
+        "losses_before": {
+          "regret_loss": 0.4108070731163025,
+          "state_value_loss": 0.2040012776851654,
+          "total_loss": 0.5128077268600464
+        },
+        "losses_after": {
+          "regret_loss": 0.41063445806503296,
+          "state_value_loss": 0.20396271347999573,
+          "total_loss": 0.5126157999038696
+        },
+        "grad_norm_total": 0.13906865528229267,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.13725420626171014
+          },
+          "card_encoder": {
+            "grad_norm": 0.0013898109489068658
+          },
+          "context_encoder": {
+            "grad_norm": 0.0025324284003380776
+          },
+          "fusion": {
+            "grad_norm": 0.008933440582737817
+          },
+          "state_value_head": {
+            "grad_norm": 0.020327877822616802
+          }
+        }
+      },
+      {
+        "step": 31,
+        "loss_before": 0.5126157999038696,
+        "loss_after": 0.5124298334121704,
+        "losses_before": {
+          "regret_loss": 0.41063445806503296,
+          "state_value_loss": 0.20396271347999573,
+          "total_loss": 0.5126157999038696
+        },
+        "losses_after": {
+          "regret_loss": 0.4104672074317932,
+          "state_value_loss": 0.203925222158432,
+          "total_loss": 0.5124298334121704
+        },
+        "grad_norm_total": 0.13691099404645804,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.1351079359689299
+          },
+          "card_encoder": {
+            "grad_norm": 0.0014247610025174618
+          },
+          "context_encoder": {
+            "grad_norm": 0.002579935282668956
+          },
+          "fusion": {
+            "grad_norm": 0.009072307681705687
+          },
+          "state_value_head": {
+            "grad_norm": 0.019986824469040154
+          }
+        }
+      },
+      {
+        "step": 32,
+        "loss_before": 0.5124298334121704,
+        "loss_after": 0.5122494697570801,
+        "losses_before": {
+          "regret_loss": 0.4104672074317932,
+          "state_value_loss": 0.203925222158432,
+          "total_loss": 0.5124298334121704
+        },
+        "losses_after": {
+          "regret_loss": 0.41030511260032654,
+          "state_value_loss": 0.20388872921466827,
+          "total_loss": 0.5122494697570801
+        },
+        "grad_norm_total": 0.13480551414762348,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.13300822015663447
+          },
+          "card_encoder": {
+            "grad_norm": 0.0014585650054447384
+          },
+          "context_encoder": {
+            "grad_norm": 0.0026241645019749985
+          },
+          "fusion": {
+            "grad_norm": 0.009205047562719825
+          },
+          "state_value_head": {
+            "grad_norm": 0.01968739351790636
+          }
+        }
+      },
+      {
+        "step": 33,
+        "loss_before": 0.5122494697570801,
+        "loss_after": 0.5120745897293091,
+        "losses_before": {
+          "regret_loss": 0.41030511260032654,
+          "state_value_loss": 0.20388872921466827,
+          "total_loss": 0.5122494697570801
+        },
+        "losses_after": {
+          "regret_loss": 0.4101480543613434,
+          "state_value_loss": 0.20385310053825378,
+          "total_loss": 0.5120745897293091
+        },
+        "grad_norm_total": 0.13275091129635802,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.13095433789242172
+          },
+          "card_encoder": {
+            "grad_norm": 0.0014923524097742219
+          },
+          "context_encoder": {
+            "grad_norm": 0.00266907101168406
+          },
+          "fusion": {
+            "grad_norm": 0.009333218574284157
+          },
+          "state_value_head": {
+            "grad_norm": 0.019424361313444122
+          }
+        }
+      },
+      {
+        "step": 34,
+        "loss_before": 0.5120745897293091,
+        "loss_after": 0.5119048953056335,
+        "losses_before": {
+          "regret_loss": 0.4101480543613434,
+          "state_value_loss": 0.20385310053825378,
+          "total_loss": 0.5120745897293091
+        },
+        "losses_after": {
+          "regret_loss": 0.4099957346916199,
+          "state_value_loss": 0.20381829142570496,
+          "total_loss": 0.5119048953056335
+        },
+        "grad_norm_total": 0.13074554617609768,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.12894552708954335
+          },
+          "card_encoder": {
+            "grad_norm": 0.0015255635278340206
+          },
+          "context_encoder": {
+            "grad_norm": 0.0027118579642974334
+          },
+          "fusion": {
+            "grad_norm": 0.009454610151267384
+          },
+          "state_value_head": {
+            "grad_norm": 0.019193168515841876
+          }
+        }
+      },
+      {
+        "step": 35,
+        "loss_before": 0.5119048953056335,
+        "loss_after": 0.5117402672767639,
+        "losses_before": {
+          "regret_loss": 0.4099957346916199,
+          "state_value_loss": 0.20381829142570496,
+          "total_loss": 0.5119048953056335
+        },
+        "losses_after": {
+          "regret_loss": 0.409848153591156,
+          "state_value_loss": 0.20378418266773224,
+          "total_loss": 0.5117402672767639
+        },
+        "grad_norm_total": 0.128789418074249,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.12698109942114813
+          },
+          "card_encoder": {
+            "grad_norm": 0.001558924214296482
+          },
+          "context_encoder": {
+            "grad_norm": 0.0027575119541430842
+          },
+          "fusion": {
+            "grad_norm": 0.009584767444690013
+          },
+          "state_value_head": {
+            "grad_norm": 0.01898980552423433
+          }
+        }
+      },
+      {
+        "step": 36,
+        "loss_before": 0.5117402672767639,
+        "loss_after": 0.5115805268287659,
+        "losses_before": {
+          "regret_loss": 0.409848153591156,
+          "state_value_loss": 0.20378418266773224,
+          "total_loss": 0.5117402672767639
+        },
+        "losses_after": {
+          "regret_loss": 0.40970516204833984,
+          "state_value_loss": 0.20375068485736847,
+          "total_loss": 0.5115805268287659
+        },
+        "grad_norm_total": 0.12687920007560533,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.12506032397103825
+          },
+          "card_encoder": {
+            "grad_norm": 0.0015910487005469545
+          },
+          "context_encoder": {
+            "grad_norm": 0.0027975313634242514
+          },
+          "fusion": {
+            "grad_norm": 0.009697595492232295
+          },
+          "state_value_head": {
+            "grad_norm": 0.018810789564944325
+          }
+        }
+      },
+      {
+        "step": 37,
+        "loss_before": 0.5115805268287659,
+        "loss_after": 0.5114253759384155,
+        "losses_before": {
+          "regret_loss": 0.40970516204833984,
+          "state_value_loss": 0.20375068485736847,
+          "total_loss": 0.5115805268287659
+        },
+        "losses_after": {
+          "regret_loss": 0.4095664620399475,
+          "state_value_loss": 0.20371779799461365,
+          "total_loss": 0.5114253759384155
+        },
+        "grad_norm_total": 0.12501548471034574,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.12318244912985836
+          },
+          "card_encoder": {
+            "grad_norm": 0.0016225041741218275
+          },
+          "context_encoder": {
+            "grad_norm": 0.0028410669821190013
+          },
+          "fusion": {
+            "grad_norm": 0.009813899832439604
+          },
+          "state_value_head": {
+            "grad_norm": 0.018653118570884034
+          }
+        }
+      },
+      {
+        "step": 38,
+        "loss_before": 0.5114253759384155,
+        "loss_after": 0.5112746953964233,
+        "losses_before": {
+          "regret_loss": 0.4095664620399475,
+          "state_value_loss": 0.20371779799461365,
+          "total_loss": 0.5114253759384155
+        },
+        "losses_after": {
+          "regret_loss": 0.40943199396133423,
+          "state_value_loss": 0.20368537306785583,
+          "total_loss": 0.5112746953964233
+        },
+        "grad_norm_total": 0.1231958139043575,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.121346778467363
+          },
+          "card_encoder": {
+            "grad_norm": 0.0016534951225109426
+          },
+          "context_encoder": {
+            "grad_norm": 0.0028799757730868856
+          },
+          "fusion": {
+            "grad_norm": 0.009917990860838024
+          },
+          "state_value_head": {
+            "grad_norm": 0.018514131625880097
+          }
+        }
+      },
+      {
+        "step": 39,
+        "loss_before": 0.5112746953964233,
+        "loss_after": 0.511128306388855,
+        "losses_before": {
+          "regret_loss": 0.40943199396133423,
+          "state_value_loss": 0.20368537306785583,
+          "total_loss": 0.5112746953964233
+        },
+        "losses_after": {
+          "regret_loss": 0.4093015789985657,
+          "state_value_loss": 0.2036534547805786,
+          "total_loss": 0.511128306388855
+        },
+        "grad_norm_total": 0.12141814474973883,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.11955254511536133
+          },
+          "card_encoder": {
+            "grad_norm": 0.001684517505344896
+          },
+          "context_encoder": {
+            "grad_norm": 0.0029115883923777463
+          },
+          "fusion": {
+            "grad_norm": 0.00999955207394107
+          },
+          "state_value_head": {
+            "grad_norm": 0.018391542704083483
+          }
+        }
+      },
+      {
+        "step": 40,
+        "loss_before": 0.511128306388855,
+        "loss_after": 0.5109860897064209,
+        "losses_before": {
+          "regret_loss": 0.4093015789985657,
+          "state_value_loss": 0.2036534547805786,
+          "total_loss": 0.511128306388855
+        },
+        "losses_after": {
+          "regret_loss": 0.4091750979423523,
+          "state_value_loss": 0.20362193882465363,
+          "total_loss": 0.5109860897064209
+        },
+        "grad_norm_total": 0.11968480249886768,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.11779898213056479
+          },
+          "card_encoder": {
+            "grad_norm": 0.001714171064078305
+          },
+          "context_encoder": {
+            "grad_norm": 0.0029469838777174185
+          },
+          "fusion": {
+            "grad_norm": 0.010096945475190924
+          },
+          "state_value_head": {
+            "grad_norm": 0.018283335413824535
+          }
+        }
+      },
+      {
+        "step": 41,
+        "loss_before": 0.5109860897064209,
+        "loss_after": 0.5108478665351868,
+        "losses_before": {
+          "regret_loss": 0.4091750979423523,
+          "state_value_loss": 0.20362193882465363,
+          "total_loss": 0.5109860897064209
+        },
+        "losses_after": {
+          "regret_loss": 0.40905246138572693,
+          "state_value_loss": 0.20359079539775848,
+          "total_loss": 0.5108478665351868
+        },
+        "grad_norm_total": 0.11799321228701572,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.11608545356488907
+          },
+          "card_encoder": {
+            "grad_norm": 0.0017435668871622625
+          },
+          "context_encoder": {
+            "grad_norm": 0.002982747918751585
+          },
+          "fusion": {
+            "grad_norm": 0.01018992906171402
+          },
+          "state_value_head": {
+            "grad_norm": 0.018187747291051482
+          }
+        }
+      },
+      {
+        "step": 42,
+        "loss_before": 0.5108478665351868,
+        "loss_after": 0.5107134580612183,
+        "losses_before": {
+          "regret_loss": 0.40905246138572693,
+          "state_value_loss": 0.20359079539775848,
+          "total_loss": 0.5108478665351868
+        },
+        "losses_after": {
+          "regret_loss": 0.40893346071243286,
+          "state_value_loss": 0.2035599946975708,
+          "total_loss": 0.5107134580612183
+        },
+        "grad_norm_total": 0.11634248026740951,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.1144112266170841
+          },
+          "card_encoder": {
+            "grad_norm": 0.0017725762125390275
+          },
+          "context_encoder": {
+            "grad_norm": 0.003017030267809601
+          },
+          "fusion": {
+            "grad_norm": 0.01027965207236553
+          },
+          "state_value_head": {
+            "grad_norm": 0.018103264731859022
+          }
+        }
+      },
+      {
+        "step": 43,
+        "loss_before": 0.5107134580612183,
+        "loss_after": 0.510582685470581,
+        "losses_before": {
+          "regret_loss": 0.40893346071243286,
+          "state_value_loss": 0.2035599946975708,
+          "total_loss": 0.5107134580612183
+        },
+        "losses_after": {
+          "regret_loss": 0.40881794691085815,
+          "state_value_loss": 0.2035294771194458,
+          "total_loss": 0.510582685470581
+        },
+        "grad_norm_total": 0.11473120153989146,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.11277560723849914
+          },
+          "card_encoder": {
+            "grad_norm": 0.0018011979508906649
+          },
+          "context_encoder": {
+            "grad_norm": 0.0030502251319030594
+          },
+          "fusion": {
+            "grad_norm": 0.010360261313821801
+          },
+          "state_value_head": {
+            "grad_norm": 0.018028527861994596
+          }
+        }
+      },
+      {
+        "step": 44,
+        "loss_before": 0.510582685470581,
+        "loss_after": 0.5104554295539856,
+        "losses_before": {
+          "regret_loss": 0.40881794691085815,
+          "state_value_loss": 0.2035294771194458,
+          "total_loss": 0.510582685470581
+        },
+        "losses_after": {
+          "regret_loss": 0.40870580077171326,
+          "state_value_loss": 0.20349927246570587,
+          "total_loss": 0.5104554295539856
+        },
+        "grad_norm_total": 0.11316032315759554,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.11117788475169461
+          },
+          "card_encoder": {
+            "grad_norm": 0.0018291387617449099
+          },
+          "context_encoder": {
+            "grad_norm": 0.0030882095107771465
+          },
+          "fusion": {
+            "grad_norm": 0.010450226543004886
+          },
+          "state_value_head": {
+            "grad_norm": 0.017962367824929635
+          }
+        }
+      },
+      {
+        "step": 45,
+        "loss_before": 0.5104554295539856,
+        "loss_after": 0.5103317499160767,
+        "losses_before": {
+          "regret_loss": 0.40870580077171326,
+          "state_value_loss": 0.20349927246570587,
+          "total_loss": 0.5104554295539856
+        },
+        "losses_after": {
+          "regret_loss": 0.40859708189964294,
+          "state_value_loss": 0.20346932113170624,
+          "total_loss": 0.5103317499160767
+        },
+        "grad_norm_total": 0.11162704315641653,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.10961739256214806
+          },
+          "card_encoder": {
+            "grad_norm": 0.0018568909646829892
+          },
+          "context_encoder": {
+            "grad_norm": 0.0031205140049877377
+          },
+          "fusion": {
+            "grad_norm": 0.010530622145600925
+          },
+          "state_value_head": {
+            "grad_norm": 0.01790375260209268
+          }
+        }
+      },
+      {
+        "step": 46,
+        "loss_before": 0.5103317499160767,
+        "loss_after": 0.5102112293243408,
+        "losses_before": {
+          "regret_loss": 0.40859708189964294,
+          "state_value_loss": 0.20346932113170624,
+          "total_loss": 0.5103317499160767
+        },
+        "losses_after": {
+          "regret_loss": 0.40849143266677856,
+          "state_value_loss": 0.2034395933151245,
+          "total_loss": 0.5102112293243408
+        },
+        "grad_norm_total": 0.11013136210755016,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.10809341249719288
+          },
+          "card_encoder": {
+            "grad_norm": 0.0018841922695633766
+          },
+          "context_encoder": {
+            "grad_norm": 0.0031525177705542693
+          },
+          "fusion": {
+            "grad_norm": 0.010609255762792704
+          },
+          "state_value_head": {
+            "grad_norm": 0.017851785281403805
+          }
+        }
+      },
+      {
+        "step": 47,
+        "loss_before": 0.5102112293243408,
+        "loss_after": 0.5100939273834229,
+        "losses_before": {
+          "regret_loss": 0.40849143266677856,
+          "state_value_loss": 0.2034395933151245,
+          "total_loss": 0.5102112293243408
+        },
+        "losses_after": {
+          "regret_loss": 0.4083889126777649,
+          "state_value_loss": 0.2034100592136383,
+          "total_loss": 0.5100939273834229
+        },
+        "grad_norm_total": 0.10867351736010646,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.1066052936356687
+          },
+          "card_encoder": {
+            "grad_norm": 0.0019120053501896753
+          },
+          "context_encoder": {
+            "grad_norm": 0.003185190268279002
+          },
+          "fusion": {
+            "grad_norm": 0.010695854694950675
+          },
+          "state_value_head": {
+            "grad_norm": 0.017805679855327647
+          }
+        }
+      },
+      {
+        "step": 48,
+        "loss_before": 0.5100939273834229,
+        "loss_after": 0.5099796056747437,
+        "losses_before": {
+          "regret_loss": 0.4083889126777649,
+          "state_value_loss": 0.2034100592136383,
+          "total_loss": 0.5100939273834229
+        },
+        "losses_after": {
+          "regret_loss": 0.40828925371170044,
+          "state_value_loss": 0.20338074862957,
+          "total_loss": 0.5099796056747437
+        },
+        "grad_norm_total": 0.10725052615662604,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.10515233321285306
+          },
+          "card_encoder": {
+            "grad_norm": 0.001938485976670452
+          },
+          "context_encoder": {
+            "grad_norm": 0.0032155149955159397
+          },
+          "fusion": {
+            "grad_norm": 0.010769377658392183
+          },
+          "state_value_head": {
+            "grad_norm": 0.01776472406340825
+          }
+        }
+      },
+      {
+        "step": 49,
+        "loss_before": 0.5099796056747437,
+        "loss_after": 0.5098682641983032,
+        "losses_before": {
+          "regret_loss": 0.40828925371170044,
+          "state_value_loss": 0.20338074862957,
+          "total_loss": 0.5099796056747437
+        },
+        "losses_after": {
+          "regret_loss": 0.4081924855709076,
+          "state_value_loss": 0.20335161685943604,
+          "total_loss": 0.5098682641983032
+        },
+        "grad_norm_total": 0.10586381272685448,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.10373390324228621
+          },
+          "card_encoder": {
+            "grad_norm": 0.001965915463941892
+          },
+          "context_encoder": {
+            "grad_norm": 0.003248627041177884
+          },
+          "fusion": {
+            "grad_norm": 0.010849552238519761
+          },
+          "state_value_head": {
+            "grad_norm": 0.017728310075867736
+          }
+        }
+      },
+      {
+        "step": 50,
+        "loss_before": 0.5098682641983032,
+        "loss_after": 0.5097597241401672,
+        "losses_before": {
+          "regret_loss": 0.4081924855709076,
+          "state_value_loss": 0.20335161685943604,
+          "total_loss": 0.5098682641983032
+        },
+        "losses_after": {
+          "regret_loss": 0.40809839963912964,
+          "state_value_loss": 0.2033226490020752,
+          "total_loss": 0.5097597241401672
+        },
+        "grad_norm_total": 0.1045105231484874,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.10234928734919804
+          },
+          "card_encoder": {
+            "grad_norm": 0.0019916354978333326
+          },
+          "context_encoder": {
+            "grad_norm": 0.0032778956129070245
+          },
+          "fusion": {
+            "grad_norm": 0.01091862788979942
+          },
+          "state_value_head": {
+            "grad_norm": 0.01769590860285396
+          }
+        }
+      },
+      {
+        "step": 51,
+        "loss_before": 0.5097597241401672,
+        "loss_after": 0.5096539258956909,
+        "losses_before": {
+          "regret_loss": 0.40809839963912964,
+          "state_value_loss": 0.2033226490020752,
+          "total_loss": 0.5097597241401672
+        },
+        "losses_after": {
+          "regret_loss": 0.40800705552101135,
+          "state_value_loss": 0.2032938003540039,
+          "total_loss": 0.5096539258956909
+        },
+        "grad_norm_total": 0.1031908610081453,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.1009978521876716
+          },
+          "card_encoder": {
+            "grad_norm": 0.002016955500293176
+          },
+          "context_encoder": {
+            "grad_norm": 0.003306428602632736
+          },
+          "fusion": {
+            "grad_norm": 0.01098468586324781
+          },
+          "state_value_head": {
+            "grad_norm": 0.017667024253418956
+          }
+        }
+      },
+      {
+        "step": 52,
+        "loss_before": 0.5096539258956909,
+        "loss_after": 0.5095508098602295,
+        "losses_before": {
+          "regret_loss": 0.40800705552101135,
+          "state_value_loss": 0.2032938003540039,
+          "total_loss": 0.5096539258956909
+        },
+        "losses_after": {
+          "regret_loss": 0.40791821479797363,
+          "state_value_loss": 0.20326514542102814,
+          "total_loss": 0.5095508098602295
+        },
+        "grad_norm_total": 0.10190299461076212,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.09967894789131862
+          },
+          "card_encoder": {
+            "grad_norm": 0.0020410851637336328
+          },
+          "context_encoder": {
+            "grad_norm": 0.0033316983842886214
+          },
+          "fusion": {
+            "grad_norm": 0.011038432373268004
+          },
+          "state_value_head": {
+            "grad_norm": 0.017641270529417757
+          }
+        }
+      },
+      {
+        "step": 53,
+        "loss_before": 0.5095508098602295,
+        "loss_after": 0.5094500184059143,
+        "losses_before": {
+          "regret_loss": 0.40791821479797363,
+          "state_value_loss": 0.20326514542102814,
+          "total_loss": 0.5095508098602295
+        },
+        "losses_after": {
+          "regret_loss": 0.40783175826072693,
+          "state_value_loss": 0.20323655009269714,
+          "total_loss": 0.5094500184059143
+        },
+        "grad_norm_total": 0.10064649760860638,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.09839187834557646
+          },
+          "card_encoder": {
+            "grad_norm": 0.0020658201229766487
+          },
+          "context_encoder": {
+            "grad_norm": 0.003354489989184869
+          },
+          "fusion": {
+            "grad_norm": 0.011082964416616348
+          },
+          "state_value_head": {
+            "grad_norm": 0.017618270073434254
+          }
+        }
+      },
+      {
+        "step": 54,
+        "loss_before": 0.5094500184059143,
+        "loss_after": 0.5093517303466797,
+        "losses_before": {
+          "regret_loss": 0.40783175826072693,
+          "state_value_loss": 0.20323655009269714,
+          "total_loss": 0.5094500184059143
+        },
+        "losses_after": {
+          "regret_loss": 0.40774768590927124,
+          "state_value_loss": 0.20320813357830048,
+          "total_loss": 0.5093517303466797
+        },
+        "grad_norm_total": 0.09942387058201167,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.09713602020043789
+          },
+          "card_encoder": {
+            "grad_norm": 0.002090438996407483
+          },
+          "context_encoder": {
+            "grad_norm": 0.0033816430797107945
+          },
+          "fusion": {
+            "grad_norm": 0.01114520407195338
+          },
+          "state_value_head": {
+            "grad_norm": 0.0175976874107647
+          }
+        }
+      },
+      {
+        "step": 55,
+        "loss_before": 0.5093517303466797,
+        "loss_after": 0.5092558860778809,
+        "losses_before": {
+          "regret_loss": 0.40774768590927124,
+          "state_value_loss": 0.20320813357830048,
+          "total_loss": 0.5093517303466797
+        },
+        "losses_after": {
+          "regret_loss": 0.4076659679412842,
+          "state_value_loss": 0.20317980647087097,
+          "total_loss": 0.5092558860778809
+        },
+        "grad_norm_total": 0.09823207163097258,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.09591079945920142
+          },
+          "card_encoder": {
+            "grad_norm": 0.0021141779836140752
+          },
+          "context_encoder": {
+            "grad_norm": 0.0034077316011425405
+          },
+          "fusion": {
+            "grad_norm": 0.011204746451505059
+          },
+          "state_value_head": {
+            "grad_norm": 0.017579241102932696
+          }
+        }
+      },
+      {
+        "step": 56,
+        "loss_before": 0.5092558860778809,
+        "loss_after": 0.509162187576294,
+        "losses_before": {
+          "regret_loss": 0.4076659679412842,
+          "state_value_loss": 0.20317980647087097,
+          "total_loss": 0.5092558860778809
+        },
+        "losses_after": {
+          "regret_loss": 0.4075864255428314,
+          "state_value_loss": 0.20315158367156982,
+          "total_loss": 0.509162187576294
+        },
+        "grad_norm_total": 0.09707045671734851,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.09471556019548434
+          },
+          "card_encoder": {
+            "grad_norm": 0.0021378295232304507
+          },
+          "context_encoder": {
+            "grad_norm": 0.003433534216097997
+          },
+          "fusion": {
+            "grad_norm": 0.011261860899445933
+          },
+          "state_value_head": {
+            "grad_norm": 0.017562666112189085
+          }
+        }
+      },
+      {
+        "step": 57,
+        "loss_before": 0.509162187576294,
+        "loss_after": 0.5090706944465637,
+        "losses_before": {
+          "regret_loss": 0.4075864255428314,
+          "state_value_loss": 0.20315158367156982,
+          "total_loss": 0.509162187576294
+        },
+        "losses_after": {
+          "regret_loss": 0.4075089395046234,
+          "state_value_loss": 0.20312349498271942,
+          "total_loss": 0.5090706944465637
+        },
+        "grad_norm_total": 0.09593849417097837,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.09354972308531778
+          },
+          "card_encoder": {
+            "grad_norm": 0.002161254924873247
+          },
+          "context_encoder": {
+            "grad_norm": 0.003459036066262083
+          },
+          "fusion": {
+            "grad_norm": 0.011317429589785497
+          },
+          "state_value_head": {
+            "grad_norm": 0.017547757935915075
+          }
+        }
+      },
+      {
+        "step": 58,
+        "loss_before": 0.5090706944465637,
+        "loss_after": 0.5089812278747559,
+        "losses_before": {
+          "regret_loss": 0.4075089395046234,
+          "state_value_loss": 0.20312349498271942,
+          "total_loss": 0.5090706944465637
+        },
+        "losses_after": {
+          "regret_loss": 0.40743350982666016,
+          "state_value_loss": 0.2030954658985138,
+          "total_loss": 0.5089812278747559
+        },
+        "grad_norm_total": 0.09483547470965209,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.09241265113459725
+          },
+          "card_encoder": {
+            "grad_norm": 0.002184399114725759
+          },
+          "context_encoder": {
+            "grad_norm": 0.003484346249548404
+          },
+          "fusion": {
+            "grad_norm": 0.011371220962963719
+          },
+          "state_value_head": {
+            "grad_norm": 0.017534316046329837
+          }
+        }
+      },
+      {
+        "step": 59,
+        "loss_before": 0.5089812278747559,
+        "loss_after": 0.5088938474655151,
+        "losses_before": {
+          "regret_loss": 0.40743350982666016,
+          "state_value_loss": 0.2030954658985138,
+          "total_loss": 0.5089812278747559
+        },
+        "losses_after": {
+          "regret_loss": 0.4073600769042969,
+          "state_value_loss": 0.20306751132011414,
+          "total_loss": 0.5088938474655151
+        },
+        "grad_norm_total": 0.09376172938230563,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.09130378955299309
+          },
+          "card_encoder": {
+            "grad_norm": 0.00220705296905673
+          },
+          "context_encoder": {
+            "grad_norm": 0.0035227853884713576
+          },
+          "fusion": {
+            "grad_norm": 0.011426880460642424
+          },
+          "state_value_head": {
+            "grad_norm": 0.01752213495154639
+          }
+        }
+      },
+      {
+        "step": 60,
+        "loss_before": 0.5088938474655151,
+        "loss_after": 0.5088083744049072,
+        "losses_before": {
+          "regret_loss": 0.4073600769042969,
+          "state_value_loss": 0.20306751132011414,
+          "total_loss": 0.5088938474655151
+        },
+        "losses_after": {
+          "regret_loss": 0.4072885513305664,
+          "state_value_loss": 0.20303969085216522,
+          "total_loss": 0.5088083744049072
+        },
+        "grad_norm_total": 0.09271563875031359,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.09022252043143086
+          },
+          "card_encoder": {
+            "grad_norm": 0.0022284785884331675
+          },
+          "context_encoder": {
+            "grad_norm": 0.003547403086266285
+          },
+          "fusion": {
+            "grad_norm": 0.011484669530250232
+          },
+          "state_value_head": {
+            "grad_norm": 0.017511100941519277
+          }
+        }
+      },
+      {
+        "step": 61,
+        "loss_before": 0.5088083744049072,
+        "loss_after": 0.5087246894836426,
+        "losses_before": {
+          "regret_loss": 0.4072885513305664,
+          "state_value_loss": 0.20303969085216522,
+          "total_loss": 0.5088083744049072
+        },
+        "losses_after": {
+          "regret_loss": 0.4072187542915344,
+          "state_value_loss": 0.2030119001865387,
+          "total_loss": 0.5087246894836426
+        },
+        "grad_norm_total": 0.09169602499271988,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.08916827694448619
+          },
+          "card_encoder": {
+            "grad_norm": 0.0022507614990557065
+          },
+          "context_encoder": {
+            "grad_norm": 0.0035706466354996436
+          },
+          "fusion": {
+            "grad_norm": 0.011535919943207476
+          },
+          "state_value_head": {
+            "grad_norm": 0.017501042613501435
+          }
+        }
+      },
+      {
+        "step": 62,
+        "loss_before": 0.5087246894836426,
+        "loss_after": 0.5086429119110107,
+        "losses_before": {
+          "regret_loss": 0.4072187542915344,
+          "state_value_loss": 0.2030119001865387,
+          "total_loss": 0.5087246894836426
+        },
+        "losses_after": {
+          "regret_loss": 0.4071508049964905,
+          "state_value_loss": 0.20298421382904053,
+          "total_loss": 0.5086429119110107
+        },
+        "grad_norm_total": 0.09070297335544557,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.0881404848435763
+          },
+          "card_encoder": {
+            "grad_norm": 0.0022726605475205993
+          },
+          "context_encoder": {
+            "grad_norm": 0.0035942249545288687
+          },
+          "fusion": {
+            "grad_norm": 0.011586054723368005
+          },
+          "state_value_head": {
+            "grad_norm": 0.017491832494540786
+          }
+        }
+      },
+      {
+        "step": 63,
+        "loss_before": 0.5086429119110107,
+        "loss_after": 0.5085628032684326,
+        "losses_before": {
+          "regret_loss": 0.4071508049964905,
+          "state_value_loss": 0.20298421382904053,
+          "total_loss": 0.5086429119110107
+        },
+        "losses_after": {
+          "regret_loss": 0.40708452463150024,
+          "state_value_loss": 0.20295660197734833,
+          "total_loss": 0.5085628032684326
+        },
+        "grad_norm_total": 0.08973641552228956,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.08713855308192013
+          },
+          "card_encoder": {
+            "grad_norm": 0.0022945218995173294
+          },
+          "context_encoder": {
+            "grad_norm": 0.003618290090790955
+          },
+          "fusion": {
+            "grad_norm": 0.01163918700747387
+          },
+          "state_value_head": {
+            "grad_norm": 0.017483400969347185
+          }
+        }
+      },
+      {
+        "step": 64,
+        "loss_before": 0.5085628032684326,
+        "loss_after": 0.5084843039512634,
+        "losses_before": {
+          "regret_loss": 0.40708452463150024,
+          "state_value_loss": 0.20295660197734833,
+          "total_loss": 0.5085628032684326
+        },
+        "losses_after": {
+          "regret_loss": 0.40701979398727417,
+          "state_value_loss": 0.2029290646314621,
+          "total_loss": 0.5084843039512634
+        },
+        "grad_norm_total": 0.08879510021606019,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.08616196107813787
+          },
+          "card_encoder": {
+            "grad_norm": 0.0023160883477698468
+          },
+          "context_encoder": {
+            "grad_norm": 0.0036416152696661197
+          },
+          "fusion": {
+            "grad_norm": 0.011690311172720687
+          },
+          "state_value_head": {
+            "grad_norm": 0.017475619680790967
+          }
+        }
+      },
+      {
+        "step": 65,
+        "loss_before": 0.5084843039512634,
+        "loss_after": 0.5084075331687927,
+        "losses_before": {
+          "regret_loss": 0.40701979398727417,
+          "state_value_loss": 0.2029290646314621,
+          "total_loss": 0.5084843039512634
+        },
+        "losses_after": {
+          "regret_loss": 0.4069567322731018,
+          "state_value_loss": 0.20290157198905945,
+          "total_loss": 0.5084075331687927
+        },
+        "grad_norm_total": 0.08787940017175389,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.0852101482970541
+          },
+          "card_encoder": {
+            "grad_norm": 0.002337629778382271
+          },
+          "context_encoder": {
+            "grad_norm": 0.0036652572970818365
+          },
+          "fusion": {
+            "grad_norm": 0.011746294536429648
+          },
+          "state_value_head": {
+            "grad_norm": 0.017468415565532996
+          }
+        }
+      },
+      {
+        "step": 66,
+        "loss_before": 0.5084075331687927,
+        "loss_after": 0.5083322525024414,
+        "losses_before": {
+          "regret_loss": 0.4069567322731018,
+          "state_value_loss": 0.20290157198905945,
+          "total_loss": 0.5084075331687927
+        },
+        "losses_after": {
+          "regret_loss": 0.40689516067504883,
+          "state_value_loss": 0.20287418365478516,
+          "total_loss": 0.5083322525024414
+        },
+        "grad_norm_total": 0.08698642654708882,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.08428255365652
+          },
+          "card_encoder": {
+            "grad_norm": 0.002358708887021679
+          },
+          "context_encoder": {
+            "grad_norm": 0.0036865525584849966
+          },
+          "fusion": {
+            "grad_norm": 0.011790802038334141
+          },
+          "state_value_head": {
+            "grad_norm": 0.017461739961428132
+          }
+        }
+      },
+      {
+        "step": 67,
+        "loss_before": 0.5083322525024414,
+        "loss_after": 0.5082584619522095,
+        "losses_before": {
+          "regret_loss": 0.40689516067504883,
+          "state_value_loss": 0.20287418365478516,
+          "total_loss": 0.5083322525024414
+        },
+        "losses_after": {
+          "regret_loss": 0.40683501958847046,
+          "state_value_loss": 0.20284684002399445,
+          "total_loss": 0.5082584619522095
+        },
+        "grad_norm_total": 0.0861177190410012,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.08337865205039305
+          },
+          "card_encoder": {
+            "grad_norm": 0.002379439290295921
+          },
+          "context_encoder": {
+            "grad_norm": 0.003708380732008121
+          },
+          "fusion": {
+            "grad_norm": 0.01183864816340625
+          },
+          "state_value_head": {
+            "grad_norm": 0.017455500730647982
+          }
+        }
+      },
+      {
+        "step": 68,
+        "loss_before": 0.5082584619522095,
+        "loss_after": 0.5081861019134521,
+        "losses_before": {
+          "regret_loss": 0.40683501958847046,
+          "state_value_loss": 0.20284684002399445,
+          "total_loss": 0.5082584619522095
+        },
+        "losses_after": {
+          "regret_loss": 0.4067763388156891,
+          "state_value_loss": 0.20281954109668732,
+          "total_loss": 0.5081861019134521
+        },
+        "grad_norm_total": 0.08527378899792205,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.08249791838537647
+          },
+          "card_encoder": {
+            "grad_norm": 0.0024009078709240753
+          },
+          "context_encoder": {
+            "grad_norm": 0.0037331045705491115
+          },
+          "fusion": {
+            "grad_norm": 0.011896312025199507
+          },
+          "state_value_head": {
+            "grad_norm": 0.017449638506332115
+          }
+        }
+      },
+      {
+        "step": 69,
+        "loss_before": 0.5081861019134521,
+        "loss_after": 0.5081150531768799,
+        "losses_before": {
+          "regret_loss": 0.4067763388156891,
+          "state_value_loss": 0.20281954109668732,
+          "total_loss": 0.5081861019134521
+        },
+        "losses_after": {
+          "regret_loss": 0.406718909740448,
+          "state_value_loss": 0.20279231667518616,
+          "total_loss": 0.5081150531768799
+        },
+        "grad_norm_total": 0.0844498391019982,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.08163984049643723
+          },
+          "card_encoder": {
+            "grad_norm": 0.00242126744838548
+          },
+          "context_encoder": {
+            "grad_norm": 0.0037508847714440284
+          },
+          "fusion": {
+            "grad_norm": 0.011936614969787648
+          },
+          "state_value_head": {
+            "grad_norm": 0.017444119883429247
+          }
+        }
+      },
+      {
+        "step": 70,
+        "loss_before": 0.5081150531768799,
+        "loss_after": 0.5080454349517822,
+        "losses_before": {
+          "regret_loss": 0.406718909740448,
+          "state_value_loss": 0.20279231667518616,
+          "total_loss": 0.5081150531768799
+        },
+        "losses_after": {
+          "regret_loss": 0.40666288137435913,
+          "state_value_loss": 0.20276515185832977,
+          "total_loss": 0.5080454349517822
+        },
+        "grad_norm_total": 0.08364878961723159,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.08080388960831185
+          },
+          "card_encoder": {
+            "grad_norm": 0.002440999402758422
+          },
+          "context_encoder": {
+            "grad_norm": 0.003773397381247569
+          },
+          "fusion": {
+            "grad_norm": 0.011980803728616787
+          },
+          "state_value_head": {
+            "grad_norm": 0.017438886567981104
+          }
+        }
+      },
+      {
+        "step": 71,
+        "loss_before": 0.5080454349517822,
+        "loss_after": 0.5079771280288696,
+        "losses_before": {
+          "regret_loss": 0.40666288137435913,
+          "state_value_loss": 0.20276515185832977,
+          "total_loss": 0.5080454349517822
+        },
+        "losses_after": {
+          "regret_loss": 0.40660810470581055,
+          "state_value_loss": 0.20273804664611816,
+          "total_loss": 0.5079771280288696
+        },
+        "grad_norm_total": 0.08286784282142316,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.07998956313030318
+          },
+          "card_encoder": {
+            "grad_norm": 0.002460660726799095
+          },
+          "context_encoder": {
+            "grad_norm": 0.0037916190949619697
+          },
+          "fusion": {
+            "grad_norm": 0.012015747528938178
+          },
+          "state_value_head": {
+            "grad_norm": 0.017433867868217316
+          }
+        }
+      },
+      {
+        "step": 72,
+        "loss_before": 0.5079771280288696,
+        "loss_after": 0.5079099535942078,
+        "losses_before": {
+          "regret_loss": 0.40660810470581055,
+          "state_value_loss": 0.20273804664611816,
+          "total_loss": 0.5079771280288696
+        },
+        "losses_after": {
+          "regret_loss": 0.4065544605255127,
+          "state_value_loss": 0.20271098613739014,
+          "total_loss": 0.5079099535942078
+        },
+        "grad_norm_total": 0.0821084341920988,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.07919637125778359
+          },
+          "card_encoder": {
+            "grad_norm": 0.0024803347570937617
+          },
+          "context_encoder": {
+            "grad_norm": 0.003810627204018647
+          },
+          "fusion": {
+            "grad_norm": 0.01205342364298785
+          },
+          "state_value_head": {
+            "grad_norm": 0.017429049984578525
+          }
+        }
+      },
+      {
+        "step": 73,
+        "loss_before": 0.5079099535942078,
+        "loss_after": 0.507844090461731,
+        "losses_before": {
+          "regret_loss": 0.4065544605255127,
+          "state_value_loss": 0.20271098613739014,
+          "total_loss": 0.5079099535942078
+        },
+        "losses_after": {
+          "regret_loss": 0.4065020978450775,
+          "state_value_loss": 0.20268400013446808,
+          "total_loss": 0.507844090461731
+        },
+        "grad_norm_total": 0.08137079708002559,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.0784238315495156
+          },
+          "card_encoder": {
+            "grad_norm": 0.0024998561276954106
+          },
+          "context_encoder": {
+            "grad_norm": 0.0038315026172813516
+          },
+          "fusion": {
+            "grad_norm": 0.01209836428638805
+          },
+          "state_value_head": {
+            "grad_norm": 0.01742438381006182
+          }
+        }
+      },
+      {
+        "step": 74,
+        "loss_before": 0.507844090461731,
+        "loss_after": 0.5077793598175049,
+        "losses_before": {
+          "regret_loss": 0.4065020978450775,
+          "state_value_loss": 0.20268400013446808,
+          "total_loss": 0.507844090461731
+        },
+        "losses_after": {
+          "regret_loss": 0.4064508080482483,
+          "state_value_loss": 0.2026570588350296,
+          "total_loss": 0.5077793598175049
+        },
+        "grad_norm_total": 0.08065207722542797,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.07767144662053645
+          },
+          "card_encoder": {
+            "grad_norm": 0.0025195292129295823
+          },
+          "context_encoder": {
+            "grad_norm": 0.0038509489566917166
+          },
+          "fusion": {
+            "grad_norm": 0.012135672680543183
+          },
+          "state_value_head": {
+            "grad_norm": 0.01741986090410659
+          }
+        }
+      },
+      {
+        "step": 75,
+        "loss_before": 0.5077793598175049,
+        "loss_after": 0.50771564245224,
+        "losses_before": {
+          "regret_loss": 0.4064508080482483,
+          "state_value_loss": 0.2026570588350296,
+          "total_loss": 0.5077793598175049
+        },
+        "losses_after": {
+          "regret_loss": 0.406400591135025,
+          "state_value_loss": 0.20263013243675232,
+          "total_loss": 0.50771564245224
+        },
+        "grad_norm_total": 0.0799533757138509,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.07693874707700683
+          },
+          "card_encoder": {
+            "grad_norm": 0.0025414778627945935
+          },
+          "context_encoder": {
+            "grad_norm": 0.0038686718160449345
+          },
+          "fusion": {
+            "grad_norm": 0.012175682763739936
+          },
+          "state_value_head": {
+            "grad_norm": 0.017415467382473744
+          }
+        }
+      },
+      {
+        "step": 76,
+        "loss_before": 0.50771564245224,
+        "loss_after": 0.5076530575752258,
+        "losses_before": {
+          "regret_loss": 0.406400591135025,
+          "state_value_loss": 0.20263013243675232,
+          "total_loss": 0.50771564245224
+        },
+        "losses_after": {
+          "regret_loss": 0.4063514173030853,
+          "state_value_loss": 0.2026032954454422,
+          "total_loss": 0.5076530575752258
+        },
+        "grad_norm_total": 0.0792722795752215,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.07622527121638419
+          },
+          "card_encoder": {
+            "grad_norm": 0.0025597962830592297
+          },
+          "context_encoder": {
+            "grad_norm": 0.0038844934042445356
+          },
+          "fusion": {
+            "grad_norm": 0.012207002546604504
+          },
+          "state_value_head": {
+            "grad_norm": 0.017411191224312016
+          }
+        }
+      },
+      {
+        "step": 77,
+        "loss_before": 0.5076530575752258,
+        "loss_after": 0.5075915455818176,
+        "losses_before": {
+          "regret_loss": 0.4063514173030853,
+          "state_value_loss": 0.2026032954454422,
+          "total_loss": 0.5076530575752258
+        },
+        "losses_after": {
+          "regret_loss": 0.4063033163547516,
+          "state_value_loss": 0.20257648825645447,
+          "total_loss": 0.5075915455818176
+        },
+        "grad_norm_total": 0.0786123192491751,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.07553054655301478
+          },
+          "card_encoder": {
+            "grad_norm": 0.002578555980311389
+          },
+          "context_encoder": {
+            "grad_norm": 0.0039051246510722268
+          },
+          "fusion": {
+            "grad_norm": 0.012252804499634076
+          },
+          "state_value_head": {
+            "grad_norm": 0.017406984447250726
+          }
+        }
+      },
+      {
+        "step": 78,
+        "loss_before": 0.5075915455818176,
+        "loss_after": 0.5075309872627258,
+        "losses_before": {
+          "regret_loss": 0.4063033163547516,
+          "state_value_loss": 0.20257648825645447,
+          "total_loss": 0.5075915455818176
+        },
+        "losses_after": {
+          "regret_loss": 0.4062561094760895,
+          "state_value_loss": 0.2025497704744339,
+          "total_loss": 0.5075309872627258
+        },
+        "grad_norm_total": 0.07797130811269068,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.07485415582202683
+          },
+          "card_encoder": {
+            "grad_norm": 0.002597246318326201
+          },
+          "context_encoder": {
+            "grad_norm": 0.003925552800391256
+          },
+          "fusion": {
+            "grad_norm": 0.012303094040270374
+          },
+          "state_value_head": {
+            "grad_norm": 0.017402829332767024
+          }
+        }
+      },
+      {
+        "step": 79,
+        "loss_before": 0.5075309872627258,
+        "loss_after": 0.5074713826179504,
+        "losses_before": {
+          "regret_loss": 0.4062561094760895,
+          "state_value_loss": 0.2025497704744339,
+          "total_loss": 0.5075309872627258
+        },
+        "losses_after": {
+          "regret_loss": 0.4062098562717438,
+          "state_value_loss": 0.20252306759357452,
+          "total_loss": 0.5074713826179504
+        },
+        "grad_norm_total": 0.07734719748805359,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.07419564332905351
+          },
+          "card_encoder": {
+            "grad_norm": 0.0026153353393060822
+          },
+          "context_encoder": {
+            "grad_norm": 0.003947338008881859
+          },
+          "fusion": {
+            "grad_norm": 0.012347399630106561
+          },
+          "state_value_head": {
+            "grad_norm": 0.017398728008820037
+          }
+        }
+      },
+      {
+        "step": 80,
+        "loss_before": 0.5074713826179504,
+        "loss_after": 0.5074127316474915,
+        "losses_before": {
+          "regret_loss": 0.4062098562717438,
+          "state_value_loss": 0.20252306759357452,
+          "total_loss": 0.5074713826179504
+        },
+        "losses_after": {
+          "regret_loss": 0.4061644971370697,
+          "state_value_loss": 0.2024964541196823,
+          "total_loss": 0.5074127316474915
+        },
+        "grad_norm_total": 0.07673891017825725,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.07355458552565675
+          },
+          "card_encoder": {
+            "grad_norm": 0.002634198785631678
+          },
+          "context_encoder": {
+            "grad_norm": 0.003966504151068271
+          },
+          "fusion": {
+            "grad_norm": 0.012382977073726457
+          },
+          "state_value_head": {
+            "grad_norm": 0.01739462571785842
+          }
+        }
+      },
+      {
+        "step": 81,
+        "loss_before": 0.5074127316474915,
+        "loss_after": 0.5073549151420593,
+        "losses_before": {
+          "regret_loss": 0.4061644971370697,
+          "state_value_loss": 0.2024964541196823,
+          "total_loss": 0.5074127316474915
+        },
+        "losses_after": {
+          "regret_loss": 0.4061200022697449,
+          "state_value_loss": 0.2024698555469513,
+          "total_loss": 0.5073549151420593
+        },
+        "grad_norm_total": 0.0761493335102196,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.07293053283007388
+          },
+          "card_encoder": {
+            "grad_norm": 0.0026526789471917867
+          },
+          "context_encoder": {
+            "grad_norm": 0.003986126384459971
+          },
+          "fusion": {
+            "grad_norm": 0.012429860150743339
+          },
+          "state_value_head": {
+            "grad_norm": 0.01739054463366145
+          }
+        }
+      },
+      {
+        "step": 82,
+        "loss_before": 0.5073549151420593,
+        "loss_after": 0.5072981119155884,
+        "losses_before": {
+          "regret_loss": 0.4061200022697449,
+          "state_value_loss": 0.2024698555469513,
+          "total_loss": 0.5073549151420593
+        },
+        "losses_after": {
+          "regret_loss": 0.40607643127441406,
+          "state_value_loss": 0.20244331657886505,
+          "total_loss": 0.5072981119155884
+        },
+        "grad_norm_total": 0.0755754782542743,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.07232308841690469
+          },
+          "card_encoder": {
+            "grad_norm": 0.0026700469955531795
+          },
+          "context_encoder": {
+            "grad_norm": 0.004005397011682427
+          },
+          "fusion": {
+            "grad_norm": 0.012472473307548053
+          },
+          "state_value_head": {
+            "grad_norm": 0.01738645589577465
+          }
+        }
+      },
+      {
+        "step": 83,
+        "loss_before": 0.5072981119155884,
+        "loss_after": 0.50724196434021,
+        "losses_before": {
+          "regret_loss": 0.40607643127441406,
+          "state_value_loss": 0.20244331657886505,
+          "total_loss": 0.5072981119155884
+        },
+        "losses_after": {
+          "regret_loss": 0.40603357553482056,
+          "state_value_loss": 0.2024168223142624,
+          "total_loss": 0.50724196434021
+        },
+        "grad_norm_total": 0.07501757604484603,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.07173183354285968
+          },
+          "card_encoder": {
+            "grad_norm": 0.0026881013891219847
+          },
+          "context_encoder": {
+            "grad_norm": 0.004024737240410637
+          },
+          "fusion": {
+            "grad_norm": 0.012514369139224327
+          },
+          "state_value_head": {
+            "grad_norm": 0.01738237435848193
+          }
+        }
+      },
+      {
+        "step": 84,
+        "loss_before": 0.50724196434021,
+        "loss_after": 0.507186770439148,
+        "losses_before": {
+          "regret_loss": 0.40603357553482056,
+          "state_value_loss": 0.2024168223142624,
+          "total_loss": 0.50724196434021
+        },
+        "losses_after": {
+          "regret_loss": 0.4059915542602539,
+          "state_value_loss": 0.2023903876543045,
+          "total_loss": 0.507186770439148
+        },
+        "grad_norm_total": 0.07447631342359019,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.0711563750210645
+          },
+          "card_encoder": {
+            "grad_norm": 0.002706266123659311
+          },
+          "context_encoder": {
+            "grad_norm": 0.004045920717400944
+          },
+          "fusion": {
+            "grad_norm": 0.012561646051352633
+          },
+          "state_value_head": {
+            "grad_norm": 0.017378240783446557
+          }
+        }
+      },
+      {
+        "step": 85,
+        "loss_before": 0.507186770439148,
+        "loss_after": 0.5071322321891785,
+        "losses_before": {
+          "regret_loss": 0.4059915542602539,
+          "state_value_loss": 0.2023903876543045,
+          "total_loss": 0.507186770439148
+        },
+        "losses_after": {
+          "regret_loss": 0.40595024824142456,
+          "state_value_loss": 0.2023639678955078,
+          "total_loss": 0.5071322321891785
+        },
+        "grad_norm_total": 0.07394603804402779,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.07059630595699286
+          },
+          "card_encoder": {
+            "grad_norm": 0.0027239937744040904
+          },
+          "context_encoder": {
+            "grad_norm": 0.004063225507635417
+          },
+          "fusion": {
+            "grad_norm": 0.01258526897844793
+          },
+          "state_value_head": {
+            "grad_norm": 0.017374095336640822
+          }
+        }
+      },
+      {
+        "step": 86,
+        "loss_before": 0.5071322321891785,
+        "loss_after": 0.5070785284042358,
+        "losses_before": {
+          "regret_loss": 0.40595024824142456,
+          "state_value_loss": 0.2023639678955078,
+          "total_loss": 0.5071322321891785
+        },
+        "losses_after": {
+          "regret_loss": 0.4059096872806549,
+          "state_value_loss": 0.2023376226425171,
+          "total_loss": 0.5070785284042358
+        },
+        "grad_norm_total": 0.07343304121329858,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.07005122270935853
+          },
+          "card_encoder": {
+            "grad_norm": 0.0027413065690199087
+          },
+          "context_encoder": {
+            "grad_norm": 0.0040790306783026675
+          },
+          "fusion": {
+            "grad_norm": 0.012624198464935267
+          },
+          "state_value_head": {
+            "grad_norm": 0.0173699193692976
+          }
+        }
+      },
+      {
+        "step": 87,
+        "loss_before": 0.5070785284042358,
+        "loss_after": 0.5070254802703857,
+        "losses_before": {
+          "regret_loss": 0.4059096872806549,
+          "state_value_loss": 0.2023376226425171,
+          "total_loss": 0.5070785284042358
+        },
+        "losses_after": {
+          "regret_loss": 0.40586981177330017,
+          "state_value_loss": 0.20231130719184875,
+          "total_loss": 0.5070254802703857
+        },
+        "grad_norm_total": 0.07293514932103683,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.06952073762484318
+          },
+          "card_encoder": {
+            "grad_norm": 0.002758657010985415
+          },
+          "context_encoder": {
+            "grad_norm": 0.004098443835094757
+          },
+          "fusion": {
+            "grad_norm": 0.012666011659934806
+          },
+          "state_value_head": {
+            "grad_norm": 0.017365706574636215
+          }
+        }
+      },
+      {
+        "step": 88,
+        "loss_before": 0.5070254802703857,
+        "loss_after": 0.506973147392273,
+        "losses_before": {
+          "regret_loss": 0.40586981177330017,
+          "state_value_loss": 0.20231130719184875,
+          "total_loss": 0.5070254802703857
+        },
+        "losses_after": {
+          "regret_loss": 0.40583062171936035,
+          "state_value_loss": 0.2022850513458252,
+          "total_loss": 0.506973147392273
+        },
+        "grad_norm_total": 0.07245115847036147,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.06900450074581942
+          },
+          "card_encoder": {
+            "grad_norm": 0.0027760075468646716
+          },
+          "context_encoder": {
+            "grad_norm": 0.004116556852339582
+          },
+          "fusion": {
+            "grad_norm": 0.012707345162849163
+          },
+          "state_value_head": {
+            "grad_norm": 0.01736146195488899
+          }
+        }
+      },
+      {
+        "step": 89,
+        "loss_before": 0.506973147392273,
+        "loss_after": 0.5069215297698975,
+        "losses_before": {
+          "regret_loss": 0.40583062171936035,
+          "state_value_loss": 0.2022850513458252,
+          "total_loss": 0.506973147392273
+        },
+        "losses_after": {
+          "regret_loss": 0.40579208731651306,
+          "state_value_loss": 0.20225882530212402,
+          "total_loss": 0.5069215297698975
+        },
+        "grad_norm_total": 0.07198039337492144,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.06850213403014159
+          },
+          "card_encoder": {
+            "grad_norm": 0.0027930998159885526
+          },
+          "context_encoder": {
+            "grad_norm": 0.00413465576866969
+          },
+          "fusion": {
+            "grad_norm": 0.012746241878038933
+          },
+          "state_value_head": {
+            "grad_norm": 0.017357165575174114
+          }
+        }
+      },
+      {
+        "step": 90,
+        "loss_before": 0.5069215297698975,
+        "loss_after": 0.5068705081939697,
+        "losses_before": {
+          "regret_loss": 0.40579208731651306,
+          "state_value_loss": 0.20225882530212402,
+          "total_loss": 0.5069215297698975
+        },
+        "losses_after": {
+          "regret_loss": 0.4057541787624359,
+          "state_value_loss": 0.20223267376422882,
+          "total_loss": 0.5068705081939697
+        },
+        "grad_norm_total": 0.07152351311854578,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.06801327385739525
+          },
+          "card_encoder": {
+            "grad_norm": 0.002810135417329129
+          },
+          "context_encoder": {
+            "grad_norm": 0.004150939124056806
+          },
+          "fusion": {
+            "grad_norm": 0.012789069189348658
+          },
+          "state_value_head": {
+            "grad_norm": 0.0173528113172606
+          }
+        }
+      },
+      {
+        "step": 91,
+        "loss_before": 0.5068705081939697,
+        "loss_after": 0.5068200826644897,
+        "losses_before": {
+          "regret_loss": 0.4057541787624359,
+          "state_value_loss": 0.20223267376422882,
+          "total_loss": 0.5068705081939697
+        },
+        "losses_after": {
+          "regret_loss": 0.40571683645248413,
+          "state_value_loss": 0.2022065371274948,
+          "total_loss": 0.5068200826644897
+        },
+        "grad_norm_total": 0.07107907921927588,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.06753757057891846
+          },
+          "card_encoder": {
+            "grad_norm": 0.0028276031874705254
+          },
+          "context_encoder": {
+            "grad_norm": 0.004168229504349746
+          },
+          "fusion": {
+            "grad_norm": 0.012828639687985002
+          },
+          "state_value_head": {
+            "grad_norm": 0.017348446320256908
+          }
+        }
+      },
+      {
+        "step": 92,
+        "loss_before": 0.5068200826644897,
+        "loss_after": 0.5067703723907471,
+        "losses_before": {
+          "regret_loss": 0.40571683645248413,
+          "state_value_loss": 0.2022065371274948,
+          "total_loss": 0.5068200826644897
+        },
+        "losses_after": {
+          "regret_loss": 0.4056801199913025,
+          "state_value_loss": 0.20218046009540558,
+          "total_loss": 0.5067703723907471
+        },
+        "grad_norm_total": 0.07064821903732164,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.06707468625106186
+          },
+          "card_encoder": {
+            "grad_norm": 0.0028446114637047746
+          },
+          "context_encoder": {
+            "grad_norm": 0.004187712849826143
+          },
+          "fusion": {
+            "grad_norm": 0.012872998066898927
+          },
+          "state_value_head": {
+            "grad_norm": 0.017344004293835005
+          }
+        }
+      },
+      {
+        "step": 93,
+        "loss_before": 0.5067703723907471,
+        "loss_after": 0.5067211985588074,
+        "losses_before": {
+          "regret_loss": 0.4056801199913025,
+          "state_value_loss": 0.20218046009540558,
+          "total_loss": 0.5067703723907471
+        },
+        "losses_after": {
+          "regret_loss": 0.4056439995765686,
+          "state_value_loss": 0.20215442776679993,
+          "total_loss": 0.5067211985588074
+        },
+        "grad_norm_total": 0.07022929450920334,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.06662427299672742
+          },
+          "card_encoder": {
+            "grad_norm": 0.002861411346457166
+          },
+          "context_encoder": {
+            "grad_norm": 0.004206396315384392
+          },
+          "fusion": {
+            "grad_norm": 0.012915878800843153
+          },
+          "state_value_head": {
+            "grad_norm": 0.0173395122441254
+          }
+        }
+      },
+      {
+        "step": 94,
+        "loss_before": 0.5067211985588074,
+        "loss_after": 0.5066725611686707,
+        "losses_before": {
+          "regret_loss": 0.4056439995765686,
+          "state_value_loss": 0.20215442776679993,
+          "total_loss": 0.5067211985588074
+        },
+        "losses_after": {
+          "regret_loss": 0.4056083559989929,
+          "state_value_loss": 0.20212844014167786,
+          "total_loss": 0.5066725611686707
+        },
+        "grad_norm_total": 0.06982230070022652,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.06618601905408243
+          },
+          "card_encoder": {
+            "grad_norm": 0.002878076935963179
+          },
+          "context_encoder": {
+            "grad_norm": 0.004224724236451012
+          },
+          "fusion": {
+            "grad_norm": 0.012958833000495853
+          },
+          "state_value_head": {
+            "grad_norm": 0.0173349814648695
+          }
+        }
+      },
+      {
+        "step": 95,
+        "loss_before": 0.5066725611686707,
+        "loss_after": 0.5066245198249817,
+        "losses_before": {
+          "regret_loss": 0.4056083559989929,
+          "state_value_loss": 0.20212844014167786,
+          "total_loss": 0.5066725611686707
+        },
+        "losses_after": {
+          "regret_loss": 0.4055732786655426,
+          "state_value_loss": 0.20210249722003937,
+          "total_loss": 0.5066245198249817
+        },
+        "grad_norm_total": 0.0694272572248539,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.06575958332608778
+          },
+          "card_encoder": {
+            "grad_norm": 0.002894806244412587
+          },
+          "context_encoder": {
+            "grad_norm": 0.004243714392005065
+          },
+          "fusion": {
+            "grad_norm": 0.013003472263606737
+          },
+          "state_value_head": {
+            "grad_norm": 0.017330376239463364
+          }
+        }
+      },
+      {
+        "step": 96,
+        "loss_before": 0.5066245198249817,
+        "loss_after": 0.5065769553184509,
+        "losses_before": {
+          "regret_loss": 0.4055732786655426,
+          "state_value_loss": 0.20210249722003937,
+          "total_loss": 0.5066245198249817
+        },
+        "losses_after": {
+          "regret_loss": 0.4055386483669281,
+          "state_value_loss": 0.20207659900188446,
+          "total_loss": 0.5065769553184509
+        },
+        "grad_norm_total": 0.06904192854910028,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.06534464846859438
+          },
+          "card_encoder": {
+            "grad_norm": 0.0029110665597612954
+          },
+          "context_encoder": {
+            "grad_norm": 0.004261506995011395
+          },
+          "fusion": {
+            "grad_norm": 0.01304029776524812
+          },
+          "state_value_head": {
+            "grad_norm": 0.017325723595413508
+          }
+        }
+      },
+      {
+        "step": 97,
+        "loss_before": 0.5065769553184509,
+        "loss_after": 0.5065299272537231,
+        "losses_before": {
+          "regret_loss": 0.4055386483669281,
+          "state_value_loss": 0.20207659900188446,
+          "total_loss": 0.5065769553184509
+        },
+        "losses_after": {
+          "regret_loss": 0.4055045545101166,
+          "state_value_loss": 0.20205073058605194,
+          "total_loss": 0.5065299272537231
+        },
+        "grad_norm_total": 0.06866591709693214,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.0649408684615046
+          },
+          "card_encoder": {
+            "grad_norm": 0.0029269792718707903
+          },
+          "context_encoder": {
+            "grad_norm": 0.0042772535362748275
+          },
+          "fusion": {
+            "grad_norm": 0.013069496032670172
+          },
+          "state_value_head": {
+            "grad_norm": 0.017321026014898676
+          }
+        }
+      },
+      {
+        "step": 98,
+        "loss_before": 0.5065299272537231,
+        "loss_after": 0.5064834356307983,
+        "losses_before": {
+          "regret_loss": 0.4055045545101166,
+          "state_value_loss": 0.20205073058605194,
+          "total_loss": 0.5065299272537231
+        },
+        "losses_after": {
+          "regret_loss": 0.40547093749046326,
+          "state_value_loss": 0.2020249366760254,
+          "total_loss": 0.5064834356307983
+        },
+        "grad_norm_total": 0.06830685780057749,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.06454795666746149
+          },
+          "card_encoder": {
+            "grad_norm": 0.0029436352161910538
+          },
+          "context_encoder": {
+            "grad_norm": 0.0043017556804579036
+          },
+          "fusion": {
+            "grad_norm": 0.013128772310308085
+          },
+          "state_value_head": {
+            "grad_norm": 0.017316274427473247
+          }
+        }
+      },
+      {
+        "step": 99,
+        "loss_before": 0.5064834356307983,
+        "loss_after": 0.506437361240387,
+        "losses_before": {
+          "regret_loss": 0.40547093749046326,
+          "state_value_loss": 0.2020249366760254,
+          "total_loss": 0.5064834356307983
+        },
+        "losses_after": {
+          "regret_loss": 0.40543779730796814,
+          "state_value_loss": 0.20199915766716003,
+          "total_loss": 0.506437361240387
+        },
+        "grad_norm_total": 0.06794963744897067,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.06416566460768033
+          },
+          "card_encoder": {
+            "grad_norm": 0.0029592560619184816
+          },
+          "context_encoder": {
+            "grad_norm": 0.00431009862299682
+          },
+          "fusion": {
+            "grad_norm": 0.01314911992362348
+          },
+          "state_value_head": {
+            "grad_norm": 0.017311476354009904
+          }
+        }
+      },
+      {
+        "step": 100,
+        "loss_before": 0.506437361240387,
+        "loss_after": 0.5063917636871338,
+        "losses_before": {
+          "regret_loss": 0.40543779730796814,
+          "state_value_loss": 0.20199915766716003,
+          "total_loss": 0.506437361240387
+        },
+        "losses_after": {
+          "regret_loss": 0.40540504455566406,
+          "state_value_loss": 0.20197346806526184,
+          "total_loss": 0.5063917636871338
+        },
+        "grad_norm_total": 0.0676062879639593,
+        "clipped_grad_norm": null,
+        "modules": {
+          "action_value_head": {
+            "grad_norm": 0.06379361749295469
+          },
+          "card_encoder": {
+            "grad_norm": 0.0029755253720498568
+          },
+          "context_encoder": {
+            "grad_norm": 0.004323462660506094
+          },
+          "fusion": {
+            "grad_norm": 0.013187822880107468
+          },
+          "state_value_head": {
+            "grad_norm": 0.017306639953924736
+          }
+        }
+      }
+    ]
+  },
+  "live_collection": {
+    "mode": "live_traversal",
+    "traversals": 50,
+    "buffer_size": 742,
+    "iteration": 1,
+    "traversing_player": 0,
+    "samples_requested": 160,
+    "samples_used": 160,
+    "num_players": 2,
+    "config": "config.yaml"
+  }
+}

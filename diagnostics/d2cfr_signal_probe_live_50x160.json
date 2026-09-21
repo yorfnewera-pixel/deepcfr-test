@@ -1,0 +1,1272 @@
+{
+  "targets": {
+    "samples": 32,
+    "legal_slots": 93,
+    "q_minus_v_ok": true,
+    "q_minus_v_max_abs_error": 5.960464477539063e-08,
+    "action_value_legal": {
+      "count": 93,
+      "mean": -0.03755177557468414,
+      "std": 0.6261094212532043,
+      "min": -1.0,
+      "max": 1.0,
+      "abs_mean": 0.5055399537086487,
+      "zero_fraction": 0.0
+    },
+    "regret_legal": {
+      "count": 93,
+      "mean": 6.4091016938050416e-09,
+      "std": 0.436299592256546,
+      "min": -0.9375,
+      "max": 0.9375,
+      "abs_mean": 0.3649766147136688,
+      "zero_fraction": 0.0
+    },
+    "state_value": {
+      "count": 32,
+      "mean": -0.049243345856666565,
+      "std": 0.4775906801223755,
+      "min": -0.9312499761581421,
+      "max": 0.4950000047683716,
+      "abs_mean": 0.42453616857528687,
+      "zero_fraction": 0.0
+    },
+    "iterations": {
+      "count": 32,
+      "mean": 1.0,
+      "std": 0.0,
+      "min": 1.0,
+      "max": 1.0,
+      "abs_mean": 1.0,
+      "zero_fraction": 0.0
+    }
+  },
+  "one_step": {
+    "loss_before": 0.33424243330955505,
+    "loss_after": 0.3341440260410309,
+    "loss_delta": -9.840726852416992e-05,
+    "losses_before": {
+      "regret_loss": 0.2766129970550537,
+      "state_value_loss": 0.11525888741016388,
+      "total_loss": 0.33424243330955505
+    },
+    "losses_after": {
+      "regret_loss": 0.2765154242515564,
+      "state_value_loss": 0.11525720357894897,
+      "total_loss": 0.3341440260410309
+    },
+    "grad_norm_total": 0.31380698844089566,
+    "clipped_grad_norm": null,
+    "update_norm_total": 0.0003138069934723426,
+    "modules": {
+      "action_value_head": {
+        "grad_norm": 0.3124620772239748,
+        "update_norm": 0.00031246208203414836
+      },
+      "base": {
+        "grad_norm": 0.0,
+        "update_norm": 0.0
+      },
+      "state_value_head": {
+        "grad_norm": 0.029021996678782164,
+        "update_norm": 2.9021999294259993e-05
+      }
+    },
+    "per_sample_regret_alignment": {
+      "samples": 32,
+      "mean_dot": 9.763255366124213e-05,
+      "positive_fraction": 0.65625,
+      "negative_fraction": 0.34375
+    }
+  },
+  "sample_tensors": {
+    "input_size": 181,
+    "dumped_samples": 5,
+    "max_features_per_sample": 40,
+    "samples": [
+      {
+        "sample_index": 0,
+        "legal_slots": [
+          1,
+          3,
+          4,
+          5
+        ],
+        "input": {
+          "nonzero_count": 38,
+          "top_abs_features": [
+            {
+              "index": 2,
+              "value": 1.0
+            },
+            {
+              "index": 16,
+              "value": 1.0
+            },
+            {
+              "index": 56,
+              "value": 1.0
+            },
+            {
+              "index": 59,
+              "value": 1.0
+            },
+            {
+              "index": 77,
+              "value": 1.0
+            },
+            {
+              "index": 79,
+              "value": 1.0
+            },
+            {
+              "index": 87,
+              "value": 1.0
+            },
+            {
+              "index": 107,
+              "value": 1.0
+            },
+            {
+              "index": 111,
+              "value": 1.0
+            },
+            {
+              "index": 112,
+              "value": 1.0
+            },
+            {
+              "index": 114,
+              "value": 1.0
+            },
+            {
+              "index": 118,
+              "value": 1.0
+            },
+            {
+              "index": 125,
+              "value": 1.0
+            },
+            {
+              "index": 127,
+              "value": 1.0
+            },
+            {
+              "index": 130,
+              "value": 1.0
+            },
+            {
+              "index": 134,
+              "value": 1.0
+            },
+            {
+              "index": 138,
+              "value": 1.0
+            },
+            {
+              "index": 141,
+              "value": 1.0
+            },
+            {
+              "index": 145,
+              "value": 1.0
+            },
+            {
+              "index": 150,
+              "value": 1.0
+            },
+            {
+              "index": 154,
+              "value": 1.0
+            },
+            {
+              "index": 158,
+              "value": 1.0
+            },
+            {
+              "index": 162,
+              "value": 1.0
+            },
+            {
+              "index": 165,
+              "value": 1.0
+            },
+            {
+              "index": 171,
+              "value": 1.0
+            },
+            {
+              "index": 176,
+              "value": 1.0
+            },
+            {
+              "index": 117,
+              "value": 0.7300000190734863
+            },
+            {
+              "index": 121,
+              "value": 0.7300000190734863
+            },
+            {
+              "index": 109,
+              "value": 0.5400000214576721
+            },
+            {
+              "index": 143,
+              "value": 0.5
+            },
+            {
+              "index": 155,
+              "value": 0.5
+            },
+            {
+              "index": 167,
+              "value": 0.5
+            },
+            {
+              "index": 123,
+              "value": 0.4251968562602997
+            },
+            {
+              "index": 116,
+              "value": 0.27000001072883606
+            },
+            {
+              "index": 120,
+              "value": 0.27000001072883606
+            },
+            {
+              "index": 168,
+              "value": 0.18000000715255737
+            },
+            {
+              "index": 156,
+              "value": 0.05999999865889549
+            },
+            {
+              "index": 144,
+              "value": 0.019999999552965164
+            }
+          ]
+        },
+        "targets": {
+          "action_values": [
+            0.0,
+            -0.6349999904632568,
+            0.0,
+            0.27000001072883606,
+            0.27000001072883606,
+            0.27000001072883606
+          ],
+          "state_value": 0.04374999925494194,
+          "regrets": [
+            -0.0,
+            -0.6787499785423279,
+            -0.0,
+            0.22624999284744263,
+            0.22624999284744263,
+            0.22624999284744263
+          ],
+          "legal": [
+            {
+              "slot": 1,
+              "q": -0.6349999904632568,
+              "regret": -0.6787499785423279
+            },
+            {
+              "slot": 3,
+              "q": 0.27000001072883606,
+              "regret": 0.22624999284744263
+            },
+            {
+              "slot": 4,
+              "q": 0.27000001072883606,
+              "regret": 0.22624999284744263
+            },
+            {
+              "slot": 5,
+              "q": 0.27000001072883606,
+              "regret": 0.22624999284744263
+            }
+          ]
+        },
+        "network_before": {
+          "action_values": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "state_value": 0.0,
+          "regrets": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "legal": [
+            {
+              "slot": 1,
+              "q": 0.0,
+              "regret": 0.0
+            },
+            {
+              "slot": 3,
+              "q": 0.0,
+              "regret": 0.0
+            },
+            {
+              "slot": 4,
+              "q": 0.0,
+              "regret": 0.0
+            },
+            {
+              "slot": 5,
+              "q": 0.0,
+              "regret": 0.0
+            }
+          ]
+        }
+      },
+      {
+        "sample_index": 1,
+        "legal_slots": [
+          0,
+          2
+        ],
+        "input": {
+          "nonzero_count": 41,
+          "top_abs_features": [
+            {
+              "index": 109,
+              "value": 1.225000023841858
+            },
+            {
+              "index": 1,
+              "value": 1.0
+            },
+            {
+              "index": 6,
+              "value": 1.0
+            },
+            {
+              "index": 54,
+              "value": 1.0
+            },
+            {
+              "index": 63,
+              "value": 1.0
+            },
+            {
+              "index": 68,
+              "value": 1.0
+            },
+            {
+              "index": 84,
+              "value": 1.0
+            },
+            {
+              "index": 106,
+              "value": 1.0
+            },
+            {
+              "index": 111,
+              "value": 1.0
+            },
+            {
+              "index": 112,
+              "value": 1.0
+            },
+            {
+              "index": 114,
+              "value": 1.0
+            },
+            {
+              "index": 118,
+              "value": 1.0
+            },
+            {
+              "index": 124,
+              "value": 1.0
+            },
+            {
+              "index": 126,
+              "value": 1.0
+            },
+            {
+              "index": 131,
+              "value": 1.0
+            },
+            {
+              "index": 133,
+              "value": 1.0
+            },
+            {
+              "index": 138,
+              "value": 1.0
+            },
+            {
+              "index": 142,
+              "value": 1.0
+            },
+            {
+              "index": 146,
+              "value": 1.0
+            },
+            {
+              "index": 150,
+              "value": 1.0
+            },
+            {
+              "index": 153,
+              "value": 1.0
+            },
+            {
+              "index": 158,
+              "value": 1.0
+            },
+            {
+              "index": 163,
+              "value": 1.0
+            },
+            {
+              "index": 165,
+              "value": 1.0
+            },
+            {
+              "index": 166,
+              "value": 1.0
+            },
+            {
+              "index": 167,
+              "value": 1.0
+            },
+            {
+              "index": 171,
+              "value": 1.0
+            },
+            {
+              "index": 176,
+              "value": 1.0
+            },
+            {
+              "index": 119,
+              "value": 0.925000011920929
+            },
+            {
+              "index": 122,
+              "value": 0.925000011920929
+            },
+            {
+              "index": 168,
+              "value": 0.925000011920929
+            },
+            {
+              "index": 117,
+              "value": 0.7749999761581421
+            },
+            {
+              "index": 132,
+              "value": 0.7749999761581421
+            },
+            {
+              "index": 123,
+              "value": 0.612500011920929
+            },
+            {
+              "index": 143,
+              "value": 0.5
+            },
+            {
+              "index": 155,
+              "value": 0.5
+            },
+            {
+              "index": 115,
+              "value": 0.15000000596046448
+            },
+            {
+              "index": 116,
+              "value": 0.07500000298023224
+            },
+            {
+              "index": 120,
+              "value": 0.07500000298023224
+            },
+            {
+              "index": 156,
+              "value": 0.05000000074505806
+            }
+          ]
+        },
+        "targets": {
+          "action_values": [
+            -0.22499999403953552,
+            0.0,
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "state_value": 0.38749998807907104,
+          "regrets": [
+            -0.612500011920929,
+            -0.0,
+            0.612500011920929,
+            -0.0,
+            -0.0,
+            -0.0
+          ],
+          "legal": [
+            {
+              "slot": 0,
+              "q": -0.22499999403953552,
+              "regret": -0.612500011920929
+            },
+            {
+              "slot": 2,
+              "q": 1.0,
+              "regret": 0.612500011920929
+            }
+          ]
+        },
+        "network_before": {
+          "action_values": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "state_value": 0.0,
+          "regrets": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "legal": [
+            {
+              "slot": 0,
+              "q": 0.0,
+              "regret": 0.0
+            },
+            {
+              "slot": 2,
+              "q": 0.0,
+              "regret": 0.0
+            }
+          ]
+        }
+      },
+      {
+        "sample_index": 2,
+        "legal_slots": [
+          1,
+          3,
+          4,
+          5
+        ],
+        "input": {
+          "nonzero_count": 27,
+          "top_abs_features": [
+            {
+              "index": 2,
+              "value": 1.0
+            },
+            {
+              "index": 16,
+              "value": 1.0
+            },
+            {
+              "index": 56,
+              "value": 1.0
+            },
+            {
+              "index": 59,
+              "value": 1.0
+            },
+            {
+              "index": 87,
+              "value": 1.0
+            },
+            {
+              "index": 105,
+              "value": 1.0
+            },
+            {
+              "index": 111,
+              "value": 1.0
+            },
+            {
+              "index": 112,
+              "value": 1.0
+            },
+            {
+              "index": 114,
+              "value": 1.0
+            },
+            {
+              "index": 118,
+              "value": 1.0
+            },
+            {
+              "index": 125,
+              "value": 1.0
+            },
+            {
+              "index": 127,
+              "value": 1.0
+            },
+            {
+              "index": 129,
+              "value": 1.0
+            },
+            {
+              "index": 133,
+              "value": 1.0
+            },
+            {
+              "index": 137,
+              "value": 1.0
+            },
+            {
+              "index": 147,
+              "value": 1.0
+            },
+            {
+              "index": 152,
+              "value": 1.0
+            },
+            {
+              "index": 159,
+              "value": 1.0
+            },
+            {
+              "index": 164,
+              "value": 1.0
+            },
+            {
+              "index": 171,
+              "value": 1.0
+            },
+            {
+              "index": 176,
+              "value": 1.0
+            },
+            {
+              "index": 117,
+              "value": 0.9900000095367432
+            },
+            {
+              "index": 121,
+              "value": 0.9900000095367432
+            },
+            {
+              "index": 109,
+              "value": 0.019999999552965164
+            },
+            {
+              "index": 123,
+              "value": 0.019801979884505272
+            },
+            {
+              "index": 116,
+              "value": 0.009999999776482582
+            },
+            {
+              "index": 120,
+              "value": 0.009999999776482582
+            }
+          ]
+        },
+        "targets": {
+          "action_values": [
+            0.0,
+            -0.2162500023841858,
+            0.0,
+            -0.25,
+            -0.4156379997730255,
+            -1.0
+          ],
+          "state_value": -0.4704720079898834,
+          "regrets": [
+            0.0,
+            0.25422200560569763,
+            0.0,
+            0.22047199308872223,
+            0.05483398586511612,
+            -0.529528021812439
+          ],
+          "legal": [
+            {
+              "slot": 1,
+              "q": -0.2162500023841858,
+              "regret": 0.25422200560569763
+            },
+            {
+              "slot": 3,
+              "q": -0.25,
+              "regret": 0.22047199308872223
+            },
+            {
+              "slot": 4,
+              "q": -0.4156379997730255,
+              "regret": 0.05483398586511612
+            },
+            {
+              "slot": 5,
+              "q": -1.0,
+              "regret": -0.529528021812439
+            }
+          ]
+        },
+        "network_before": {
+          "action_values": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "state_value": 0.0,
+          "regrets": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "legal": [
+            {
+              "slot": 1,
+              "q": 0.0,
+              "regret": 0.0
+            },
+            {
+              "slot": 3,
+              "q": 0.0,
+              "regret": 0.0
+            },
+            {
+              "slot": 4,
+              "q": 0.0,
+              "regret": 0.0
+            },
+            {
+              "slot": 5,
+              "q": 0.0,
+              "regret": 0.0
+            }
+          ]
+        }
+      },
+      {
+        "sample_index": 3,
+        "legal_slots": [
+          1,
+          3,
+          4,
+          5
+        ],
+        "input": {
+          "nonzero_count": 39,
+          "top_abs_features": [
+            {
+              "index": 6,
+              "value": 1.0
+            },
+            {
+              "index": 11,
+              "value": 1.0
+            },
+            {
+              "index": 57,
+              "value": 1.0
+            },
+            {
+              "index": 64,
+              "value": 1.0
+            },
+            {
+              "index": 72,
+              "value": 1.0
+            },
+            {
+              "index": 73,
+              "value": 1.0
+            },
+            {
+              "index": 84,
+              "value": 1.0
+            },
+            {
+              "index": 107,
+              "value": 1.0
+            },
+            {
+              "index": 111,
+              "value": 1.0
+            },
+            {
+              "index": 112,
+              "value": 1.0
+            },
+            {
+              "index": 114,
+              "value": 1.0
+            },
+            {
+              "index": 118,
+              "value": 1.0
+            },
+            {
+              "index": 125,
+              "value": 1.0
+            },
+            {
+              "index": 127,
+              "value": 1.0
+            },
+            {
+              "index": 130,
+              "value": 1.0
+            },
+            {
+              "index": 134,
+              "value": 1.0
+            },
+            {
+              "index": 138,
+              "value": 1.0
+            },
+            {
+              "index": 141,
+              "value": 1.0
+            },
+            {
+              "index": 145,
+              "value": 1.0
+            },
+            {
+              "index": 150,
+              "value": 1.0
+            },
+            {
+              "index": 154,
+              "value": 1.0
+            },
+            {
+              "index": 157,
+              "value": 1.0
+            },
+            {
+              "index": 162,
+              "value": 1.0
+            },
+            {
+              "index": 165,
+              "value": 1.0
+            },
+            {
+              "index": 166,
+              "value": 1.0
+            },
+            {
+              "index": 167,
+              "value": 1.0
+            },
+            {
+              "index": 171,
+              "value": 1.0
+            },
+            {
+              "index": 176,
+              "value": 1.0
+            },
+            {
+              "index": 117,
+              "value": 0.699999988079071
+            },
+            {
+              "index": 121,
+              "value": 0.699999988079071
+            },
+            {
+              "index": 109,
+              "value": 0.6000000238418579
+            },
+            {
+              "index": 143,
+              "value": 0.5
+            },
+            {
+              "index": 155,
+              "value": 0.5
+            },
+            {
+              "index": 123,
+              "value": 0.4615384638309479
+            },
+            {
+              "index": 116,
+              "value": 0.30000001192092896
+            },
+            {
+              "index": 120,
+              "value": 0.30000001192092896
+            },
+            {
+              "index": 168,
+              "value": 0.23999999463558197
+            },
+            {
+              "index": 156,
+              "value": 0.03999999910593033
+            },
+            {
+              "index": 144,
+              "value": 0.009999999776482582
+            }
+          ]
+        },
+        "targets": {
+          "action_values": [
+            0.0,
+            -0.6499999761581421,
+            0.0,
+            -0.6000000238418579,
+            -0.949999988079071,
+            0.30000001192092896
+          ],
+          "state_value": -0.4749999940395355,
+          "regrets": [
+            0.0,
+            -0.17499999701976776,
+            0.0,
+            -0.125,
+            -0.4749999940395355,
+            0.7749999761581421
+          ],
+          "legal": [
+            {
+              "slot": 1,
+              "q": -0.6499999761581421,
+              "regret": -0.17499999701976776
+            },
+            {
+              "slot": 3,
+              "q": -0.6000000238418579,
+              "regret": -0.125
+            },
+            {
+              "slot": 4,
+              "q": -0.949999988079071,
+              "regret": -0.4749999940395355
+            },
+            {
+              "slot": 5,
+              "q": 0.30000001192092896,
+              "regret": 0.7749999761581421
+            }
+          ]
+        },
+        "network_before": {
+          "action_values": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "state_value": 0.0,
+          "regrets": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "legal": [
+            {
+              "slot": 1,
+              "q": 0.0,
+              "regret": 0.0
+            },
+            {
+              "slot": 3,
+              "q": 0.0,
+              "regret": 0.0
+            },
+            {
+              "slot": 4,
+              "q": 0.0,
+              "regret": 0.0
+            },
+            {
+              "slot": 5,
+              "q": 0.0,
+              "regret": 0.0
+            }
+          ]
+        }
+      },
+      {
+        "sample_index": 4,
+        "legal_slots": [
+          0,
+          2
+        ],
+        "input": {
+          "nonzero_count": 41,
+          "top_abs_features": [
+            {
+              "index": 167,
+              "value": 1.5
+            },
+            {
+              "index": 109,
+              "value": 1.2999999523162842
+            },
+            {
+              "index": 2,
+              "value": 1.0
+            },
+            {
+              "index": 7,
+              "value": 1.0
+            },
+            {
+              "index": 76,
+              "value": 1.0
+            },
+            {
+              "index": 82,
+              "value": 1.0
+            },
+            {
+              "index": 86,
+              "value": 1.0
+            },
+            {
+              "index": 94,
+              "value": 1.0
+            },
+            {
+              "index": 106,
+              "value": 1.0
+            },
+            {
+              "index": 110,
+              "value": 1.0
+            },
+            {
+              "index": 112,
+              "value": 1.0
+            },
+            {
+              "index": 114,
+              "value": 1.0
+            },
+            {
+              "index": 118,
+              "value": 1.0
+            },
+            {
+              "index": 124,
+              "value": 1.0
+            },
+            {
+              "index": 126,
+              "value": 1.0
+            },
+            {
+              "index": 131,
+              "value": 1.0
+            },
+            {
+              "index": 133,
+              "value": 1.0
+            },
+            {
+              "index": 138,
+              "value": 1.0
+            },
+            {
+              "index": 142,
+              "value": 1.0
+            },
+            {
+              "index": 145,
+              "value": 1.0
+            },
+            {
+              "index": 150,
+              "value": 1.0
+            },
+            {
+              "index": 154,
+              "value": 1.0
+            },
+            {
+              "index": 158,
+              "value": 1.0
+            },
+            {
+              "index": 163,
+              "value": 1.0
+            },
+            {
+              "index": 165,
+              "value": 1.0
+            },
+            {
+              "index": 166,
+              "value": 1.0
+            },
+            {
+              "index": 171,
+              "value": 1.0
+            },
+            {
+              "index": 176,
+              "value": 1.0
+            },
+            {
+              "index": 119,
+              "value": 0.9399999976158142
+            },
+            {
+              "index": 122,
+              "value": 0.9399999976158142
+            },
+            {
+              "index": 168,
+              "value": 0.9399999976158142
+            },
+            {
+              "index": 117,
+              "value": 0.699999988079071
+            },
+            {
+              "index": 132,
+              "value": 0.699999988079071
+            },
+            {
+              "index": 123,
+              "value": 0.6499999761581421
+            },
+            {
+              "index": 143,
+              "value": 0.5
+            },
+            {
+              "index": 155,
+              "value": 0.5
+            },
+            {
+              "index": 115,
+              "value": 0.23999999463558197
+            },
+            {
+              "index": 116,
+              "value": 0.05999999865889549
+            },
+            {
+              "index": 120,
+              "value": 0.05999999865889549
+            },
+            {
+              "index": 156,
+              "value": 0.029999999329447746
+            }
+          ]
+        },
+        "targets": {
+          "action_values": [
+            -0.30000001192092896,
+            0.0,
+            -1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "state_value": -0.6499999761581421,
+          "regrets": [
+            0.3499999940395355,
+            0.0,
+            -0.3499999940395355,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "legal": [
+            {
+              "slot": 0,
+              "q": -0.30000001192092896,
+              "regret": 0.3499999940395355
+            },
+            {
+              "slot": 2,
+              "q": -1.0,
+              "regret": -0.3499999940395355
+            }
+          ]
+        },
+        "network_before": {
+          "action_values": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "state_value": 0.0,
+          "regrets": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "legal": [
+            {
+              "slot": 0,
+              "q": 0.0,
+              "regret": 0.0
+            },
+            {
+              "slot": 2,
+              "q": 0.0,
+              "regret": 0.0
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "live_collection": {
+    "mode": "live_traversal",
+    "traversals": 50,
+    "buffer_size": 32,
+    "iteration": 1,
+    "traversing_player": 0,
+    "samples_requested": 160,
+    "samples_used": 32,
+    "num_players": 2,
+    "config": "configs\\hu_d2cfr_smoke.yaml"
+  }
+}
