@@ -15,3 +15,4 @@ logs/
 .serena/logs/
 .tmp_strategy_opponent_smoke/
 opencode.json
+.playwright-mcp/
