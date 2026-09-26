@@ -65,7 +65,7 @@ traversal_baseline_enabled: false
 policy_runtime_min_action_prob: 0.05
 checkpoint_save_every: 500
 # HU full и light checkpoint сохраняются отдельно от six-max каждые 5000 итераций.
-hu_checkpoint_save_every: 500
+hu_checkpoint_save_every: 100
 # Milestone-интервал для HU full checkpoint; retention full/light изолирован по namespace.
 checkpoint_keep_every: 50000
 hu_checkpoint_keep_recent: 2

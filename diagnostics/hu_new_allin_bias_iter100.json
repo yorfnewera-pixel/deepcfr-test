@@ -1,0 +1,489 @@
+{
+  "schema_version": 1,
+  "checkpoint": "models\\HU_new\\run_20260926_164346_d7a76e15\\hu_checkpoint_final.pt",
+  "checkpoint_iteration": 100,
+  "config": "config.yaml",
+  "seed": 20260926,
+  "states_requested": 8,
+  "states_collected": 8,
+  "roots_examined": 256,
+  "repeats_per_state": 32,
+  "summary": {
+    "by_action": {
+      "all_in": {
+        "count": 8,
+        "q_target_mean": 1.0,
+        "q_prediction_mean": -0.37432909943163395,
+        "q_bias_mean": -1.374329099431634,
+        "q_mae": 1.374329099431634,
+        "regret_sign_flip_rate": 0.25
+      },
+      "raise_0.5pot": {
+        "count": 8,
+        "q_target_mean": 0.11508941723877797,
+        "q_prediction_mean": -0.2570242751389742,
+        "q_bias_mean": -0.37211369237775216,
+        "q_mae": 0.37211369237775216,
+        "regret_sign_flip_rate": 0.5
+      },
+      "raise_1pot": {
+        "count": 8,
+        "q_target_mean": 0.08582069107796997,
+        "q_prediction_mean": -0.292177215218544,
+        "q_bias_mean": -0.377997906296514,
+        "q_mae": 0.377997906296514,
+        "regret_sign_flip_rate": 0.875
+      }
+    },
+    "all_in_minus_half_pot_q_bias": -1.0022154070538818
+  },
+  "states": [
+    {
+      "state_index": 0,
+      "state": {
+        "stage": "Stage.Turn",
+        "current_player": 0,
+        "pot": 8.0,
+        "min_bet": 0.0,
+        "hero_hand": [
+          "<builtins.Card object at 0x000001A4F9567010>",
+          "<builtins.Card object at 0x000001A4F9566EF0>"
+        ],
+        "public_cards": [
+          "<builtins.Card object at 0x000001A4F9567010>",
+          "<builtins.Card object at 0x000001A4F9566FB0>",
+          "<builtins.Card object at 0x000001A4F9567070>",
+          "<builtins.Card object at 0x000001A4F9566F50>"
+        ],
+        "stake": 196.0,
+        "bet_chips": 0.0
+      },
+      "target_v_mean": 0.996950626373291,
+      "target_v_std": 0.0,
+      "predicted_v": -0.20242145657539368,
+      "actions": {
+        "raise_0.5pot": {
+          "state_index": 0,
+          "action_label": "raise_0.5pot",
+          "target_q": -0.03999999910593033,
+          "predicted_q": -0.2179686725139618,
+          "target_regret": -1.0369505882263184,
+          "predicted_regret": -0.015547215938568115,
+          "target_q_std": 0.0,
+          "target_regret_std": 0.0
+        },
+        "raise_1pot": {
+          "state_index": 0,
+          "action_label": "raise_1pot",
+          "target_q": -0.05999999865889549,
+          "predicted_q": -0.20212212204933167,
+          "target_regret": -1.056950569152832,
+          "predicted_regret": 0.0002993345260620117,
+          "target_q_std": 0.0,
+          "target_regret_std": 0.0
+        },
+        "all_in": {
+          "state_index": 0,
+          "action_label": "all_in",
+          "target_q": 1.0,
+          "predicted_q": -0.09867030382156372,
+          "target_regret": 0.003049392718821764,
+          "predicted_regret": 0.10375115275382996,
+          "target_q_std": 0.0,
+          "target_regret_std": 0.0
+        }
+      }
+    },
+    {
+      "state_index": 1,
+      "state": {
+        "stage": "Stage.Turn",
+        "current_player": 0,
+        "pot": 12.0,
+        "min_bet": 0.0,
+        "hero_hand": [
+          "<builtins.Card object at 0x000001A4F9567390>",
+          "<builtins.Card object at 0x000001A4F9566690>"
+        ],
+        "public_cards": [
+          "<builtins.Card object at 0x000001A4F9567390>",
+          "<builtins.Card object at 0x000001A4F9566950>",
+          "<builtins.Card object at 0x000001A4F9566E10>",
+          "<builtins.Card object at 0x000001A4F95667B0>"
+        ],
+        "stake": 194.0,
+        "bet_chips": 0.0
+      },
+      "target_v_mean": 0.9179015159606934,
+      "target_v_std": 0.0,
+      "predicted_v": -0.20872220396995544,
+      "actions": {
+        "raise_0.5pot": {
+          "state_index": 1,
+          "action_label": "raise_0.5pot",
+          "target_q": -0.05999999865889549,
+          "predicted_q": -0.2193126678466797,
+          "target_regret": -0.9779015183448792,
+          "predicted_regret": -0.010590463876724243,
+          "target_q_std": 0.0,
+          "target_regret_std": 0.0
+        },
+        "raise_1pot": {
+          "state_index": 1,
+          "action_label": "raise_1pot",
+          "target_q": -0.09000000357627869,
+          "predicted_q": -0.199724942445755,
+          "target_regret": -1.0079015493392944,
+          "predicted_regret": 0.00899726152420044,
+          "target_q_std": 0.0,
+          "target_regret_std": 0.0
+        },
+        "all_in": {
+          "state_index": 1,
+          "action_label": "all_in",
+          "target_q": 1.0,
+          "predicted_q": -0.09826504439115524,
+          "target_regret": 0.08209846168756485,
+          "predicted_regret": 0.1104571595788002,
+          "target_q_std": 0.0,
+          "target_regret_std": 0.0
+        }
+      }
+    },
+    {
+      "state_index": 2,
+      "state": {
+        "stage": "Stage.Flop",
+        "current_player": 0,
+        "pot": 4.0,
+        "min_bet": 0.0,
+        "hero_hand": [
+          "<builtins.Card object at 0x000001A4F9566B70>",
+          "<builtins.Card object at 0x000001A4F9566450>"
+        ],
+        "public_cards": [
+          "<builtins.Card object at 0x000001A4F9566B70>",
+          "<builtins.Card object at 0x000001A4F9566630>",
+          "<builtins.Card object at 0x000001A4F9566930>"
+        ],
+        "stake": 198.0,
+        "bet_chips": 0.0
+      },
+      "target_v_mean": 0.8559596426784992,
+      "target_v_std": 0.09677382858986062,
+      "predicted_v": -0.17792534828186035,
+      "actions": {
+        "raise_0.5pot": {
+          "state_index": 2,
+          "action_label": "raise_0.5pot",
+          "target_q": 0.996950626373291,
+          "predicted_q": -0.15592919290065765,
+          "target_regret": 0.14099097248981707,
+          "predicted_regret": 0.021996155381202698,
+          "target_q_std": 0.0,
+          "target_regret_std": 0.09677384520952394
+        },
+        "raise_1pot": {
+          "state_index": 2,
+          "action_label": "raise_1pot",
+          "target_q": 0.9179015159606934,
+          "predicted_q": -0.21630847454071045,
+          "target_regret": 0.0619419040158391,
+          "predicted_regret": -0.0383831262588501,
+          "target_q_std": 0.0,
+          "target_regret_std": 0.09677384931047982
+        },
+        "all_in": {
+          "state_index": 2,
+          "action_label": "all_in",
+          "target_q": 1.0,
+          "predicted_q": -0.09383883327245712,
+          "target_regret": 0.1440403623455495,
+          "predicted_regret": 0.08408651500940323,
+          "target_q_std": 0.0,
+          "target_regret_std": 0.0967738432399859
+        }
+      }
+    },
+    {
+      "state_index": 3,
+      "state": {
+        "stage": "Stage.Turn",
+        "current_player": 0,
+        "pot": 16.0,
+        "min_bet": 0.0,
+        "hero_hand": [
+          "<builtins.Card object at 0x000001A4F9566490>",
+          "<builtins.Card object at 0x000001A4F9566110>"
+        ],
+        "public_cards": [
+          "<builtins.Card object at 0x000001A4F9566490>",
+          "<builtins.Card object at 0x000001A4F9566190>",
+          "<builtins.Card object at 0x000001A4F95661B0>",
+          "<builtins.Card object at 0x000001A4F95662F0>"
+        ],
+        "stake": 192.0,
+        "bet_chips": 0.0
+      },
+      "target_v_mean": 0.33587315678596497,
+      "target_v_std": 0.0,
+      "predicted_v": -0.426563024520874,
+      "actions": {
+        "raise_0.5pot": {
+          "state_index": 3,
+          "action_label": "raise_0.5pot",
+          "target_q": -0.07999999821186066,
+          "predicted_q": -0.31274279952049255,
+          "target_regret": -0.41587314009666443,
+          "predicted_regret": 0.11382022500038147,
+          "target_q_std": 0.0,
+          "target_regret_std": 0.0
+        },
+        "raise_1pot": {
+          "state_index": 3,
+          "action_label": "raise_1pot",
+          "target_q": -0.11999999731779099,
+          "predicted_q": -0.28785040974617004,
+          "target_regret": -0.45587313175201416,
+          "predicted_regret": 0.13871261477470398,
+          "target_q_std": 0.0,
+          "target_regret_std": 0.0
+        },
+        "all_in": {
+          "state_index": 3,
+          "action_label": "all_in",
+          "target_q": 1.0,
+          "predicted_q": -0.24682021141052246,
+          "target_regret": 0.6641268730163574,
+          "predicted_regret": 0.17974281311035156,
+          "target_q_std": 0.0,
+          "target_regret_std": 0.0
+        }
+      }
+    },
+    {
+      "state_index": 4,
+      "state": {
+        "stage": "Stage.Turn",
+        "current_player": 0,
+        "pot": 24.0,
+        "min_bet": 0.0,
+        "hero_hand": [
+          "<builtins.Card object at 0x000001A4F9566B70>",
+          "<builtins.Card object at 0x000001A4F9565C90>"
+        ],
+        "public_cards": [
+          "<builtins.Card object at 0x000001A4F9566B70>",
+          "<builtins.Card object at 0x000001A4F9565C50>",
+          "<builtins.Card object at 0x000001A4F9565D50>",
+          "<builtins.Card object at 0x000001A4F9565D30>"
+        ],
+        "stake": 188.0,
+        "bet_chips": 0.0
+      },
+      "target_v_mean": 0.31514132022857666,
+      "target_v_std": 0.0,
+      "predicted_v": -0.4242318570613861,
+      "actions": {
+        "raise_0.5pot": {
+          "state_index": 4,
+          "action_label": "raise_0.5pot",
+          "target_q": -0.11999999731779099,
+          "predicted_q": -0.3083833158016205,
+          "target_regret": -0.43514129519462585,
+          "predicted_regret": 0.11584854125976562,
+          "target_q_std": 0.0,
+          "target_regret_std": 0.0
+        },
+        "raise_1pot": {
+          "state_index": 4,
+          "action_label": "raise_1pot",
+          "target_q": -0.18000000715255737,
+          "predicted_q": -0.28241387009620667,
+          "target_regret": -0.49514129757881165,
+          "predicted_regret": 0.14181798696517944,
+          "target_q_std": 0.0,
+          "target_regret_std": 0.0
+        },
+        "all_in": {
+          "state_index": 4,
+          "action_label": "all_in",
+          "target_q": 1.0,
+          "predicted_q": -0.23568770289421082,
+          "target_regret": 0.6848586797714233,
+          "predicted_regret": 0.1885441541671753,
+          "target_q_std": 0.0,
+          "target_regret_std": 0.0
+        }
+      }
+    },
+    {
+      "state_index": 5,
+      "state": {
+        "stage": "Stage.Flop",
+        "current_player": 0,
+        "pot": 8.0,
+        "min_bet": 0.0,
+        "hero_hand": [
+          "<builtins.Card object at 0x000001A4F9565C50>",
+          "<builtins.Card object at 0x000001A4F9565BF0>"
+        ],
+        "public_cards": [
+          "<builtins.Card object at 0x000001A4F9565C50>",
+          "<builtins.Card object at 0x000001A4F9565A90>",
+          "<builtins.Card object at 0x000001A4F9565B70>"
+        ],
+        "stake": 196.0,
+        "bet_chips": 0.0
+      },
+      "target_v_mean": 0.5386955821886659,
+      "target_v_std": 0.12997230069877064,
+      "predicted_v": -0.4473240077495575,
+      "actions": {
+        "raise_0.5pot": {
+          "state_index": 5,
+          "action_label": "raise_0.5pot",
+          "target_q": 0.23015883169136941,
+          "predicted_q": -0.30873727798461914,
+          "target_regret": -0.3085367532912642,
+          "predicted_regret": 0.13858672976493835,
+          "target_q_std": 0.1689960309181301,
+          "target_regret_std": 0.1473090631830121
+        },
+        "raise_1pot": {
+          "state_index": 5,
+          "action_label": "raise_1pot",
+          "target_q": 0.23307915672194213,
+          "predicted_q": -0.33578240871429443,
+          "target_regret": -0.3056164332665503,
+          "predicted_regret": 0.11154159903526306,
+          "target_q_std": 0.1550829119189108,
+          "target_regret_std": 0.16495629320728442
+        },
+        "all_in": {
+          "state_index": 5,
+          "action_label": "all_in",
+          "target_q": 1.0,
+          "predicted_q": -0.2767963707447052,
+          "target_regret": 0.4613044084981084,
+          "predicted_regret": 0.1705276370048523,
+          "target_q_std": 0.0,
+          "target_regret_std": 0.12997228740197742
+        }
+      }
+    },
+    {
+      "state_index": 6,
+      "state": {
+        "stage": "Stage.River",
+        "current_player": 0,
+        "pot": 4.0,
+        "min_bet": 0.0,
+        "hero_hand": [
+          "<builtins.Card object at 0x000001A4F95657F0>",
+          "<builtins.Card object at 0x000001A4F95655F0>"
+        ],
+        "public_cards": [
+          "<builtins.Card object at 0x000001A4F95655F0>",
+          "<builtins.Card object at 0x000001A4F95657F0>",
+          "<builtins.Card object at 0x000001A4F95654D0>",
+          "<builtins.Card object at 0x000001A4F95654B0>",
+          "<builtins.Card object at 0x000001A4F9566490>"
+        ],
+        "stake": 198.0,
+        "bet_chips": 0.0
+      },
+      "target_v_mean": -0.0028328893677098677,
+      "target_v_std": 0.008611430408174778,
+      "predicted_v": -0.44910261034965515,
+      "actions": {
+        "raise_0.5pot": {
+          "state_index": 6,
+          "action_label": "raise_0.5pot",
+          "target_q": 0.004027186660096049,
+          "predicted_q": -0.28969821333885193,
+          "target_regret": 0.006860075664008036,
+          "predicted_regret": 0.15940439701080322,
+          "target_q_std": 0.019876939702409613,
+          "target_regret_std": 0.01223127457947489
+        },
+        "raise_1pot": {
+          "state_index": 6,
+          "action_label": "raise_1pot",
+          "target_q": 0.0065533791203051805,
+          "predicted_q": -0.4030414819717407,
+          "target_regret": 0.009386268618982285,
+          "predicted_regret": 0.04606112837791443,
+          "target_q_std": 0.028322563456247757,
+          "target_regret_std": 0.025207607329097666
+        },
+        "all_in": {
+          "state_index": 6,
+          "action_label": "all_in",
+          "target_q": 1.0,
+          "predicted_q": -0.8064893484115601,
+          "target_regret": 1.002832893282175,
+          "predicted_regret": -0.3573867380619049,
+          "target_q_std": 0.0,
+          "target_regret_std": 0.008611417450945114
+        }
+      }
+    },
+    {
+      "state_index": 7,
+      "state": {
+        "stage": "Stage.Turn",
+        "current_player": 0,
+        "pot": 4.0,
+        "min_bet": 0.0,
+        "hero_hand": [
+          "<builtins.Card object at 0x000001A4F9565470>",
+          "<builtins.Card object at 0x000001A4F9565290>"
+        ],
+        "public_cards": [
+          "<builtins.Card object at 0x000001A4F9565470>",
+          "<builtins.Card object at 0x000001A4F95653F0>",
+          "<builtins.Card object at 0x000001A4F95650B0>",
+          "<builtins.Card object at 0x000001A4F9565190>"
+        ],
+        "stake": 198.0,
+        "bet_chips": 0.0
+      },
+      "target_v_mean": -0.009185833188894321,
+      "target_v_std": 0.007424832856367308,
+      "predicted_v": -0.4877850413322449,
+      "actions": {
+        "raise_0.5pot": {
+          "state_index": 7,
+          "action_label": "raise_0.5pot",
+          "target_q": -0.010421313520055264,
+          "predicted_q": -0.24342206120491028,
+          "target_regret": -0.0012354808422969654,
+          "predicted_regret": 0.2443629801273346,
+          "target_q_std": 0.016654841386139596,
+          "target_regret_std": 0.010727049359058627
+        },
+        "raise_1pot": {
+          "state_index": 7,
+          "action_label": "raise_1pot",
+          "target_q": -0.020968516473658383,
+          "predicted_q": -0.41017401218414307,
+          "target_regret": -0.011782684072386473,
+          "predicted_regret": 0.0776110291481018,
+          "target_q_std": 0.021059116442588486,
+          "target_regret_std": 0.021433868743542046
+        },
+        "all_in": {
+          "state_index": 7,
+          "action_label": "all_in",
+          "target_q": 1.0,
+          "predicted_q": -1.138064980506897,
+          "target_regret": 1.009185841307044,
+          "predicted_regret": -0.6502799391746521,
+          "target_q_std": 0.0,
+          "target_regret_std": 0.0074248230864387785
+        }
+      }
+    }
+  ]
+}

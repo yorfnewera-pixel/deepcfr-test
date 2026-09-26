@@ -21,7 +21,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.core.action_space import NUM_ACTIONS
+from src.core.action_space import ACTION_LABELS, NUM_ACTIONS
 from tools import d2cfr_signal_probe as signal_probe
 
 
@@ -30,6 +30,12 @@ __all__ = [
     "samples_from_dueling_buffer_for_iteration",
     "run_heldout_fit_probe",
     "evaluate_prediction_snapshot",
+    "describe_buffer_age",
+    "run_checkpoint_buffer_age_probe",
+    "run_weight_mode_fit_ab",
+    "run_replay_freshness_fit_ab",
+    "run_checkpoint_weight_mode_ab_probe",
+    "run_checkpoint_replay_freshness_probe",
     "describe_prediction_rows",
     "run_accumulation_probe",
     "run_live_accumulation_probe",
@@ -258,6 +264,595 @@ def _slice_probe_batch(batch: signal_probe.ProbeBatch, indices: torch.Tensor) ->
         masks=batch.masks.index_select(0, indices),
         iterations=batch.iterations.index_select(0, indices),
     )
+
+
+def _weighted_d2cfr_loss(
+    network: Any,
+    batch: signal_probe.ProbeBatch,
+    weights: torch.Tensor,
+    *,
+    state_value_loss_weight: float,
+) -> torch.Tensor:
+    components = network.forward_components(batch.states)
+    regret_error = (components.regrets - batch.regret_targets).square() * batch.masks
+    regret_loss = (regret_error.sum(dim=1) * weights).mean()
+    state_error = (components.state_values.squeeze(1) - batch.state_value_targets).square()
+    state_loss = (state_error * weights).mean()
+    return regret_loss + float(state_value_loss_weight) * state_loss
+
+
+def _fit_d2cfr_arm(
+    *,
+    name: str,
+    network_factory: Any,
+    train_batch: signal_probe.ProbeBatch,
+    evaluation_batch: signal_probe.ProbeBatch,
+    index_batches: list[torch.Tensor],
+    learning_rate: float,
+    state_value_loss_weight: float,
+    seed: int,
+    max_grad_norm: float | None,
+    iteration_weighted: bool,
+) -> dict[str, Any]:
+    """Обучает одну изолированную сеть на заранее выбранных minibatch-индексах."""
+    device = train_batch.states.device
+    source_iterations = train_batch.iterations.to(dtype=torch.float32)
+    torch.manual_seed(int(seed))
+    network = network_factory().to(device)
+    optimizer = torch.optim.Adam(network.parameters(), lr=float(learning_rate))
+    initial = evaluate_prediction_snapshot(network, evaluation_batch)
+    initial_by_action = _action_prediction_metrics(network, evaluation_batch)
+    batch_weight_means: list[float] = []
+    network.train()
+    for indices in index_batches:
+        batch = _slice_probe_batch(train_batch, indices)
+        if iteration_weighted:
+            batch_weights = batch.iterations / batch.iterations.mean().clamp_min(1e-12)
+        else:
+            batch_weights = torch.ones_like(batch.iterations)
+        batch_weight_means.append(float(batch_weights.mean().detach().cpu().item()))
+        optimizer.zero_grad(set_to_none=True)
+        loss = _weighted_d2cfr_loss(
+            network,
+            batch,
+            batch_weights,
+            state_value_loss_weight=state_value_loss_weight,
+        )
+        loss.backward()
+        if max_grad_norm is not None:
+            torch.nn.utils.clip_grad_norm_(network.parameters(), max_norm=float(max_grad_norm))
+        optimizer.step()
+    return {
+        "name": name,
+        "train_samples": int(train_batch.states.shape[0]),
+        "source_iteration_minimum": float(source_iterations.min().detach().cpu().item()),
+        "source_iteration_maximum": float(source_iterations.max().detach().cpu().item()),
+        "weight_summary": {
+            "normalization": "per_minibatch_mean_1" if iteration_weighted else "uniform",
+            "batch_mean_minimum": min(batch_weight_means, default=1.0),
+            "batch_mean_maximum": max(batch_weight_means, default=1.0),
+        },
+        "initial": initial,
+        "initial_by_action": initial_by_action,
+        "final": evaluate_prediction_snapshot(network, evaluation_batch),
+        "final_by_action": _action_prediction_metrics(network, evaluation_batch),
+    }
+
+
+def _random_index_batches(
+    *, sample_count: int, batch_size: int, steps: int, seed: int, device: torch.device
+) -> list[torch.Tensor]:
+    draw_count = min(int(batch_size), int(sample_count))
+    rng = np.random.default_rng(seed)
+    return [
+        torch.as_tensor(rng.integers(0, sample_count, size=draw_count), dtype=torch.long, device=device)
+        for _ in range(int(steps))
+    ]
+
+
+def run_weight_mode_fit_ab(
+    *,
+    network_factory: Any,
+    train_batch: signal_probe.ProbeBatch,
+    evaluation_batch: signal_probe.ProbeBatch,
+    steps: int,
+    batch_size: int,
+    learning_rate: float,
+    state_value_loss_weight: float,
+    seed: int,
+    max_grad_norm: float | None = 1.0,
+) -> dict[str, Any]:
+    """Сравнивает одинаковый offline fit с временными и равномерными весами."""
+    sample_count = int(train_batch.states.shape[0])
+    if sample_count <= 0 or int(evaluation_batch.states.shape[0]) <= 0:
+        raise ValueError("Train и evaluation batch не должны быть пустыми")
+    if steps < 0 or batch_size < 1 or learning_rate <= 0.0:
+        raise ValueError("steps, batch_size и learning_rate должны быть положительными")
+    if max_grad_norm is not None and max_grad_norm <= 0.0:
+        raise ValueError("max_grad_norm должен быть положительным или None")
+
+    device = train_batch.states.device
+    draw_count = min(int(batch_size), sample_count)
+    index_batches = _random_index_batches(
+        sample_count=sample_count, batch_size=draw_count, steps=int(steps), seed=int(seed), device=device,
+    )
+
+    return {
+        "train_samples": sample_count,
+        "evaluation_samples": int(evaluation_batch.states.shape[0]),
+        "steps": int(steps),
+        "batch_size": draw_count,
+        "learning_rate": float(learning_rate),
+        "state_value_loss_weight": float(state_value_loss_weight),
+        "max_grad_norm": max_grad_norm,
+        "arms": {
+            "iteration_weighted": _fit_d2cfr_arm(
+                name="iteration_weighted", network_factory=network_factory, train_batch=train_batch,
+                evaluation_batch=evaluation_batch, index_batches=index_batches, learning_rate=learning_rate,
+                state_value_loss_weight=state_value_loss_weight, seed=seed, max_grad_norm=max_grad_norm,
+                iteration_weighted=True,
+            ),
+            "uniform": _fit_d2cfr_arm(
+                name="uniform", network_factory=network_factory, train_batch=train_batch,
+                evaluation_batch=evaluation_batch, index_batches=index_batches, learning_rate=learning_rate,
+                state_value_loss_weight=state_value_loss_weight, seed=seed, max_grad_norm=max_grad_norm,
+                iteration_weighted=False,
+            ),
+        },
+    }
+
+
+def run_replay_freshness_fit_ab(
+    *,
+    network_factory: Any,
+    full_batch: signal_probe.ProbeBatch,
+    recent_batch: signal_probe.ProbeBatch,
+    evaluation_batch: signal_probe.ProbeBatch,
+    steps: int,
+    batch_size: int,
+    learning_rate: float,
+    state_value_loss_weight: float,
+    seed: int,
+    max_grad_norm: float | None = 1.0,
+) -> dict[str, Any]:
+    """Сравнивает full replay с recent window при неизменной D2CFR loss-функции."""
+    if min(int(full_batch.states.shape[0]), int(recent_batch.states.shape[0]), int(evaluation_batch.states.shape[0])) < 1:
+        raise ValueError("Full, recent и evaluation batch не должны быть пустыми")
+    if steps < 0 or batch_size < 1 or learning_rate <= 0.0:
+        raise ValueError("steps, batch_size и learning_rate должны быть положительными")
+    device = full_batch.states.device
+    if recent_batch.states.device != device or evaluation_batch.states.device != device:
+        raise ValueError("Все batch должны быть на одном device")
+    return {
+        "steps": int(steps),
+        "batch_size": int(batch_size),
+        "learning_rate": float(learning_rate),
+        "state_value_loss_weight": float(state_value_loss_weight),
+        "max_grad_norm": max_grad_norm,
+        "arms": {
+            "full_replay": _fit_d2cfr_arm(
+                name="full_replay", network_factory=network_factory, train_batch=full_batch,
+                evaluation_batch=evaluation_batch,
+                index_batches=_random_index_batches(
+                    sample_count=int(full_batch.states.shape[0]), batch_size=batch_size,
+                    steps=steps, seed=seed, device=device,
+                ),
+                learning_rate=learning_rate, state_value_loss_weight=state_value_loss_weight,
+                seed=seed, max_grad_norm=max_grad_norm, iteration_weighted=True,
+            ),
+            "recent_window": _fit_d2cfr_arm(
+                name="recent_window", network_factory=network_factory, train_batch=recent_batch,
+                evaluation_batch=evaluation_batch,
+                index_batches=_random_index_batches(
+                    sample_count=int(recent_batch.states.shape[0]), batch_size=batch_size,
+                    steps=steps, seed=seed, device=device,
+                ),
+                learning_rate=learning_rate, state_value_loss_weight=state_value_loss_weight,
+                seed=seed, max_grad_norm=max_grad_norm, iteration_weighted=True,
+            ),
+        },
+    }
+
+
+def _action_prediction_metrics(network: Any, batch: signal_probe.ProbeBatch) -> dict[str, dict[str, Any]]:
+    """Возвращает Q/R-ошибки по action slot без смешивания legal масок."""
+    was_training = bool(getattr(network, "training", False))
+    network.eval()
+    with torch.no_grad():
+        components = network.forward_components(batch.states)
+        q_error = (components.action_values - batch.action_targets).abs()
+        regret_error = (components.regrets - batch.regret_targets).abs()
+        target_positive = batch.regret_targets > 0.0
+        predicted_positive = components.regrets > 0.0
+        report: dict[str, dict[str, Any]] = {}
+        for slot, label in enumerate(ACTION_LABELS):
+            legal = batch.masks[:, slot] > 0.0
+            count = int(legal.sum().detach().cpu().item())
+            if count == 0:
+                continue
+            report[label] = {
+                "legal_slots": count,
+                "q_abs_error_mean": float(q_error[legal, slot].mean().detach().cpu().item()),
+                "regret_abs_error_mean": float(regret_error[legal, slot].mean().detach().cpu().item()),
+                "regret_sign_flip_rate": float(
+                    (target_positive[legal, slot] != predicted_positive[legal, slot])
+                    .to(dtype=torch.float32).mean().detach().cpu().item()
+                ),
+                "sign_margin": _sign_margin_report(
+                    batch.regret_targets[:, slot : slot + 1],
+                    components.regrets[:, slot : slot + 1],
+                    batch.masks[:, slot : slot + 1],
+                ),
+            }
+    if was_training:
+        network.train()
+    return report
+
+
+def describe_buffer_age(
+    network: Any,
+    buffer: Any,
+    *,
+    checkpoint_iteration: int,
+    age_bucket_width: int = 25,
+    sample_limit_per_bucket: int | None = None,
+    seed: int = 0,
+    device: str | torch.device = "cpu",
+) -> dict[str, Any]:
+    """Сравнивает текущую сеть со stored labels, разложенными по возрасту replay."""
+    count = len(buffer)
+    if count <= 0:
+        raise ValueError("D2CFR replay buffer пуст")
+    if checkpoint_iteration < 1 or age_bucket_width < 1:
+        raise ValueError("checkpoint_iteration и age_bucket_width должны быть положительными")
+    if sample_limit_per_bucket is not None and sample_limit_per_bucket < 1:
+        raise ValueError("sample_limit_per_bucket должен быть положительным или None")
+    required_fields = ("_states", "_action_values", "_state_values", "_regrets", "_masks", "_iterations")
+    if not all(hasattr(buffer, field) for field in required_fields):
+        raise TypeError("Нужен DuelingAdvantageBuffer с Q/V/R samples")
+
+    source_iterations = np.asarray(buffer._iterations[:count], dtype=np.int64)
+    ages = int(checkpoint_iteration) - source_iterations
+    if np.any(ages < 0):
+        raise ValueError("Replay содержит samples из будущей iteration")
+    rng = np.random.default_rng(seed)
+    groups: dict[str, np.ndarray] = {}
+    for lower_bound in np.unique((ages // int(age_bucket_width)) * int(age_bucket_width)):
+        upper_bound = int(lower_bound) + int(age_bucket_width) - 1
+        groups[f"age_{int(lower_bound)}_{upper_bound}"] = np.flatnonzero(
+            (ages >= int(lower_bound)) & (ages <= upper_bound)
+        )
+
+    by_age: dict[str, dict[str, Any]] = {}
+    for label, indices in sorted(groups.items(), key=lambda item: int(item[0].split("_")[1])):
+        if sample_limit_per_bucket is not None and indices.size > sample_limit_per_bucket:
+            indices = np.sort(rng.choice(indices, size=sample_limit_per_bucket, replace=False))
+        samples = [
+            (
+                buffer._states[index].copy(),
+                buffer._action_values[index].copy(),
+                np.float32(buffer._state_values[index]),
+                buffer._regrets[index].copy(),
+                buffer._masks[index].copy(),
+                np.float32(buffer._iterations[index]),
+            )
+            for index in indices
+        ]
+        batch = signal_probe.build_probe_batch(samples, device=device)
+        bucket_ages = ages[indices]
+        bucket_iterations = source_iterations[indices]
+        by_age[label] = {
+            "samples": int(indices.size),
+            "source_iteration_min": int(bucket_iterations.min()),
+            "source_iteration_max": int(bucket_iterations.max()),
+            "age_min": int(bucket_ages.min()),
+            "age_max": int(bucket_ages.max()),
+            "prediction": evaluate_prediction_snapshot(network, batch),
+            "by_action": _action_prediction_metrics(network, batch),
+        }
+    return {
+        "checkpoint_iteration": int(checkpoint_iteration),
+        "age_bucket_width": int(age_bucket_width),
+        "sample_limit_per_bucket": sample_limit_per_bucket,
+        "buffer_samples": int(count),
+        "by_age": by_age,
+    }
+
+
+def run_checkpoint_buffer_age_probe(
+    checkpoint_path: str | Path,
+    *,
+    config_path: str | Path,
+    output_path: str | Path,
+    player_id: int = 0,
+    age_bucket_width: int = 25,
+    sample_limit_per_bucket: int | None = 2048,
+    seed: int = 0,
+    device: str | torch.device = "cpu",
+) -> dict[str, Any]:
+    """Загружает HU checkpoint и сохраняет read-only age-срез его D2CFR buffer."""
+    from src.core.deep_cfr import DeepCFRAgent
+    from src.training import train as train_mod
+    from src.utils import config as config_mod
+
+    config_mod.load_config(config_path)
+    agent = DeepCFRAgent(player_id=0, num_players=2, device=str(device))
+    train_mod._create_hu_current_policy_coordinator(agent)
+    checkpoint = train_mod._load_hu_checkpoint(agent, checkpoint_path)
+    if not agent.d2cfr_enabled:
+        raise ValueError("Нужен D2CFR HU checkpoint")
+    actor_id = int(player_id)
+    if actor_id not in (0, 1):
+        raise ValueError("player_id должен быть 0 или 1 для HU")
+    report = describe_buffer_age(
+        agent.hu_advantage_nets[actor_id],
+        agent.hu_advantage_buffers[actor_id],
+        checkpoint_iteration=int(checkpoint["iteration"]),
+        age_bucket_width=age_bucket_width,
+        sample_limit_per_bucket=sample_limit_per_bucket,
+        seed=seed,
+        device=device,
+    )
+    report.update({
+        "schema_version": 1,
+        "checkpoint": str(checkpoint_path),
+        "config": str(config_path),
+        "player_id": actor_id,
+        "read_only": True,
+    })
+    target = Path(output_path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temporary = target.with_suffix(target.suffix + ".tmp")
+    temporary.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    temporary.replace(target)
+    return report
+
+
+def _samples_from_dueling_buffer_window(
+    buffer: Any, *, minimum_iteration: int, sample_count: int, seed: int
+) -> list[tuple]:
+    """Копирует случайный срез replay, не старше заданной CFR-итерации."""
+    size = len(buffer)
+    if size <= 0:
+        raise ValueError("D2CFR advantage_buffer пуст")
+    required_arrays = ("_states", "_action_values", "_state_values", "_regrets", "_masks", "_iterations")
+    try:
+        arrays = [getattr(buffer, name) for name in required_arrays]
+    except AttributeError as error:
+        raise ValueError("live buffer не похож на DuelingAdvantageBuffer") from error
+    matching = np.flatnonzero(np.asarray(arrays[5][:size], dtype=np.int64) >= int(minimum_iteration))
+    if matching.size <= 0:
+        raise ValueError(f"D2CFR buffer не содержит samples с iteration >= {minimum_iteration}")
+    take = min(int(sample_count), int(matching.size))
+    indices = np.random.default_rng(seed).choice(matching, size=take, replace=False)
+    return [
+        (
+            arrays[0][index].copy(), arrays[1][index].copy(), np.float32(arrays[2][index]),
+            arrays[3][index].copy(), arrays[4][index].copy(), np.float32(arrays[5][index]),
+        )
+        for index in indices
+    ]
+
+
+def _collect_frozen_postflop_evaluation_batch(
+    agent: Any,
+    coordinator: Any,
+    *,
+    player_id: int,
+    iteration: int,
+    states: int,
+    repeats: int,
+    roots: int,
+    seed: int,
+    device: str | torch.device,
+) -> tuple[signal_probe.ProbeBatch, int]:
+    """Собирает усреднённые ES-target'ы для общего postflop evaluation набора."""
+    from src.core.action_space import legal_action_mask
+    from tools import d2cfr_allin_bias_probe as allin_probe
+
+    captured = allin_probe._collect_candidate_states(
+        coordinator, roots=roots, seed=seed, target_count=states, traverser=player_id, iteration=iteration,
+    )
+    if len(captured) != states:
+        raise RuntimeError(f"Собрано только {len(captured)} из {states} postflop-состояний; увеличьте --frozen-roots")
+    samples: list[tuple] = []
+    for state in captured:
+        target_samples = allin_probe._sample_state_targets(
+            coordinator, state, repeats=repeats, traverser=player_id, iteration=iteration,
+        )
+        samples.append((
+            agent._encode_state(state, player_id),
+            np.stack([sample[0] for sample in target_samples], axis=0).mean(axis=0).astype(np.float32),
+            np.float32(np.mean([sample[1] for sample in target_samples])),
+            np.stack([sample[2] for sample in target_samples], axis=0).mean(axis=0).astype(np.float32),
+            legal_action_mask(state).astype(np.float32), np.float32(iteration),
+        ))
+    return signal_probe.build_probe_batch(samples, device=device), len(captured)
+
+
+def run_checkpoint_weight_mode_ab_probe(
+    checkpoint_path: str | Path,
+    *,
+    config_path: str | Path,
+    output_path: str | Path,
+    player_id: int = 0,
+    fit_samples: int = 20_000,
+    fit_steps: int = 2_000,
+    fit_batch_size: int = 256,
+    frozen_states: int = 64,
+    frozen_repeats: int = 64,
+    frozen_roots: int = 4_096,
+    seed: int = 0,
+    device: str | torch.device = "cpu",
+) -> dict[str, Any]:
+    """Проверяет вклад iteration weights без изменения checkpoint или его replay."""
+    from src.core.deep_cfr import DeepCFRAgent
+    from src.training import train as train_mod
+    from src.utils import config as config_mod
+
+    actor_id = int(player_id)
+    if actor_id not in (0, 1):
+        raise ValueError("player_id должен быть 0 или 1 для HU")
+    if min(fit_samples, fit_steps, fit_batch_size, frozen_states, frozen_repeats, frozen_roots) < 1:
+        raise ValueError("Все размеры A/B-проверки должны быть положительными")
+
+    config_mod.load_config(config_path)
+    agent = DeepCFRAgent(player_id=0, num_players=2, device=str(device))
+    coordinator = train_mod._create_hu_current_policy_coordinator(agent)
+    checkpoint = train_mod._load_hu_checkpoint(agent, checkpoint_path)
+    if not agent.d2cfr_enabled:
+        raise ValueError("Нужен D2CFR HU checkpoint")
+
+    buffer_size_before_targets = int(len(agent.hu_advantage_buffers[actor_id]))
+    training_samples = signal_probe.samples_from_dueling_buffer(
+        agent.hu_advantage_buffers[actor_id], sample_count=int(fit_samples), seed=int(seed),
+    )
+    training_batch = signal_probe.build_probe_batch(training_samples, device=device)
+
+    evaluation_batch, states_collected = _collect_frozen_postflop_evaluation_batch(
+        agent, coordinator, player_id=actor_id, iteration=int(checkpoint["iteration"]),
+        states=int(frozen_states), repeats=int(frozen_repeats), roots=int(frozen_roots), seed=int(seed), device=device,
+    )
+    comparison = run_weight_mode_fit_ab(
+        network_factory=agent._new_advantage_network,
+        train_batch=training_batch,
+        evaluation_batch=evaluation_batch,
+        steps=int(fit_steps),
+        batch_size=int(fit_batch_size),
+        learning_rate=float(agent.advantage_lr),
+        state_value_loss_weight=float(agent.d2cfr_state_value_loss_weight),
+        seed=int(seed),
+        max_grad_norm=1.0 if agent.d2cfr_loss_mode == "anchored" else None,
+    )
+    report = {
+        "schema_version": 1,
+        "read_only": True,
+        "checkpoint": str(checkpoint_path),
+        "checkpoint_iteration": int(checkpoint["iteration"]),
+        "config": str(config_path),
+        "player_id": actor_id,
+        "seed": int(seed),
+        "training_buffer": {
+            "available_samples_before_targets": buffer_size_before_targets,
+            "sampled_without_replacement": int(len(training_samples)),
+        },
+        "frozen_postflop": {
+            "states_requested": int(frozen_states),
+            "states_collected": states_collected,
+            "repeats_per_state": int(frozen_repeats),
+            "roots_examined": int(frozen_roots),
+            "targets": "mean of repeated frozen-policy ES traversals",
+        },
+        "fit": {
+            "loss_function": str(agent.d2cfr_loss_function),
+            "loss_mode": str(agent.d2cfr_loss_mode),
+            "gradient_clip_norm": 1.0 if agent.d2cfr_loss_mode == "anchored" else None,
+            "comparison": comparison,
+        },
+    }
+    target = Path(output_path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temporary = target.with_suffix(target.suffix + ".tmp")
+    temporary.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    temporary.replace(target)
+    return report
+
+
+def run_checkpoint_replay_freshness_probe(
+    checkpoint_path: str | Path,
+    *,
+    config_path: str | Path,
+    output_path: str | Path,
+    recent_iterations: int = 25,
+    player_id: int = 0,
+    fit_samples: int = 20_000,
+    fit_steps: int = 2_000,
+    fit_batch_size: int = 256,
+    frozen_states: int = 64,
+    frozen_repeats: int = 64,
+    frozen_roots: int = 4_096,
+    seed: int = 0,
+    device: str | torch.device = "cpu",
+) -> dict[str, Any]:
+    """Сравнивает полный replay с окном последних итераций на frozen postflop target'ах."""
+    from src.core.deep_cfr import DeepCFRAgent
+    from src.training import train as train_mod
+    from src.utils import config as config_mod
+
+    actor_id = int(player_id)
+    if actor_id not in (0, 1):
+        raise ValueError("player_id должен быть 0 или 1 для HU")
+    if min(recent_iterations, fit_samples, fit_steps, fit_batch_size, frozen_states, frozen_repeats, frozen_roots) < 1:
+        raise ValueError("Все размеры freshness-проверки должны быть положительными")
+    config_mod.load_config(config_path)
+    agent = DeepCFRAgent(player_id=0, num_players=2, device=str(device))
+    coordinator = train_mod._create_hu_current_policy_coordinator(agent)
+    checkpoint = train_mod._load_hu_checkpoint(agent, checkpoint_path)
+    if not agent.d2cfr_enabled:
+        raise ValueError("Нужен D2CFR HU checkpoint")
+
+    latest_iteration = int(checkpoint["iteration"])
+    minimum_iteration = max(1, latest_iteration - int(recent_iterations) + 1)
+    buffer = agent.hu_advantage_buffers[actor_id]
+    buffer_size_before_targets = int(len(buffer))
+    recent_available = int(np.count_nonzero(np.asarray(buffer._iterations[:len(buffer)], dtype=np.int64) >= minimum_iteration))
+    common_samples = min(int(fit_samples), buffer_size_before_targets, recent_available)
+    if common_samples <= 0:
+        raise ValueError("В recent window нет D2CFR samples")
+    full_batch = signal_probe.build_probe_batch(
+        signal_probe.samples_from_dueling_buffer(buffer, sample_count=common_samples, seed=int(seed)), device=device,
+    )
+    recent_batch = signal_probe.build_probe_batch(
+        _samples_from_dueling_buffer_window(
+            buffer, minimum_iteration=minimum_iteration, sample_count=common_samples, seed=int(seed),
+        ),
+        device=device,
+    )
+    evaluation_batch, states_collected = _collect_frozen_postflop_evaluation_batch(
+        agent, coordinator, player_id=actor_id, iteration=latest_iteration, states=int(frozen_states),
+        repeats=int(frozen_repeats), roots=int(frozen_roots), seed=int(seed), device=device,
+    )
+    comparison = run_replay_freshness_fit_ab(
+        network_factory=agent._new_advantage_network,
+        full_batch=full_batch,
+        recent_batch=recent_batch,
+        evaluation_batch=evaluation_batch,
+        steps=int(fit_steps), batch_size=int(fit_batch_size), learning_rate=float(agent.advantage_lr),
+        state_value_loss_weight=float(agent.d2cfr_state_value_loss_weight), seed=int(seed),
+        max_grad_norm=1.0 if agent.d2cfr_loss_mode == "anchored" else None,
+    )
+    report = {
+        "schema_version": 1,
+        "read_only": True,
+        "checkpoint": str(checkpoint_path),
+        "checkpoint_iteration": latest_iteration,
+        "config": str(config_path),
+        "player_id": actor_id,
+        "seed": int(seed),
+        "replay_window": {
+            "recent_iterations": int(recent_iterations),
+            "minimum_source_iteration": minimum_iteration,
+            "full_available_samples": buffer_size_before_targets,
+            "recent_available_samples": recent_available,
+            "equal_samples_per_arm": common_samples,
+        },
+        "frozen_postflop": {
+            "states_requested": int(frozen_states), "states_collected": states_collected,
+            "repeats_per_state": int(frozen_repeats), "roots_examined": int(frozen_roots),
+            "targets": "mean of repeated frozen-policy ES traversals",
+        },
+        "fit": {
+            "loss_function": str(agent.d2cfr_loss_function), "loss_mode": str(agent.d2cfr_loss_mode),
+            "gradient_clip_norm": 1.0 if agent.d2cfr_loss_mode == "anchored" else None,
+            "comparison": comparison,
+        },
+    }
+    target = Path(output_path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temporary = target.with_suffix(target.suffix + ".tmp")
+    temporary.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    temporary.replace(target)
+    return report
 
 
 def run_heldout_fit_probe(
@@ -626,11 +1221,80 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--heldout-train-fraction", type=float, default=0.8)
     parser.add_argument("--heldout-learning-rate", type=float, default=1e-3)
     parser.add_argument("--output", type=Path, default=None)
+    parser.add_argument("--checkpoint", type=Path, default=None)
+    parser.add_argument("--age-bucket-width", type=int, default=25)
+    parser.add_argument("--age-samples", type=int, default=2048)
+    parser.add_argument(
+        "--weight-mode-ab",
+        action="store_true",
+        help="Сравнить iteration-weighted и uniform offline fit на frozen postflop targets",
+    )
+    parser.add_argument(
+        "--replay-freshness-ab",
+        action="store_true",
+        help="Сравнить full replay и recent window на frozen postflop targets",
+    )
+    parser.add_argument("--recent-iterations", type=int, default=25)
+    parser.add_argument("--fit-samples", type=int, default=20_000)
+    parser.add_argument("--fit-steps", type=int, default=2_000)
+    parser.add_argument("--fit-batch-size", type=int, default=256)
+    parser.add_argument("--frozen-states", type=int, default=64)
+    parser.add_argument("--frozen-repeats", type=int, default=64)
+    parser.add_argument("--frozen-roots", type=int, default=4_096)
     return parser.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
+    if args.checkpoint is not None:
+        if args.output is None:
+            raise ValueError("Для checkpoint-анализа нужен --output")
+        if args.weight_mode_ab and args.replay_freshness_ab:
+            raise ValueError("Выберите только один режим: --weight-mode-ab или --replay-freshness-ab")
+        if args.replay_freshness_ab:
+            report = run_checkpoint_replay_freshness_probe(
+                args.checkpoint,
+                config_path=args.config,
+                output_path=args.output,
+                recent_iterations=args.recent_iterations,
+                player_id=args.traversing_player,
+                fit_samples=args.fit_samples,
+                fit_steps=args.fit_steps,
+                fit_batch_size=args.fit_batch_size,
+                frozen_states=args.frozen_states,
+                frozen_repeats=args.frozen_repeats,
+                frozen_roots=args.frozen_roots,
+                seed=args.seed,
+                device=args.device,
+            )
+        elif args.weight_mode_ab:
+            report = run_checkpoint_weight_mode_ab_probe(
+                args.checkpoint,
+                config_path=args.config,
+                output_path=args.output,
+                player_id=args.traversing_player,
+                fit_samples=args.fit_samples,
+                fit_steps=args.fit_steps,
+                fit_batch_size=args.fit_batch_size,
+                frozen_states=args.frozen_states,
+                frozen_repeats=args.frozen_repeats,
+                frozen_roots=args.frozen_roots,
+                seed=args.seed,
+                device=args.device,
+            )
+        else:
+            report = run_checkpoint_buffer_age_probe(
+                args.checkpoint,
+                config_path=args.config,
+                output_path=args.output,
+                player_id=args.traversing_player,
+                age_bucket_width=args.age_bucket_width,
+                sample_limit_per_bucket=args.age_samples,
+                seed=args.seed,
+                device=args.device,
+            )
+        print(json.dumps(report, ensure_ascii=False, indent=2))
+        return 0
     report = run_live_accumulation_probe(
         args.config,
         iterations=args.iterations,

@@ -1,0 +1,4169 @@
+{
+  "schema_version": 1,
+  "checkpoint": "models\\HU_new\\run_20260926_164346_d7a76e15\\hu_checkpoint_final.pt",
+  "checkpoint_iteration": 100,
+  "config": "config.yaml",
+  "seed": 20260926,
+  "states_requested": 8,
+  "states_collected": 8,
+  "roots_examined": 256,
+  "repeats_per_state": 32,
+  "summary": {
+    "by_action": {
+      "all_in": {
+        "count": 8,
+        "q_target_mean": 1.0,
+        "q_prediction_mean": -0.37432909943163395,
+        "q_bias_mean": -1.374329099431634,
+        "q_mae": 1.374329099431634,
+        "regret_sign_flip_rate": 0.25
+      },
+      "raise_0.5pot": {
+        "count": 8,
+        "q_target_mean": 0.11913728012586944,
+        "q_prediction_mean": -0.2570242751389742,
+        "q_bias_mean": -0.37616155526484363,
+        "q_mae": 0.37616155526484363,
+        "regret_sign_flip_rate": 0.375
+      },
+      "raise_1pot": {
+        "count": 8,
+        "q_target_mean": 0.08317510264168959,
+        "q_prediction_mean": -0.292177215218544,
+        "q_bias_mean": -0.3753523178602336,
+        "q_mae": 0.3753523178602336,
+        "regret_sign_flip_rate": 0.875
+      }
+    },
+    "all_in_minus_half_pot_q_bias": -0.9981675441667903
+  },
+  "states": [
+    {
+      "state_index": 0,
+      "state": {
+        "stage": "Stage.Turn",
+        "current_player": 0,
+        "pot": 8.0,
+        "min_bet": 0.0,
+        "hero_hand": [
+          "<builtins.Card object at 0x000001479F1A3010>",
+          "<builtins.Card object at 0x000001479F1A2EF0>"
+        ],
+        "public_cards": [
+          "<builtins.Card object at 0x000001479F1A3010>",
+          "<builtins.Card object at 0x000001479F1A2FB0>",
+          "<builtins.Card object at 0x000001479F1A3070>",
+          "<builtins.Card object at 0x000001479F1A2F50>"
+        ],
+        "stake": 196.0,
+        "bet_chips": 0.0
+      },
+      "target_v_mean": 0.996950626373291,
+      "target_v_std": 0.0,
+      "predicted_v": -0.20242145657539368,
+      "actions": {
+        "raise_0.5pot": {
+          "state_index": 0,
+          "action_label": "raise_0.5pot",
+          "target_q": -0.03999999910593033,
+          "predicted_q": -0.2179686725139618,
+          "target_regret": -1.0369505882263184,
+          "predicted_regret": -0.015547215938568115,
+          "target_q_std": 0.0,
+          "target_regret_std": 0.0
+        },
+        "raise_1pot": {
+          "state_index": 0,
+          "action_label": "raise_1pot",
+          "target_q": -0.05999999865889549,
+          "predicted_q": -0.20212212204933167,
+          "target_regret": -1.056950569152832,
+          "predicted_regret": 0.0002993345260620117,
+          "target_q_std": 0.0,
+          "target_regret_std": 0.0
+        },
+        "all_in": {
+          "state_index": 0,
+          "action_label": "all_in",
+          "target_q": 1.0,
+          "predicted_q": -0.09867030382156372,
+          "target_regret": 0.003049392718821764,
+          "predicted_regret": 0.10375115275382996,
+          "target_q_std": 0.0,
+          "target_regret_std": 0.0
+        }
+      },
+      "all_in_trace": {
+        "summary": {
+          "samples": 32,
+          "opponent_response_counts": {
+            "call": 32
+          },
+          "terminal_reward_mean": 200.0,
+          "terminal_reward_std": 0.0
+        },
+        "samples": [
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "state_index": 1,
+      "state": {
+        "stage": "Stage.Turn",
+        "current_player": 0,
+        "pot": 12.0,
+        "min_bet": 0.0,
+        "hero_hand": [
+          "<builtins.Card object at 0x000001479F1A2CB0>",
+          "<builtins.Card object at 0x000001479F1A2490>"
+        ],
+        "public_cards": [
+          "<builtins.Card object at 0x000001479F1A2CB0>",
+          "<builtins.Card object at 0x000001479F1A25D0>",
+          "<builtins.Card object at 0x000001479F1A24B0>",
+          "<builtins.Card object at 0x000001479F1A2AB0>"
+        ],
+        "stake": 194.0,
+        "bet_chips": 0.0
+      },
+      "target_v_mean": 0.9179015159606934,
+      "target_v_std": 0.0,
+      "predicted_v": -0.20872220396995544,
+      "actions": {
+        "raise_0.5pot": {
+          "state_index": 1,
+          "action_label": "raise_0.5pot",
+          "target_q": -0.05999999865889549,
+          "predicted_q": -0.2193126678466797,
+          "target_regret": -0.9779015183448792,
+          "predicted_regret": -0.010590463876724243,
+          "target_q_std": 0.0,
+          "target_regret_std": 0.0
+        },
+        "raise_1pot": {
+          "state_index": 1,
+          "action_label": "raise_1pot",
+          "target_q": -0.09000000357627869,
+          "predicted_q": -0.199724942445755,
+          "target_regret": -1.0079015493392944,
+          "predicted_regret": 0.00899726152420044,
+          "target_q_std": 0.0,
+          "target_regret_std": 0.0
+        },
+        "all_in": {
+          "state_index": 1,
+          "action_label": "all_in",
+          "target_q": 1.0,
+          "predicted_q": -0.09826504439115524,
+          "target_regret": 0.08209846168756485,
+          "predicted_regret": 0.1104571595788002,
+          "target_q_std": 0.0,
+          "target_regret_std": 0.0
+        }
+      },
+      "all_in_trace": {
+        "summary": {
+          "samples": 32,
+          "opponent_response_counts": {
+            "call": 32
+          },
+          "terminal_reward_mean": 200.0,
+          "terminal_reward_std": 0.0
+        },
+        "samples": [
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "state_index": 2,
+      "state": {
+        "stage": "Stage.Flop",
+        "current_player": 0,
+        "pot": 4.0,
+        "min_bet": 0.0,
+        "hero_hand": [
+          "<builtins.Card object at 0x000001479F1A2CB0>",
+          "<builtins.Card object at 0x000001479F1A1910>"
+        ],
+        "public_cards": [
+          "<builtins.Card object at 0x000001479F1A2CB0>",
+          "<builtins.Card object at 0x000001479F1A19F0>",
+          "<builtins.Card object at 0x000001479F1A1A90>"
+        ],
+        "stake": 198.0,
+        "bet_chips": 0.0
+      },
+      "target_v_mean": 0.8494351524859667,
+      "target_v_std": 0.09387106721667668,
+      "predicted_v": -0.17792534828186035,
+      "actions": {
+        "raise_0.5pot": {
+          "state_index": 2,
+          "action_label": "raise_0.5pot",
+          "target_q": 0.996950626373291,
+          "predicted_q": -0.15592919290065765,
+          "target_regret": 0.14751546380284708,
+          "predicted_regret": 0.021996155381202698,
+          "target_q_std": 0.0,
+          "target_regret_std": 0.09387108333782798
+        },
+        "raise_1pot": {
+          "state_index": 2,
+          "action_label": "raise_1pot",
+          "target_q": 0.9179015159606934,
+          "predicted_q": -0.21630847454071045,
+          "target_regret": 0.0684663956053555,
+          "predicted_regret": -0.0383831262588501,
+          "target_q_std": 0.0,
+          "target_regret_std": 0.09387108731577441
+        },
+        "all_in": {
+          "state_index": 2,
+          "action_label": "all_in",
+          "target_q": 1.0,
+          "predicted_q": -0.09383883327245712,
+          "target_regret": 0.1505648535257933,
+          "predicted_regret": 0.08408651500940323,
+          "target_q_std": 0.0,
+          "target_regret_std": 0.09387108142736687
+        }
+      },
+      "all_in_trace": {
+        "summary": {
+          "samples": 32,
+          "opponent_response_counts": {
+            "call": 32
+          },
+          "terminal_reward_mean": 200.0,
+          "terminal_reward_std": 0.0
+        },
+        "samples": [
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "state_index": 3,
+      "state": {
+        "stage": "Stage.Turn",
+        "current_player": 0,
+        "pot": 16.0,
+        "min_bet": 0.0,
+        "hero_hand": [
+          "<builtins.Card object at 0x000001479F1A2CB0>",
+          "<builtins.Card object at 0x000001479F1A0B30>"
+        ],
+        "public_cards": [
+          "<builtins.Card object at 0x000001479F1A2CB0>",
+          "<builtins.Card object at 0x000001479F1A11D0>",
+          "<builtins.Card object at 0x000001479F1A16D0>",
+          "<builtins.Card object at 0x000001479F1A1530>"
+        ],
+        "stake": 192.0,
+        "bet_chips": 0.0
+      },
+      "target_v_mean": 0.33587315678596497,
+      "target_v_std": 0.0,
+      "predicted_v": -0.426563024520874,
+      "actions": {
+        "raise_0.5pot": {
+          "state_index": 3,
+          "action_label": "raise_0.5pot",
+          "target_q": -0.07999999821186066,
+          "predicted_q": -0.31274279952049255,
+          "target_regret": -0.41587314009666443,
+          "predicted_regret": 0.11382022500038147,
+          "target_q_std": 0.0,
+          "target_regret_std": 0.0
+        },
+        "raise_1pot": {
+          "state_index": 3,
+          "action_label": "raise_1pot",
+          "target_q": -0.11999999731779099,
+          "predicted_q": -0.28785040974617004,
+          "target_regret": -0.45587313175201416,
+          "predicted_regret": 0.13871261477470398,
+          "target_q_std": 0.0,
+          "target_regret_std": 0.0
+        },
+        "all_in": {
+          "state_index": 3,
+          "action_label": "all_in",
+          "target_q": 1.0,
+          "predicted_q": -0.24682021141052246,
+          "target_regret": 0.6641268730163574,
+          "predicted_regret": 0.17974281311035156,
+          "target_q_std": 0.0,
+          "target_regret_std": 0.0
+        }
+      },
+      "all_in_trace": {
+        "summary": {
+          "samples": 32,
+          "opponent_response_counts": {
+            "call": 32
+          },
+          "terminal_reward_mean": 200.0,
+          "terminal_reward_std": 0.0
+        },
+        "samples": [
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "state_index": 4,
+      "state": {
+        "stage": "Stage.Turn",
+        "current_player": 0,
+        "pot": 24.0,
+        "min_bet": 0.0,
+        "hero_hand": [
+          "<builtins.Card object at 0x000001479F1A1170>",
+          "<builtins.Card object at 0x000001479F1A07D0>"
+        ],
+        "public_cards": [
+          "<builtins.Card object at 0x000001479F1A1170>",
+          "<builtins.Card object at 0x000001479F1A0870>",
+          "<builtins.Card object at 0x000001479F1A0B50>",
+          "<builtins.Card object at 0x000001479F1A0770>"
+        ],
+        "stake": 188.0,
+        "bet_chips": 0.0
+      },
+      "target_v_mean": 0.31514132022857666,
+      "target_v_std": 0.0,
+      "predicted_v": -0.4242318570613861,
+      "actions": {
+        "raise_0.5pot": {
+          "state_index": 4,
+          "action_label": "raise_0.5pot",
+          "target_q": -0.11999999731779099,
+          "predicted_q": -0.3083833158016205,
+          "target_regret": -0.43514129519462585,
+          "predicted_regret": 0.11584854125976562,
+          "target_q_std": 0.0,
+          "target_regret_std": 0.0
+        },
+        "raise_1pot": {
+          "state_index": 4,
+          "action_label": "raise_1pot",
+          "target_q": -0.18000000715255737,
+          "predicted_q": -0.28241387009620667,
+          "target_regret": -0.49514129757881165,
+          "predicted_regret": 0.14181798696517944,
+          "target_q_std": 0.0,
+          "target_regret_std": 0.0
+        },
+        "all_in": {
+          "state_index": 4,
+          "action_label": "all_in",
+          "target_q": 1.0,
+          "predicted_q": -0.23568770289421082,
+          "target_regret": 0.6848586797714233,
+          "predicted_regret": 0.1885441541671753,
+          "target_q_std": 0.0,
+          "target_regret_std": 0.0
+        }
+      },
+      "all_in_trace": {
+        "summary": {
+          "samples": 32,
+          "opponent_response_counts": {
+            "call": 32
+          },
+          "terminal_reward_mean": 200.0,
+          "terminal_reward_std": 0.0
+        },
+        "samples": [
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "state_index": 5,
+      "state": {
+        "stage": "Stage.Flop",
+        "current_player": 0,
+        "pot": 8.0,
+        "min_bet": 0.0,
+        "hero_hand": [
+          "<builtins.Card object at 0x000001479F1A0D90>",
+          "<builtins.Card object at 0x000001479F1A00F0>"
+        ],
+        "public_cards": [
+          "<builtins.Card object at 0x000001479F1A0D90>",
+          "<builtins.Card object at 0x000001479F1A0890>",
+          "<builtins.Card object at 0x000001479F18FFD0>"
+        ],
+        "stake": 196.0,
+        "bet_chips": 0.0
+      },
+      "target_v_mean": 0.5203675916418433,
+      "target_v_std": 0.11580832765884046,
+      "predicted_v": -0.4473240077495575,
+      "actions": {
+        "raise_0.5pot": {
+          "state_index": 5,
+          "action_label": "raise_0.5pot",
+          "target_q": 0.25365090393461287,
+          "predicted_q": -0.30873727798461914,
+          "target_regret": -0.26671669364441186,
+          "predicted_regret": 0.13858672976493835,
+          "target_q_std": 0.1553854523429636,
+          "target_regret_std": 0.14661810354676227
+        },
+        "raise_1pot": {
+          "state_index": 5,
+          "action_label": "raise_1pot",
+          "target_q": 0.20963282429147512,
+          "predicted_q": -0.33578240871429443,
+          "target_regret": -0.31073477026075125,
+          "predicted_regret": 0.11154159903526306,
+          "target_q_std": 0.16866699026415452,
+          "target_regret_std": 0.19309596373538723
+        },
+        "all_in": {
+          "state_index": 5,
+          "action_label": "all_in",
+          "target_q": 1.0,
+          "predicted_q": -0.2767963707447052,
+          "target_regret": 0.4796323962509632,
+          "predicted_regret": 0.1705276370048523,
+          "target_q_std": 0.0,
+          "target_regret_std": 0.11580831617182288
+        }
+      },
+      "all_in_trace": {
+        "summary": {
+          "samples": 32,
+          "opponent_response_counts": {
+            "call": 32
+          },
+          "terminal_reward_mean": 200.0,
+          "terminal_reward_std": 0.0
+        },
+        "samples": [
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "state_index": 6,
+      "state": {
+        "stage": "Stage.River",
+        "current_player": 0,
+        "pot": 4.0,
+        "min_bet": 0.0,
+        "hero_hand": [
+          "<builtins.Card object at 0x000001479F1A0110>",
+          "<builtins.Card object at 0x000001479F1A0250>"
+        ],
+        "public_cards": [
+          "<builtins.Card object at 0x000001479F1A0250>",
+          "<builtins.Card object at 0x000001479F1A0110>",
+          "<builtins.Card object at 0x000001479F18FC10>",
+          "<builtins.Card object at 0x000001479F18FBF0>",
+          "<builtins.Card object at 0x000001479F18FD10>"
+        ],
+        "stake": 198.0,
+        "bet_chips": 0.0
+      },
+      "target_v_mean": -0.0007048149273032323,
+      "target_v_std": 0.007946404280380267,
+      "predicted_v": -0.44910261034965515,
+      "actions": {
+        "raise_0.5pot": {
+          "state_index": 6,
+          "action_label": "raise_0.5pot",
+          "target_q": 0.009052385343238711,
+          "predicted_q": -0.28969821333885193,
+          "target_regret": 0.009757199964951724,
+          "predicted_regret": 0.15940439701080322,
+          "target_q_std": 0.01817673114275471,
+          "target_regret_std": 0.01125316634773438
+        },
+        "raise_1pot": {
+          "state_index": 6,
+          "action_label": "raise_1pot",
+          "target_q": 0.008491487125866115,
+          "predicted_q": -0.4030414819717407,
+          "target_regret": 0.009196302096825093,
+          "predicted_regret": 0.04606112837791443,
+          "target_q_std": 0.027868765020386144,
+          "target_regret_std": 0.024827853179923715
+        },
+        "all_in": {
+          "state_index": 6,
+          "action_label": "all_in",
+          "target_q": 1.0,
+          "predicted_q": -0.8064893484115601,
+          "target_regret": 1.0007048193365335,
+          "predicted_regret": -0.3573867380619049,
+          "target_q_std": 0.0,
+          "target_regret_std": 0.00794639469710585
+        }
+      },
+      "all_in_trace": {
+        "summary": {
+          "samples": 32,
+          "opponent_response_counts": {
+            "call": 32
+          },
+          "terminal_reward_mean": 200.0,
+          "terminal_reward_std": 0.0
+        },
+        "samples": [
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "state_index": 7,
+      "state": {
+        "stage": "Stage.Turn",
+        "current_player": 0,
+        "pot": 4.0,
+        "min_bet": 0.0,
+        "hero_hand": [
+          "<builtins.Card object at 0x000001479F1A0250>",
+          "<builtins.Card object at 0x000001479F1A0110>"
+        ],
+        "public_cards": [
+          "<builtins.Card object at 0x000001479F1A0250>",
+          "<builtins.Card object at 0x000001479F18F490>",
+          "<builtins.Card object at 0x000001479F18F590>",
+          "<builtins.Card object at 0x000001479F18F570>"
+        ],
+        "stake": 198.0,
+        "bet_chips": 0.0
+      },
+      "target_v_mean": -0.007468077415069274,
+      "target_v_std": 0.007741434908681468,
+      "predicted_v": -0.4877850413322449,
+      "actions": {
+        "raise_0.5pot": {
+          "state_index": 7,
+          "action_label": "raise_0.5pot",
+          "target_q": -0.00655568134970963,
+          "predicted_q": -0.24342206120491028,
+          "target_regret": 0.0009123956406256184,
+          "predicted_regret": 0.2443629801273346,
+          "target_q_std": 0.01865646577912146,
+          "target_regret_std": 0.012260287322003788
+        },
+        "raise_1pot": {
+          "state_index": 7,
+          "action_label": "raise_1pot",
+          "target_q": -0.020624999538995326,
+          "predicted_q": -0.41017401218414307,
+          "target_regret": -0.013156922912457958,
+          "predicted_regret": 0.0776110291481018,
+          "target_q_std": 0.02178553083547215,
+          "target_regret_std": 0.021515209848444888
+        },
+        "all_in": {
+          "state_index": 7,
+          "action_label": "all_in",
+          "target_q": 1.0,
+          "predicted_q": -1.138064980506897,
+          "target_regret": 1.007468082010746,
+          "predicted_regret": -0.6502799391746521,
+          "target_q_std": 0.0,
+          "target_regret_std": 0.007741429991436614
+        }
+      },
+      "all_in_trace": {
+        "summary": {
+          "samples": 32,
+          "opponent_response_counts": {
+            "call": 32
+          },
+          "terminal_reward_mean": 200.0,
+          "terminal_reward_std": 0.0
+        },
+        "samples": [
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          },
+          {
+            "opponent_response": "call",
+            "terminal_reward": 200.0,
+            "actions": [
+              {
+                "actor": 0,
+                "action": "all_in"
+              },
+              {
+                "actor": 1,
+                "action": "call"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
