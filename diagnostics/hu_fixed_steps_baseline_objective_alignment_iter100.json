@@ -1,0 +1,166 @@
+{
+  "schema_version": 1,
+  "read_only": true,
+  "checkpoint": "models\\hu_fixed_steps_baseline\\run_20260927_001757_873074e7\\hu_checkpoint_final.pt",
+  "checkpoint_iteration": 100,
+  "objective_scope": "historical optimum for samples retained in checkpoint replay reservoir",
+  "loss_contract": {
+    "loss_function": "mse",
+    "iteration_weight_mode": "batch_mean_1",
+    "batch_size": 256,
+    "batch_mean_1_mc_batches": 4096
+  },
+  "grouping": "player plus exact encoded state; action targets condition on that action being legal",
+  "players": {
+    "P0": {
+      "replay_samples": 59281,
+      "unique_exact_encodings": 51922,
+      "encodings_with_multiple_legal_masks": 0,
+      "group_size_thresholds": {
+        "2": {
+          "groups": 2076,
+          "replay_samples": 9435,
+          "groups_with_legal_all_in": 1223,
+          "v_mae_paper_weighted": 0.21874645316726382,
+          "v_mae_batch_mean_1_effective": 0.22202343847584874,
+          "regret_mae_paper_weighted": 0.20565357082044639,
+          "regret_mae_batch_mean_1_effective": 0.2078063052850322,
+          "rm_policy_l1": 0.9941342287068352,
+          "action_within_iteration_variance": 0.0029630712244417675,
+          "action_between_iteration_variance": 0.1342016195563214,
+          "paper_vs_batch_mean_1_target_mae": 0.02859968074133819,
+          "all_in_margin_flips": {
+            "historical_negative_predicted_positive": 1,
+            "historical_positive_predicted_negative": 41
+          }
+        },
+        "5": {
+          "groups": 633,
+          "replay_samples": 5523,
+          "groups_with_legal_all_in": 377,
+          "v_mae_paper_weighted": 0.14261475356193012,
+          "v_mae_batch_mean_1_effective": 0.1452367687582651,
+          "regret_mae_paper_weighted": 0.13611839752021002,
+          "regret_mae_batch_mean_1_effective": 0.13748285002318533,
+          "rm_policy_l1": 0.9609820032563624,
+          "action_within_iteration_variance": 0.006241114607644653,
+          "action_between_iteration_variance": 0.16590048701680443,
+          "paper_vs_batch_mean_1_target_mae": 0.026195886669658646,
+          "all_in_margin_flips": {
+            "historical_negative_predicted_positive": 0,
+            "historical_positive_predicted_negative": 10
+          }
+        },
+        "10": {
+          "groups": 199,
+          "replay_samples": 2862,
+          "groups_with_legal_all_in": 194,
+          "v_mae_paper_weighted": 0.08688605545823717,
+          "v_mae_batch_mean_1_effective": 0.08811501509674768,
+          "regret_mae_paper_weighted": 0.08543603564824273,
+          "regret_mae_batch_mean_1_effective": 0.08655211362475555,
+          "rm_policy_l1": 1.0624114191821619,
+          "action_within_iteration_variance": 0.008822580891256912,
+          "action_between_iteration_variance": 0.13006634292959987,
+          "paper_vs_batch_mean_1_target_mae": 0.019007624014801845,
+          "all_in_margin_flips": {
+            "historical_negative_predicted_positive": 0,
+            "historical_positive_predicted_negative": 3
+          }
+        },
+        "20": {
+          "groups": 13,
+          "replay_samples": 281,
+          "groups_with_legal_all_in": 13,
+          "v_mae_paper_weighted": 0.05446722821152408,
+          "v_mae_batch_mean_1_effective": 0.061868461115372794,
+          "regret_mae_paper_weighted": 0.07256273966904073,
+          "regret_mae_batch_mean_1_effective": 0.0717987331340356,
+          "rm_policy_l1": 1.032808422201363,
+          "action_within_iteration_variance": 0.020766273958087948,
+          "action_between_iteration_variance": 0.11479534576524922,
+          "paper_vs_batch_mean_1_target_mae": 0.015396081991839063,
+          "all_in_margin_flips": {
+            "historical_negative_predicted_positive": 0,
+            "historical_positive_predicted_negative": 1
+          }
+        }
+      }
+    },
+    "P1": {
+      "replay_samples": 55564,
+      "unique_exact_encodings": 48003,
+      "encodings_with_multiple_legal_masks": 0,
+      "group_size_thresholds": {
+        "2": {
+          "groups": 2246,
+          "replay_samples": 9807,
+          "groups_with_legal_all_in": 1341,
+          "v_mae_paper_weighted": 0.22268999271587,
+          "v_mae_batch_mean_1_effective": 0.22568999370304124,
+          "regret_mae_paper_weighted": 0.20776793067875227,
+          "regret_mae_batch_mean_1_effective": 0.2096658781204512,
+          "rm_policy_l1": 1.0240516368661612,
+          "action_within_iteration_variance": 0.00417393129278886,
+          "action_between_iteration_variance": 0.1312521889555169,
+          "paper_vs_batch_mean_1_target_mae": 0.027018836280970092,
+          "all_in_margin_flips": {
+            "historical_negative_predicted_positive": 17,
+            "historical_positive_predicted_negative": 39
+          }
+        },
+        "5": {
+          "groups": 634,
+          "replay_samples": 5517,
+          "groups_with_legal_all_in": 381,
+          "v_mae_paper_weighted": 0.14422537656481463,
+          "v_mae_batch_mean_1_effective": 0.1461437989393322,
+          "regret_mae_paper_weighted": 0.13112234463807682,
+          "regret_mae_batch_mean_1_effective": 0.13383072288523157,
+          "rm_policy_l1": 0.9967327225513807,
+          "action_within_iteration_variance": 0.008385474210064532,
+          "action_between_iteration_variance": 0.15321841920152093,
+          "paper_vs_batch_mean_1_target_mae": 0.02399595366195604,
+          "all_in_margin_flips": {
+            "historical_negative_predicted_positive": 1,
+            "historical_positive_predicted_negative": 2
+          }
+        },
+        "10": {
+          "groups": 209,
+          "replay_samples": 2926,
+          "groups_with_legal_all_in": 203,
+          "v_mae_paper_weighted": 0.07122566879789563,
+          "v_mae_batch_mean_1_effective": 0.07548826503194704,
+          "regret_mae_paper_weighted": 0.07598471662257573,
+          "regret_mae_batch_mean_1_effective": 0.07926495731552673,
+          "rm_policy_l1": 1.0649398931249245,
+          "action_within_iteration_variance": 0.007869999678202375,
+          "action_between_iteration_variance": 0.11417743653894277,
+          "paper_vs_batch_mean_1_target_mae": 0.017301416387183334,
+          "all_in_margin_flips": {
+            "historical_negative_predicted_positive": 0,
+            "historical_positive_predicted_negative": 1
+          }
+        },
+        "20": {
+          "groups": 13,
+          "replay_samples": 272,
+          "groups_with_legal_all_in": 13,
+          "v_mae_paper_weighted": 0.049252161281413395,
+          "v_mae_batch_mean_1_effective": 0.05062212209572115,
+          "regret_mae_paper_weighted": 0.05076911457445399,
+          "regret_mae_batch_mean_1_effective": 0.05189362653212248,
+          "rm_policy_l1": 0.9145012763502945,
+          "action_within_iteration_variance": 0.01855147566943565,
+          "action_between_iteration_variance": 0.10686167898649535,
+          "paper_vs_batch_mean_1_target_mae": 0.013443517986074014,
+          "all_in_margin_flips": {
+            "historical_negative_predicted_positive": 0,
+            "historical_positive_predicted_negative": 0
+          }
+        }
+      }
+    }
+  }
+}
