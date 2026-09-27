@@ -90,6 +90,13 @@ def test_hu_d2_checkpoint_serializes_two_dueling_legs_without_target_networks(d2
     assert all({"action_values", "state_values", "regrets"} <= set(leg["buffer"]) for leg in checkpoint["advantage_legs"])
 
 
+def test_hu_d2_checkpoint_without_old_provenance_config_remains_loadable(d2_hu_agent):
+    checkpoint = train_mod._build_hu_checkpoint(d2_hu_agent, seed=17)
+    checkpoint["config"].pop("d2cfr_replay_provenance_audit")
+
+    assert train_mod._validate_hu_checkpoint(d2_hu_agent, checkpoint) is checkpoint
+
+
 def test_hu_d2_checkpoint_round_trip_restores_two_legs(tmp_path, d2_hu_agent):
     for optimizer in (*d2_hu_agent.hu_advantage_optimizers, d2_hu_agent.strategy_optimizer):
         _step_optimizer(optimizer)

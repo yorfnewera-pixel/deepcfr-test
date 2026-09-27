@@ -43,6 +43,7 @@ from src.core.model import (
     MONOLITHIC_ARCHITECTURE,
     PokerNetwork,
 )
+from src.core.replay_provenance import infoset_fingerprint
 from src.core.traversal_errors import TraversalFailure
 from src.utils.config import (
     cfg_get,
@@ -78,6 +79,7 @@ _HU_RUNTIME_CONFIG_ALLOWLIST = frozenset({
     "training_torch_threads",
     "training_preload_to_device",
     "traversal_single_thread",
+    "d2cfr_replay_provenance_audit",
 })
 _LOGGER = logging.getLogger(__name__)
 
@@ -874,7 +876,7 @@ def _advantage_buffer_payload(buffer: AdvantageBuffer) -> dict[str, Any]:
 
 def _d2cfr_advantage_buffer_payload(buffer: DuelingAdvantageBuffer) -> dict[str, Any]:
     count = len(buffer)
-    return {
+    payload = {
         "buffer_type": "dueling_advantage",
         "capacity": int(buffer.capacity),
         "state_dim": int(buffer._states.shape[1]),
@@ -889,6 +891,12 @@ def _d2cfr_advantage_buffer_payload(buffer: DuelingAdvantageBuffer) -> dict[str,
         "masks": torch.from_numpy(buffer._masks[:count].copy()),
         "iterations": torch.from_numpy(buffer._iterations[:count].copy()),
     }
+    if buffer.provenance_enabled:
+        provenances = buffer.provenances()
+        assert provenances is not None
+        payload["provenance_enabled"] = True
+        payload["provenances"] = torch.from_numpy(provenances)
+    return payload
 
 
 def _strategy_buffer_payload(buffer: HuStrategyBuffer) -> dict[str, Any]:
@@ -974,12 +982,23 @@ def _restore_d2cfr_advantage_buffer(buffer: DuelingAdvantageBuffer, payload: dic
         raise ValueError("HU checkpoint имеет повреждённый D2CFR advantage-буфер")
     if not np.all(np.isin(arrays["masks"], (0.0, 1.0))):
         raise ValueError("HU checkpoint имеет некорректную mask D2CFR advantage-буфера")
+    checkpoint_provenance_enabled = bool(payload.get("provenance_enabled", False))
+    if checkpoint_provenance_enabled != buffer.provenance_enabled:
+        raise ValueError("HU checkpoint несовместим с режимом D2CFR replay provenance audit")
+    provenances = None
+    if checkpoint_provenance_enabled:
+        provenances = _checkpoint_array(payload, "provenances")
+        if provenances.shape != (count, 16) or provenances.dtype != np.uint8:
+            raise ValueError("HU checkpoint имеет повреждённый D2CFR replay provenance")
     buffer._states[:count] = arrays["states"]
     buffer._action_values[:count] = arrays["action_values"]
     buffer._state_values[:count] = arrays["state_values"]
     buffer._regrets[:count] = arrays["regrets"]
     buffer._masks[:count] = arrays["masks"]
     buffer._iterations[:count] = arrays["iterations"]
+    if provenances is not None:
+        assert buffer._provenances is not None
+        buffer._provenances[:count] = provenances
     buffer._total_seen = total_seen
     buffer._size = count
     buffer.eviction_count = int(payload.get("eviction_count", 0))
@@ -1065,6 +1084,7 @@ def _hu_trajectory_configuration(agent: DeepCFRAgent) -> dict[str, Any]:
             "d2cfr_huber_delta": float(agent.d2cfr_huber_delta),
             "d2cfr_reinitialize_each_iteration": bool(agent.d2cfr_reinitialize_each_iteration),
             "d2cfr_iteration_weight_mode": str(agent.d2cfr_iteration_weight_mode),
+            "d2cfr_replay_provenance_audit": bool(agent.d2cfr_replay_provenance_audit),
         })
     else:
         configuration.update({
@@ -1212,7 +1232,8 @@ def _validate_hu_checkpoint(agent: DeepCFRAgent, checkpoint: object) -> dict[str
             + ", ".join(sorted(unsupported_config_keys))
         )
     for key, expected_value in expected_config.items():
-        if config.get(key) != expected_value:
+        actual_value = config.get(key, False) if key == "d2cfr_replay_provenance_audit" else config.get(key)
+        if actual_value != expected_value:
             raise ValueError(f"HU checkpoint имеет несовместимую конфигурацию: {key}")
     if int(agent.num_players) != 2 or int(agent.num_trainable_players) != 2:
         raise ValueError("HU resume требует ровно двух игроков и двух trainable players")
@@ -1706,6 +1727,9 @@ def _create_hu_current_policy_coordinator(
 ) -> HuCurrentPolicySelfPlayCoordinator[pkrs.State]:
     """Создаёт изолированные P0/P1 advantage-ноги для HU режима."""
     advantage_nets = [agent.advantage_net, deepcopy(agent.advantage_net).to(agent.device)]
+    if agent.d2cfr_enabled and agent.d2cfr_replay_provenance_audit:
+        assert isinstance(agent.advantage_buffer, DuelingAdvantageBuffer)
+        agent.advantage_buffer.enable_provenance_audit()
     advantage_target_nets = None
     if not agent.d2cfr_enabled:
         assert agent.advantage_target_net is not None
@@ -1731,6 +1755,7 @@ def _create_hu_current_policy_coordinator(
             DuelingAdvantageBuffer(
                 int(cfg_get("advantage_memory_size", 300000)),
                 agent.input_size,
+                provenance_enabled=agent.d2cfr_replay_provenance_audit,
             )
             if agent.d2cfr_enabled
             else AdvantageBuffer(
@@ -1859,6 +1884,7 @@ def _create_hu_current_policy_coordinator(
                 state,
                 np.flatnonzero(mask).astype(int).tolist(),
             ),
+            infoset_fingerprint=infoset_fingerprint if agent.d2cfr_replay_provenance_audit else None,
         ),
         train_advantage=train_advantage,
         train_strategy=train_strategy,

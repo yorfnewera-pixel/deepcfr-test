@@ -1,0 +1,132 @@
+У тебя есть доступ к репозиторию deepcfr-test. Нужен независимый технический аудит текущего состояния расследования HU D2CFR all-in-heavy/collapse policy.
+
+Не предлагай сразу новый 12-часовой run. Сначала прочитай код и указанные отчёты, проверь мои утверждения и скажи, какой ОДИН следующий эксперимент или кодовый аудит действительно разделит оставшиеся гипотезы. Если считаешь, что в наших интерпретациях есть ошибка — прямо поправь её.
+
+Цель расследования:
+
+Понять, происходит ли all-in-heavy policy потому, что traversal объективно стабильно считает all-in лучшим, либо потому что advantage NN неточно приближает Q/V/regret и regret matching усиливает ошибочный сигнал.
+
+Ключевые файлы для чтения:
+
+- config.yaml
+- src/core/deep_cfr.py
+- src/core/hu_self_play.py
+- src/core/buffers.py
+- src/training/train.py
+- src/core/replay_provenance.py
+- tools/d2cfr_allin_bias_probe.py
+- tools/d2cfr_replay_step_budget_probe.py
+- tools/*collision* и tools/*provenance*
+- diagnostics/hu_new_d2cfr_diagnostics_report_20260927.md
+- diagnostics/hu_fixed_steps_baseline_collision_iter100.json
+- diagnostics/hu_provenance_audit_iter100.json
+- diagnostics/hu_provenance_audit_es_noise_iter100.json
+- diagnostics/hu_provenance_audit_step_budget_iter100.json
+- diagnostics/hu_fixed_steps_baseline_allin_bias_iter100.json
+- diagnostics/hu_fixed_steps_3000_allin_bias_iter100.json
+
+Уже проверено по коду и экспериментам, но прошу тебя это перепроверить:
+
+1. Формулы target:
+
+    Q_target(I, a) = traversal value при принудительном действии a
+    V_target(I) = Σ pi(a|I) Q_target(I, a)
+    R_target(I, a) = Q_target(I, a) - V_target(I)
+
+   Сеть выдаёт Q_hat и V_hat, а её regret:
+
+    R_hat = Q_hat - V_hat
+
+   Policy строится regret matching по положительным R_hat.
+
+2. В D2CFR buffer сохраняются Q, V, R, но Q не является отдельным direct loss. Фактический objective, насколько мы поняли:
+
+    regret_loss(Q_hat - V_hat, R_target)
+    + 0.5 * value_loss(V_hat, V_target)
+
+   То есть это не три независимых Q/V/R supervised loss. Проверь это точно.
+
+3. Replay samples копируются в собственные NumPy-массивы buffer; гипотеза о mutable target references ранее не подтвердилась.
+
+4. Reservoir sampling выглядит обычным, а temporal preference добавляется через iteration weight; отдельного age-biased sampling, кажется, нет. Проверь, нет ли скрытого двойного recency weighting.
+
+5. Traversal P0 и P1 выполняются до обучения обеих advantage legs данной итерации. Проверь, действительно ли нет смешивания policy snapshot внутри одного target.
+
+6. Старые labels не обязаны быть «ошибочными»: historical reservoir и iteration weighting являются частью CFR/D2CFR идеи. Поэтому recent-window — не очевидный bugfix, а отдельный algorithmic variant.
+
+Что измерено:
+
+A. Fresh/frozen target диагностика старого checkpoint:
+
+- NN заметно расходится со свежими Q/V/R targets.
+- Ошибка all-in была выше, чем у half-pot и pot.
+- Sign flips all-in возникали не только при target regret около нуля.
+- Следовательно, нет доказательства «all-in законно всегда забирает высокий regret».
+
+B. Direct-fit на фиксированных mean targets:
+
+- На 64 frozen postflop states сеть почти идеально выучила усреднённые targets.
+- Поэтому базовая capacity/optimizer не выглядят принципиально неспособными представлять эти 64 state.
+- Но это не доказывает обобщение на широкую distribution и не исключает replay/non-stationarity.
+
+C. Target drift:
+
+- На одинаковых postflop states targets существенно меняются между policy snapshots.
+- К iteration 50 Q target MAE от iteration 0 был около 0.292, regret MAE около 0.176.
+- Это показывает non-stationarity targets, но само по себе не доказывает, что full historical replay неверен.
+
+D. Replay freshness / weights:
+
+- В offline fit recent labels часто давали чуть лучший fit на fresh frozen targets, но не на каждом seed.
+- Iteration weighting против uniform не выявил ясного победителя.
+- Поэтому пока нет основания менять algorithm только на основании этой проверки.
+
+E. Provenance и collision:
+
+- Provenance audit не обнаружил разных полных betting histories, которые в наблюдаемом replay попадали бы в один exact encoding. То есть structural encoder aliasing пока не подтверждён.
+- Но exact encoded-state collision audit нашёл много повторов одного encoding.
+- Внутри одной iteration там встречается заметный разброс V/R и группы с all-in sign disagreement; между iterations разброс гораздо больше.
+- Нужно аккуратно разделить: это sampling variance external-sampling, non-stationarity или всё же потеря информации encoder. Не считай это автоматически доказательством aliasing.
+
+F. Step budget:
+
+- Offline на том же replay увеличение advantage steps с 750 до 3000 улучшило holdout fit примерно на 9–13% по действиям.
+- Но полноценный controlled HU run с 3000 шагами не дал простого улучшения итоговой all-in диагностики.
+- Значит «750 шагов — единственная причина» не подтвердилось.
+
+G. Последние два all-in probe:
+
+Baseline, 750 advantage steps:
+- all-in Q MAE: 0.407
+- all-in target Q std: 0.020
+- all-in regret sign flips: 13/16
+- all-in mean target Q: -0.104
+- V abs error: 0.248
+- RM policy L1: 1.449
+
+Вариант, 3000 advantage steps:
+- all-in Q MAE: 0.549
+- all-in target Q std: 0.126
+- all-in regret sign flips: 9/16
+- V abs error: 0.389
+- RM policy L1: 1.427
+
+Это не строго попарное сравнение: разные checkpoint policy привели probe к разным postflop states. Интерпретировать можно только как «3000 steps не устранили проблему автоматически», но не как строгое доказательство ухудшения на одних и тех же states.
+
+Что мне нужно от тебя:
+
+1. Таблицу «гипотеза → что уже подтверждено/опровергнуто → чего не хватает».
+2. Проверку, есть ли реальное расхождение с D2CFR paper в objective, replay semantics, rectification/MC correction, update order или weighting. Отличай “не по статье” от “баг”.
+3. Скажи, какая из причин сейчас наиболее вероятна:
+   - target/replay non-stationarity;
+   - external-sampling target noise;
+   - representation/generalization;
+   - action abstraction/legal action menu, где all-in может стать единственным raise;
+   - реализационный баг/расхождение с paper.
+4. Выбери один следующий наиболее информативный шаг. Для него дай:
+   - какую конкретно гипотезу он различит;
+   - какие результаты означают каждый исход;
+   - можно ли выполнить его на существующих checkpoint/replay без нового обучения;
+   - меняет ли он CFR/D2CFR семантику;
+   - какие exact files/functions надо менять или анализировать.
+5. Не предлагай повторять уже сделанный collision/provenance/all-in/noise/step-budget audit под другим названием.

@@ -355,6 +355,9 @@ class DeepCFRAgent:
         self.d2cfr_iteration_weight_mode = str(
             cfg_get("d2cfr_iteration_weight_mode", "batch_mean_1")
         )
+        self.d2cfr_replay_provenance_audit = bool(
+            cfg_get("d2cfr_replay_provenance_audit", False)
+        )
         self.advantage_hidden_size = hidden_size
         self.advantage_lr = float(cfg_get("advantage_lr", 1e-4))
         self.advantage_weight_decay = float(cfg_get("advantage_weight_decay", 1e-5))
@@ -393,7 +396,11 @@ class DeepCFRAgent:
         advantage_memory_size = int(memory_size or cfg_get("advantage_memory_size", 300000))
         strategy_memory_size = int(cfg_get("strategy_memory_size", 300000))
         self.advantage_buffer = (
-            DuelingAdvantageBuffer(advantage_memory_size, self.input_size, NUM_ACTIONS)
+            DuelingAdvantageBuffer(
+                advantage_memory_size,
+                self.input_size,
+                NUM_ACTIONS,
+            )
             if self.d2cfr_enabled
             else AdvantageBuffer(advantage_memory_size, self.input_size, NUM_ACTIONS)
         )

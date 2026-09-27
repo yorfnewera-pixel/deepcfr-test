@@ -336,6 +336,8 @@ def _fit_d2cfr_arm(
         "initial_by_action": initial_by_action,
         "final": evaluate_prediction_snapshot(network, evaluation_batch),
         "final_by_action": _action_prediction_metrics(network, evaluation_batch),
+        "final_train": evaluate_prediction_snapshot(network, train_batch),
+        "final_train_by_action": _action_prediction_metrics(network, train_batch),
     }
 
 

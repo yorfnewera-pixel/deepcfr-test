@@ -1,0 +1,1993 @@
+{
+  "schema_version": 1,
+  "read_only": true,
+  "checkpoint": "models\\hu_provenance_audit\\run_20260927_065323_4912117c\\hu_checkpoint_final.pt",
+  "checkpoint_iteration": 100,
+  "split": {
+    "unit": "exact encoded state plus legal mask",
+    "holdout_fraction": 0.2,
+    "seed": 20260930
+  },
+  "training_contract": {
+    "batch_size": 256,
+    "short_steps": 750,
+    "long_steps": 3000,
+    "iteration_weight_mode": "batch_mean_1",
+    "state_value_loss_weight": 0.5,
+    "gradient_clip_norm": 1.0
+  },
+  "players": {
+    "P0": {
+      "replay_samples": 63385,
+      "train_samples": 50716,
+      "holdout_samples": 12669,
+      "unique_infosets": 55721,
+      "arms": {
+        "steps_750": {
+          "name": "steps_750",
+          "train_samples": 50716,
+          "source_iteration_minimum": 1.0,
+          "source_iteration_maximum": 100.0,
+          "weight_summary": {
+            "normalization": "per_minibatch_mean_1",
+            "batch_mean_minimum": 0.9999999403953552,
+            "batch_mean_maximum": 1.0000001192092896
+          },
+          "initial": {
+            "samples": 12669,
+            "legal_slots": 37806,
+            "q_abs_error_mean": 0.5054830189817754,
+            "q_abs_error_max": 1.0000001192092896,
+            "state_value_abs_error_mean": 0.5267137885093689,
+            "state_value_abs_error_max": 1.0000001192092896,
+            "regret_abs_error_mean": 0.32357083387061575,
+            "regret_abs_error_max": 1.9900000095367432,
+            "regret_mse": 0.26435500383377075,
+            "state_value_mse": 0.44084399938583374,
+            "eval_loss_mse": 0.4847770035266876,
+            "rm_policy_l1_mean": 0.7708851099014282,
+            "rm_policy_l1_max": 1.5,
+            "sign_margin": {
+              "abs_le_0.01": {
+                "legal_slots": 11661,
+                "sign_flips": 1060,
+                "sign_flip_rate": 0.09090129491467284,
+                "mean_abs_error": 0.0007764135684088689
+              },
+              "abs_0.01_0.1": {
+                "legal_slots": 6036,
+                "sign_flips": 3281,
+                "sign_flip_rate": 0.5435719019218025,
+                "mean_abs_error": 0.04666066406735369
+              },
+              "abs_gt_0.1": {
+                "legal_slots": 20109,
+                "sign_flips": 9595,
+                "sign_flip_rate": 0.4771495350340644,
+                "mean_abs_error": 0.5938744681330499
+              },
+              "overall": {
+                "legal_slots": 37806,
+                "sign_flips": 13936,
+                "sign_flip_rate": 0.36861873776649207,
+                "mean_abs_error": 0.32357083387061575
+              }
+            },
+            "target_regret_abs_mean": 0.32357083387061575,
+            "predicted_regret_abs_mean": 0.0,
+            "target_state_value_abs_mean": 0.5267137885093689,
+            "predicted_state_value_abs_mean": 0.0
+          },
+          "initial_by_action": {
+            "fold": {
+              "legal_slots": 9708,
+              "q_abs_error_mean": 0.21804951131343842,
+              "regret_abs_error_mean": 0.45820632576942444,
+              "regret_sign_flip_rate": 0.37051916122436523,
+              "sign_margin": {
+                "abs_le_0.01": {
+                  "legal_slots": 2598,
+                  "sign_flips": 149,
+                  "sign_flip_rate": 0.0573518090839107,
+                  "mean_abs_error": 0.0005988977430782656
+                },
+                "abs_0.01_0.1": {
+                  "legal_slots": 972,
+                  "sign_flips": 399,
+                  "sign_flip_rate": 0.4104938271604938,
+                  "mean_abs_error": 0.04951767470120402
+                },
+                "abs_gt_0.1": {
+                  "legal_slots": 6138,
+                  "sign_flips": 3049,
+                  "sign_flip_rate": 0.49674160964483544,
+                  "mean_abs_error": 0.7166145451490714
+                },
+                "overall": {
+                  "legal_slots": 9708,
+                  "sign_flips": 3597,
+                  "sign_flip_rate": 0.3705191594561187,
+                  "mean_abs_error": 0.458206283638494
+                }
+              }
+            },
+            "check": {
+              "legal_slots": 2961,
+              "q_abs_error_mean": 0.4653249979019165,
+              "regret_abs_error_mean": 0.24643264710903168,
+              "regret_sign_flip_rate": 0.43870311975479126,
+              "sign_margin": {
+                "abs_le_0.01": {
+                  "legal_slots": 887,
+                  "sign_flips": 140,
+                  "sign_flip_rate": 0.15783540022547915,
+                  "mean_abs_error": 0.0011609230933893628
+                },
+                "abs_0.01_0.1": {
+                  "legal_slots": 649,
+                  "sign_flips": 389,
+                  "sign_flip_rate": 0.5993836671802774,
+                  "mean_abs_error": 0.045409494996621905
+                },
+                "abs_gt_0.1": {
+                  "legal_slots": 1425,
+                  "sign_flips": 770,
+                  "sign_flip_rate": 0.5403508771929825,
+                  "mean_abs_error": 0.49065725226151313
+                },
+                "overall": {
+                  "legal_slots": 2961,
+                  "sign_flips": 1299,
+                  "sign_flip_rate": 0.4387031408308004,
+                  "mean_abs_error": 0.24643262807117527
+                }
+              }
+            },
+            "call": {
+              "legal_slots": 9708,
+              "q_abs_error_mean": 0.7405121326446533,
+              "regret_abs_error_mean": 0.33669164776802063,
+              "regret_sign_flip_rate": 0.3270498514175415,
+              "sign_margin": {
+                "abs_le_0.01": {
+                  "legal_slots": 3223,
+                  "sign_flips": 168,
+                  "sign_flip_rate": 0.052125349053676696,
+                  "mean_abs_error": 0.0007038622438038428
+                },
+                "abs_0.01_0.1": {
+                  "legal_slots": 1200,
+                  "sign_flips": 576,
+                  "sign_flip_rate": 0.48,
+                  "mean_abs_error": 0.05070488611857096
+                },
+                "abs_gt_0.1": {
+                  "legal_slots": 5285,
+                  "sign_flips": 2431,
+                  "sign_flip_rate": 0.4599810785241249,
+                  "mean_abs_error": 0.6065255994264428
+                },
+                "overall": {
+                  "legal_slots": 9708,
+                  "sign_flips": 3175,
+                  "sign_flip_rate": 0.32704985578903994,
+                  "mean_abs_error": 0.33669159979205293
+                }
+              }
+            },
+            "raise_0.5pot": {
+              "legal_slots": 2555,
+              "q_abs_error_mean": 0.4586913287639618,
+              "regret_abs_error_mean": 0.21719159185886383,
+              "regret_sign_flip_rate": 0.37025442719459534,
+              "sign_margin": {
+                "abs_le_0.01": {
+                  "legal_slots": 850,
+                  "sign_flips": 125,
+                  "sign_flip_rate": 0.14705882352941177,
+                  "mean_abs_error": 0.001183466350331026
+                },
+                "abs_0.01_0.1": {
+                  "legal_slots": 578,
+                  "sign_flips": 279,
+                  "sign_flip_rate": 0.4826989619377163,
+                  "mean_abs_error": 0.045214755312381734
+                },
+                "abs_gt_0.1": {
+                  "legal_slots": 1127,
+                  "sign_flips": 542,
+                  "sign_flip_rate": 0.48092280390417036,
+                  "mean_abs_error": 0.4683091604508651
+                },
+                "overall": {
+                  "legal_slots": 2555,
+                  "sign_flips": 946,
+                  "sign_flip_rate": 0.37025440313111546,
+                  "mean_abs_error": 0.21719158493609345
+                }
+              }
+            },
+            "raise_1pot": {
+              "legal_slots": 5626,
+              "q_abs_error_mean": 0.45407387614250183,
+              "regret_abs_error_mean": 0.23382017016410828,
+              "regret_sign_flip_rate": 0.38624241948127747,
+              "sign_margin": {
+                "abs_le_0.01": {
+                  "legal_slots": 1354,
+                  "sign_flips": 224,
+                  "sign_flip_rate": 0.1654357459379616,
+                  "mean_abs_error": 0.0011889052355835321
+                },
+                "abs_0.01_0.1": {
+                  "legal_slots": 1458,
+                  "sign_flips": 778,
+                  "sign_flip_rate": 0.53360768175583,
+                  "mean_abs_error": 0.04425166042416838
+                },
+                "abs_gt_0.1": {
+                  "legal_slots": 2814,
+                  "sign_flips": 1171,
+                  "sign_flip_rate": 0.4161336176261549,
+                  "mean_abs_error": 0.4439742814249067
+                },
+                "overall": {
+                  "legal_slots": 5626,
+                  "sign_flips": 2173,
+                  "sign_flip_rate": 0.38624244578741557,
+                  "mean_abs_error": 0.23382019411826788
+                }
+              }
+            },
+            "all_in": {
+              "legal_slots": 7248,
+              "q_abs_error_mean": 0.6484782099723816,
+              "regret_abs_error_mean": 0.26434406638145447,
+              "regret_sign_flip_rate": 0.378863126039505,
+              "sign_margin": {
+                "abs_le_0.01": {
+                  "legal_slots": 2749,
+                  "sign_flips": 254,
+                  "sign_flip_rate": 0.09239723535831211,
+                  "mean_abs_error": 0.0005761407947228058
+                },
+                "abs_0.01_0.1": {
+                  "legal_slots": 1179,
+                  "sign_flips": 860,
+                  "sign_flip_rate": 0.729431721798134,
+                  "mean_abs_error": 0.04456564569190157
+                },
+                "abs_gt_0.1": {
+                  "legal_slots": 3320,
+                  "sign_flips": 1632,
+                  "sign_flip_rate": 0.491566265060241,
+                  "mean_abs_error": 0.5607949130506401
+                },
+                "overall": {
+                  "legal_slots": 7248,
+                  "sign_flips": 2746,
+                  "sign_flip_rate": 0.37886313465783666,
+                  "mean_abs_error": 0.264344053289485
+                }
+              }
+            }
+          },
+          "final": {
+            "samples": 12669,
+            "legal_slots": 37806,
+            "q_abs_error_mean": 0.2732219670819447,
+            "q_abs_error_max": 2.150817394256592,
+            "state_value_abs_error_mean": 0.2898886799812317,
+            "state_value_abs_error_max": 2.0715882778167725,
+            "regret_abs_error_mean": 0.2606502812053642,
+            "regret_abs_error_max": 2.2877163887023926,
+            "regret_mse": 0.1541464626789093,
+            "state_value_mse": 0.16968779265880585,
+            "eval_loss_mse": 0.23899036645889282,
+            "rm_policy_l1_mean": 0.7907002568244934,
+            "rm_policy_l1_max": 2.000000238418579,
+            "sign_margin": {
+              "abs_le_0.01": {
+                "legal_slots": 11661,
+                "sign_flips": 5880,
+                "sign_flip_rate": 0.5042449189606381,
+                "mean_abs_error": 0.11572770194853571
+              },
+              "abs_0.01_0.1": {
+                "legal_slots": 6036,
+                "sign_flips": 2552,
+                "sign_flip_rate": 0.4227965540092777,
+                "mean_abs_error": 0.1029109967473803
+              },
+              "abs_gt_0.1": {
+                "legal_slots": 20109,
+                "sign_flips": 5259,
+                "sign_flip_rate": 0.26152469043711773,
+                "mean_abs_error": 0.39203703099358495
+              },
+              "overall": {
+                "legal_slots": 37806,
+                "sign_flips": 13691,
+                "sign_flip_rate": 0.36213828492831823,
+                "mean_abs_error": 0.2606502812053642
+              }
+            },
+            "target_regret_abs_mean": 0.32357083387061575,
+            "predicted_regret_abs_mean": 0.21308781798854678,
+            "target_state_value_abs_mean": 0.5267137885093689,
+            "predicted_state_value_abs_mean": 0.4293562173843384
+          },
+          "final_by_action": {
+            "fold": {
+              "legal_slots": 9708,
+              "q_abs_error_mean": 0.04464031755924225,
+              "regret_abs_error_mean": 0.27798759937286377,
+              "regret_sign_flip_rate": 0.2828595042228699,
+              "sign_margin": {
+                "abs_le_0.01": {
+                  "legal_slots": 2598,
+                  "sign_flips": 1485,
+                  "sign_flip_rate": 0.5715935334872979,
+                  "mean_abs_error": 0.15850766646669312
+                },
+                "abs_0.01_0.1": {
+                  "legal_slots": 972,
+                  "sign_flips": 293,
+                  "sign_flip_rate": 0.301440329218107,
+                  "mean_abs_error": 0.15594035019109279
+                },
+                "abs_gt_0.1": {
+                  "legal_slots": 6138,
+                  "sign_flips": 968,
+                  "sign_flip_rate": 0.15770609318996415,
+                  "mean_abs_error": 0.34788638972894265
+                },
+                "overall": {
+                  "legal_slots": 9708,
+                  "sign_flips": 2746,
+                  "sign_flip_rate": 0.28285949732179644,
+                  "mean_abs_error": 0.27798759922550986
+                }
+              }
+            },
+            "check": {
+              "legal_slots": 2961,
+              "q_abs_error_mean": 0.27538949251174927,
+              "regret_abs_error_mean": 0.25533241033554077,
+              "regret_sign_flip_rate": 0.37014520168304443,
+              "sign_margin": {
+                "abs_le_0.01": {
+                  "legal_slots": 887,
+                  "sign_flips": 369,
+                  "sign_flip_rate": 0.4160090191657272,
+                  "mean_abs_error": 0.11239338458726747
+                },
+                "abs_0.01_0.1": {
+                  "legal_slots": 649,
+                  "sign_flips": 281,
+                  "sign_flip_rate": 0.43297380585516176,
+                  "mean_abs_error": 0.0949981054649882
+                },
+                "abs_gt_0.1": {
+                  "legal_slots": 1425,
+                  "sign_flips": 446,
+                  "sign_flip_rate": 0.31298245614035086,
+                  "mean_abs_error": 0.4173281164336623
+                },
+                "overall": {
+                  "legal_slots": 2961,
+                  "sign_flips": 1096,
+                  "sign_flip_rate": 0.370145221209051,
+                  "mean_abs_error": 0.2553324237219267
+                }
+              }
+            },
+            "call": {
+              "legal_slots": 9708,
+              "q_abs_error_mean": 0.3592239022254944,
+              "regret_abs_error_mean": 0.27603355050086975,
+              "regret_sign_flip_rate": 0.3546559512615204,
+              "sign_margin": {
+                "abs_le_0.01": {
+                  "legal_slots": 3223,
+                  "sign_flips": 1607,
+                  "sign_flip_rate": 0.4986037852932051,
+                  "mean_abs_error": 0.13082301524201054
+                },
+                "abs_0.01_0.1": {
+                  "legal_slots": 1200,
+                  "sign_flips": 511,
+                  "sign_flip_rate": 0.42583333333333334,
+                  "mean_abs_error": 0.11564051310221354
+                },
+                "abs_gt_0.1": {
+                  "legal_slots": 5285,
+                  "sign_flips": 1325,
+                  "sign_flip_rate": 0.2507095553453169,
+                  "mean_abs_error": 0.4010070512062441
+                },
+                "overall": {
+                  "legal_slots": 9708,
+                  "sign_flips": 3443,
+                  "sign_flip_rate": 0.35465595385249277,
+                  "mean_abs_error": 0.27603351858647507
+                }
+              }
+            },
+            "raise_0.5pot": {
+              "legal_slots": 2555,
+              "q_abs_error_mean": 0.29348012804985046,
+              "regret_abs_error_mean": 0.23527146875858307,
+              "regret_sign_flip_rate": 0.4109589159488678,
+              "sign_margin": {
+                "abs_le_0.01": {
+                  "legal_slots": 850,
+                  "sign_flips": 357,
+                  "sign_flip_rate": 0.42,
+                  "mean_abs_error": 0.09077064065372242
+                },
+                "abs_0.01_0.1": {
+                  "legal_slots": 578,
+                  "sign_flips": 272,
+                  "sign_flip_rate": 0.47058823529411764,
+                  "mean_abs_error": 0.0869573837333072
+                },
+                "abs_gt_0.1": {
+                  "legal_slots": 1127,
+                  "sign_flips": 421,
+                  "sign_flip_rate": 0.3735581188997338,
+                  "mean_abs_error": 0.42032139261105256
+                },
+                "overall": {
+                  "legal_slots": 2555,
+                  "sign_flips": 1050,
+                  "sign_flip_rate": 0.410958904109589,
+                  "mean_abs_error": 0.23527148819716243
+                }
+              }
+            },
+            "raise_1pot": {
+              "legal_slots": 5626,
+              "q_abs_error_mean": 0.3245428800582886,
+              "regret_abs_error_mean": 0.23828260600566864,
+              "regret_sign_flip_rate": 0.41237112879753113,
+              "sign_margin": {
+                "abs_le_0.01": {
+                  "legal_slots": 1354,
+                  "sign_flips": 497,
+                  "sign_flip_rate": 0.3670605612998523,
+                  "mean_abs_error": 0.06887025142878161
+                },
+                "abs_0.01_0.1": {
+                  "legal_slots": 1458,
+                  "sign_flips": 713,
+                  "sign_flip_rate": 0.4890260631001372,
+                  "mean_abs_error": 0.06767527262369792
+                },
+                "abs_gt_0.1": {
+                  "legal_slots": 2814,
+                  "sign_flips": 1110,
+                  "sign_flip_rate": 0.39445628997867804,
+                  "mean_abs_error": 0.4081937116176928
+                },
+                "overall": {
+                  "legal_slots": 5626,
+                  "sign_flips": 2320,
+                  "sign_flip_rate": 0.41237113402061853,
+                  "mean_abs_error": 0.23828261694448766
+                }
+              }
+            },
+            "all_in": {
+              "legal_slots": 7248,
+              "q_abs_error_mean": 0.4163309931755066,
+              "regret_abs_error_mean": 0.2453051209449768,
+              "regret_sign_flip_rate": 0.41887417435646057,
+              "sign_margin": {
+                "abs_le_0.01": {
+                  "legal_slots": 2749,
+                  "sign_flips": 1565,
+                  "sign_flip_rate": 0.5692979265187341,
+                  "mean_abs_error": 0.08947140002259345
+                },
+                "abs_0.01_0.1": {
+                  "legal_slots": 1179,
+                  "sign_flips": 482,
+                  "sign_flip_rate": 0.40882103477523324,
+                  "mean_abs_error": 0.10198679528466921
+                },
+                "abs_gt_0.1": {
+                  "legal_slots": 3320,
+                  "sign_flips": 989,
+                  "sign_flip_rate": 0.29789156626506025,
+                  "mean_abs_error": 0.4252325954207455
+                },
+                "overall": {
+                  "legal_slots": 7248,
+                  "sign_flips": 3036,
+                  "sign_flip_rate": 0.41887417218543044,
+                  "mean_abs_error": 0.24530514344474338
+                }
+              }
+            }
+          }
+        },
+        "steps_3000": {
+          "name": "steps_3000",
+          "train_samples": 50716,
+          "source_iteration_minimum": 1.0,
+          "source_iteration_maximum": 100.0,
+          "weight_summary": {
+            "normalization": "per_minibatch_mean_1",
+            "batch_mean_minimum": 0.9999998807907104,
+            "batch_mean_maximum": 1.0000001192092896
+          },
+          "initial": {
+            "samples": 12669,
+            "legal_slots": 37806,
+            "q_abs_error_mean": 0.5054830189817754,
+            "q_abs_error_max": 1.0000001192092896,
+            "state_value_abs_error_mean": 0.5267137885093689,
+            "state_value_abs_error_max": 1.0000001192092896,
+            "regret_abs_error_mean": 0.32357083387061575,
+            "regret_abs_error_max": 1.9900000095367432,
+            "regret_mse": 0.26435500383377075,
+            "state_value_mse": 0.44084399938583374,
+            "eval_loss_mse": 0.4847770035266876,
+            "rm_policy_l1_mean": 0.7708851099014282,
+            "rm_policy_l1_max": 1.5,
+            "sign_margin": {
+              "abs_le_0.01": {
+                "legal_slots": 11661,
+                "sign_flips": 1060,
+                "sign_flip_rate": 0.09090129491467284,
+                "mean_abs_error": 0.0007764135684088689
+              },
+              "abs_0.01_0.1": {
+                "legal_slots": 6036,
+                "sign_flips": 3281,
+                "sign_flip_rate": 0.5435719019218025,
+                "mean_abs_error": 0.04666066406735369
+              },
+              "abs_gt_0.1": {
+                "legal_slots": 20109,
+                "sign_flips": 9595,
+                "sign_flip_rate": 0.4771495350340644,
+                "mean_abs_error": 0.5938744681330499
+              },
+              "overall": {
+                "legal_slots": 37806,
+                "sign_flips": 13936,
+                "sign_flip_rate": 0.36861873776649207,
+                "mean_abs_error": 0.32357083387061575
+              }
+            },
+            "target_regret_abs_mean": 0.32357083387061575,
+            "predicted_regret_abs_mean": 0.0,
+            "target_state_value_abs_mean": 0.5267137885093689,
+            "predicted_state_value_abs_mean": 0.0
+          },
+          "initial_by_action": {
+            "fold": {
+              "legal_slots": 9708,
+              "q_abs_error_mean": 0.21804951131343842,
+              "regret_abs_error_mean": 0.45820632576942444,
+              "regret_sign_flip_rate": 0.37051916122436523,
+              "sign_margin": {
+                "abs_le_0.01": {
+                  "legal_slots": 2598,
+                  "sign_flips": 149,
+                  "sign_flip_rate": 0.0573518090839107,
+                  "mean_abs_error": 0.0005988977430782656
+                },
+                "abs_0.01_0.1": {
+                  "legal_slots": 972,
+                  "sign_flips": 399,
+                  "sign_flip_rate": 0.4104938271604938,
+                  "mean_abs_error": 0.04951767470120402
+                },
+                "abs_gt_0.1": {
+                  "legal_slots": 6138,
+                  "sign_flips": 3049,
+                  "sign_flip_rate": 0.49674160964483544,
+                  "mean_abs_error": 0.7166145451490714
+                },
+                "overall": {
+                  "legal_slots": 9708,
+                  "sign_flips": 3597,
+                  "sign_flip_rate": 0.3705191594561187,
+                  "mean_abs_error": 0.458206283638494
+                }
+              }
+            },
+            "check": {
+              "legal_slots": 2961,
+              "q_abs_error_mean": 0.4653249979019165,
+              "regret_abs_error_mean": 0.24643264710903168,
+              "regret_sign_flip_rate": 0.43870311975479126,
+              "sign_margin": {
+                "abs_le_0.01": {
+                  "legal_slots": 887,
+                  "sign_flips": 140,
+                  "sign_flip_rate": 0.15783540022547915,
+                  "mean_abs_error": 0.0011609230933893628
+                },
+                "abs_0.01_0.1": {
+                  "legal_slots": 649,
+                  "sign_flips": 389,
+                  "sign_flip_rate": 0.5993836671802774,
+                  "mean_abs_error": 0.045409494996621905
+                },
+                "abs_gt_0.1": {
+                  "legal_slots": 1425,
+                  "sign_flips": 770,
+                  "sign_flip_rate": 0.5403508771929825,
+                  "mean_abs_error": 0.49065725226151313
+                },
+                "overall": {
+                  "legal_slots": 2961,
+                  "sign_flips": 1299,
+                  "sign_flip_rate": 0.4387031408308004,
+                  "mean_abs_error": 0.24643262807117527
+                }
+              }
+            },
+            "call": {
+              "legal_slots": 9708,
+              "q_abs_error_mean": 0.7405121326446533,
+              "regret_abs_error_mean": 0.33669164776802063,
+              "regret_sign_flip_rate": 0.3270498514175415,
+              "sign_margin": {
+                "abs_le_0.01": {
+                  "legal_slots": 3223,
+                  "sign_flips": 168,
+                  "sign_flip_rate": 0.052125349053676696,
+                  "mean_abs_error": 0.0007038622438038428
+                },
+                "abs_0.01_0.1": {
+                  "legal_slots": 1200,
+                  "sign_flips": 576,
+                  "sign_flip_rate": 0.48,
+                  "mean_abs_error": 0.05070488611857096
+                },
+                "abs_gt_0.1": {
+                  "legal_slots": 5285,
+                  "sign_flips": 2431,
+                  "sign_flip_rate": 0.4599810785241249,
+                  "mean_abs_error": 0.6065255994264428
+                },
+                "overall": {
+                  "legal_slots": 9708,
+                  "sign_flips": 3175,
+                  "sign_flip_rate": 0.32704985578903994,
+                  "mean_abs_error": 0.33669159979205293
+                }
+              }
+            },
+            "raise_0.5pot": {
+              "legal_slots": 2555,
+              "q_abs_error_mean": 0.4586913287639618,
+              "regret_abs_error_mean": 0.21719159185886383,
+              "regret_sign_flip_rate": 0.37025442719459534,
+              "sign_margin": {
+                "abs_le_0.01": {
+                  "legal_slots": 850,
+                  "sign_flips": 125,
+                  "sign_flip_rate": 0.14705882352941177,
+                  "mean_abs_error": 0.001183466350331026
+                },
+                "abs_0.01_0.1": {
+                  "legal_slots": 578,
+                  "sign_flips": 279,
+                  "sign_flip_rate": 0.4826989619377163,
+                  "mean_abs_error": 0.045214755312381734
+                },
+                "abs_gt_0.1": {
+                  "legal_slots": 1127,
+                  "sign_flips": 542,
+                  "sign_flip_rate": 0.48092280390417036,
+                  "mean_abs_error": 0.4683091604508651
+                },
+                "overall": {
+                  "legal_slots": 2555,
+                  "sign_flips": 946,
+                  "sign_flip_rate": 0.37025440313111546,
+                  "mean_abs_error": 0.21719158493609345
+                }
+              }
+            },
+            "raise_1pot": {
+              "legal_slots": 5626,
+              "q_abs_error_mean": 0.45407387614250183,
+              "regret_abs_error_mean": 0.23382017016410828,
+              "regret_sign_flip_rate": 0.38624241948127747,
+              "sign_margin": {
+                "abs_le_0.01": {
+                  "legal_slots": 1354,
+                  "sign_flips": 224,
+                  "sign_flip_rate": 0.1654357459379616,
+                  "mean_abs_error": 0.0011889052355835321
+                },
+                "abs_0.01_0.1": {
+                  "legal_slots": 1458,
+                  "sign_flips": 778,
+                  "sign_flip_rate": 0.53360768175583,
+                  "mean_abs_error": 0.04425166042416838
+                },
+                "abs_gt_0.1": {
+                  "legal_slots": 2814,
+                  "sign_flips": 1171,
+                  "sign_flip_rate": 0.4161336176261549,
+                  "mean_abs_error": 0.4439742814249067
+                },
+                "overall": {
+                  "legal_slots": 5626,
+                  "sign_flips": 2173,
+                  "sign_flip_rate": 0.38624244578741557,
+                  "mean_abs_error": 0.23382019411826788
+                }
+              }
+            },
+            "all_in": {
+              "legal_slots": 7248,
+              "q_abs_error_mean": 0.6484782099723816,
+              "regret_abs_error_mean": 0.26434406638145447,
+              "regret_sign_flip_rate": 0.378863126039505,
+              "sign_margin": {
+                "abs_le_0.01": {
+                  "legal_slots": 2749,
+                  "sign_flips": 254,
+                  "sign_flip_rate": 0.09239723535831211,
+                  "mean_abs_error": 0.0005761407947228058
+                },
+                "abs_0.01_0.1": {
+                  "legal_slots": 1179,
+                  "sign_flips": 860,
+                  "sign_flip_rate": 0.729431721798134,
+                  "mean_abs_error": 0.04456564569190157
+                },
+                "abs_gt_0.1": {
+                  "legal_slots": 3320,
+                  "sign_flips": 1632,
+                  "sign_flip_rate": 0.491566265060241,
+                  "mean_abs_error": 0.5607949130506401
+                },
+                "overall": {
+                  "legal_slots": 7248,
+                  "sign_flips": 2746,
+                  "sign_flip_rate": 0.37886313465783666,
+                  "mean_abs_error": 0.264344053289485
+                }
+              }
+            }
+          },
+          "final": {
+            "samples": 12669,
+            "legal_slots": 37806,
+            "q_abs_error_mean": 0.23501116307596678,
+            "q_abs_error_max": 2.261824131011963,
+            "state_value_abs_error_mean": 0.2367776334285736,
+            "state_value_abs_error_max": 2.196031332015991,
+            "regret_abs_error_mean": 0.24040762275663916,
+            "regret_abs_error_max": 3.497384786605835,
+            "regret_mse": 0.13901199400424957,
+            "state_value_mse": 0.1344628930091858,
+            "eval_loss_mse": 0.20624344050884247,
+            "rm_policy_l1_mean": 0.7225585579872131,
+            "rm_policy_l1_max": 2.000000238418579,
+            "sign_margin": {
+              "abs_le_0.01": {
+                "legal_slots": 11661,
+                "sign_flips": 5854,
+                "sign_flip_rate": 0.5020152645570706,
+                "mean_abs_error": 0.12275303110394692
+              },
+              "abs_0.01_0.1": {
+                "legal_slots": 6036,
+                "sign_flips": 2609,
+                "sign_flip_rate": 0.43223989396951623,
+                "mean_abs_error": 0.11755782646244926
+              },
+              "abs_gt_0.1": {
+                "legal_slots": 20109,
+                "sign_flips": 4580,
+                "sign_flip_rate": 0.2277587150032324,
+                "mean_abs_error": 0.34550938109956986
+              },
+              "overall": {
+                "legal_slots": 37806,
+                "sign_flips": 13043,
+                "sign_flip_rate": 0.34499814844204624,
+                "mean_abs_error": 0.24040762275663916
+              }
+            },
+            "target_regret_abs_mean": 0.32357083387061575,
+            "predicted_regret_abs_mean": 0.2576820023607364,
+            "target_state_value_abs_mean": 0.5267137885093689,
+            "predicted_state_value_abs_mean": 0.464320570230484
+          },
+          "final_by_action": {
+            "fold": {
+              "legal_slots": 9708,
+              "q_abs_error_mean": 0.04273955896496773,
+              "regret_abs_error_mean": 0.23034131526947021,
+              "regret_sign_flip_rate": 0.27142563462257385,
+              "sign_margin": {
+                "abs_le_0.01": {
+                  "legal_slots": 2598,
+                  "sign_flips": 1579,
+                  "sign_flip_rate": 0.6077752117013087,
+                  "mean_abs_error": 0.13215612539242927
+                },
+                "abs_0.01_0.1": {
+                  "legal_slots": 972,
+                  "sign_flips": 296,
+                  "sign_flip_rate": 0.3045267489711934,
+                  "mean_abs_error": 0.12157787118919593
+                },
+                "abs_gt_0.1": {
+                  "legal_slots": 6138,
+                  "sign_flips": 760,
+                  "sign_flip_rate": 0.12381883349625285,
+                  "mean_abs_error": 0.2891231970664304
+                },
+                "overall": {
+                  "legal_slots": 9708,
+                  "sign_flips": 2635,
+                  "sign_flip_rate": 0.2714256283477544,
+                  "mean_abs_error": 0.23034129793083025
+                }
+              }
+            },
+            "check": {
+              "legal_slots": 2961,
+              "q_abs_error_mean": 0.2395416796207428,
+              "regret_abs_error_mean": 0.2612791955471039,
+              "regret_sign_flip_rate": 0.35157039761543274,
+              "sign_margin": {
+                "abs_le_0.01": {
+                  "legal_slots": 887,
+                  "sign_flips": 360,
+                  "sign_flip_rate": 0.40586245772266066,
+                  "mean_abs_error": 0.1486018545329235
+                },
+                "abs_0.01_0.1": {
+                  "legal_slots": 649,
+                  "sign_flips": 262,
+                  "sign_flip_rate": 0.4036979969183359,
+                  "mean_abs_error": 0.12347289850972651
+                },
+                "abs_gt_0.1": {
+                  "legal_slots": 1425,
+                  "sign_flips": 419,
+                  "sign_flip_rate": 0.29403508771929826,
+                  "mean_abs_error": 0.39417818839089913
+                },
+                "overall": {
+                  "legal_slots": 2961,
+                  "sign_flips": 1041,
+                  "sign_flip_rate": 0.3515704154002026,
+                  "mean_abs_error": 0.2612791979324975
+                }
+              }
+            },
+            "call": {
+              "legal_slots": 9708,
+              "q_abs_error_mean": 0.2899777591228485,
+              "regret_abs_error_mean": 0.24557191133499146,
+              "regret_sign_flip_rate": 0.3280799388885498,
+              "sign_margin": {
+                "abs_le_0.01": {
+                  "legal_slots": 3223,
+                  "sign_flips": 1588,
+                  "sign_flip_rate": 0.4927086565311821,
+                  "mean_abs_error": 0.12820628678395515
+                },
+                "abs_0.01_0.1": {
+                  "legal_slots": 1200,
+                  "sign_flips": 485,
+                  "sign_flip_rate": 0.4041666666666667,
+                  "mean_abs_error": 0.12405721028645833
+                },
+                "abs_gt_0.1": {
+                  "legal_slots": 5285,
+                  "sign_flips": 1112,
+                  "sign_flip_rate": 0.21040681173131504,
+                  "mean_abs_error": 0.34473693327962396
+                },
+                "overall": {
+                  "legal_slots": 9708,
+                  "sign_flips": 3185,
+                  "sign_flip_rate": 0.3280799340749897,
+                  "mean_abs_error": 0.2455719207901988
+                }
+              }
+            },
+            "raise_0.5pot": {
+              "legal_slots": 2555,
+              "q_abs_error_mean": 0.25882595777511597,
+              "regret_abs_error_mean": 0.24135516583919525,
+              "regret_sign_flip_rate": 0.39765167236328125,
+              "sign_margin": {
+                "abs_le_0.01": {
+                  "legal_slots": 850,
+                  "sign_flips": 381,
+                  "sign_flip_rate": 0.44823529411764707,
+                  "mean_abs_error": 0.132276808794807
+                },
+                "abs_0.01_0.1": {
+                  "legal_slots": 578,
+                  "sign_flips": 281,
+                  "sign_flip_rate": 0.486159169550173,
+                  "mean_abs_error": 0.12223761799426228
+                },
+                "abs_gt_0.1": {
+                  "legal_slots": 1127,
+                  "sign_flips": 354,
+                  "sign_flip_rate": 0.31410825199645076,
+                  "mean_abs_error": 0.38471498802476156
+                },
+                "overall": {
+                  "legal_slots": 2555,
+                  "sign_flips": 1016,
+                  "sign_flip_rate": 0.39765166340508806,
+                  "mean_abs_error": 0.2413551524660592
+                }
+              }
+            },
+            "raise_1pot": {
+              "legal_slots": 5626,
+              "q_abs_error_mean": 0.2932526767253876,
+              "regret_abs_error_mean": 0.24413050711154938,
+              "regret_sign_flip_rate": 0.42783504724502563,
+              "sign_margin": {
+                "abs_le_0.01": {
+                  "legal_slots": 1354,
+                  "sign_flips": 707,
+                  "sign_flip_rate": 0.5221565731166913,
+                  "mean_abs_error": 0.11799161789864522
+                },
+                "abs_0.01_0.1": {
+                  "legal_slots": 1458,
+                  "sign_flips": 702,
+                  "sign_flip_rate": 0.48148148148148145,
+                  "mean_abs_error": 0.09729049954721794
+                },
+                "abs_gt_0.1": {
+                  "legal_slots": 2814,
+                  "sign_flips": 998,
+                  "sign_flip_rate": 0.35465529495380244,
+                  "mean_abs_error": 0.3809055309390547
+                },
+                "overall": {
+                  "legal_slots": 5626,
+                  "sign_flips": 2407,
+                  "sign_flip_rate": 0.42783505154639173,
+                  "mean_abs_error": 0.24413051395029772
+                }
+              }
+            },
+            "all_in": {
+              "legal_slots": 7248,
+              "q_abs_error_mean": 0.3634644150733948,
+              "regret_abs_error_mean": 0.23522299528121948,
+              "regret_sign_flip_rate": 0.38065671920776367,
+              "sign_margin": {
+                "abs_le_0.01": {
+                  "legal_slots": 2749,
+                  "sign_flips": 1239,
+                  "sign_flip_rate": 0.4507093488541288,
+                  "mean_abs_error": 0.0985328560527692
+                },
+                "abs_0.01_0.1": {
+                  "legal_slots": 1179,
+                  "sign_flips": 583,
+                  "sign_flip_rate": 0.4944868532654792,
+                  "mean_abs_error": 0.12714154969038247
+                },
+                "abs_gt_0.1": {
+                  "legal_slots": 3320,
+                  "sign_flips": 937,
+                  "sign_flip_rate": 0.2822289156626506,
+                  "mean_abs_error": 0.3867859989763742
+                },
+                "overall": {
+                  "legal_slots": 7248,
+                  "sign_flips": 2759,
+                  "sign_flip_rate": 0.3806567328918322,
+                  "mean_abs_error": 0.23522299120231444
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "P1": {
+      "replay_samples": 51501,
+      "train_samples": 41308,
+      "holdout_samples": 10193,
+      "unique_infosets": 44397,
+      "arms": {
+        "steps_750": {
+          "name": "steps_750",
+          "train_samples": 41308,
+          "source_iteration_minimum": 1.0,
+          "source_iteration_maximum": 100.0,
+          "weight_summary": {
+            "normalization": "per_minibatch_mean_1",
+            "batch_mean_minimum": 0.9999998807907104,
+            "batch_mean_maximum": 1.0000001192092896
+          },
+          "initial": {
+            "samples": 10193,
+            "legal_slots": 30321,
+            "q_abs_error_mean": 0.4958580557822961,
+            "q_abs_error_max": 1.0000001192092896,
+            "state_value_abs_error_mean": 0.5181702971458435,
+            "state_value_abs_error_max": 1.0000001192092896,
+            "regret_abs_error_mean": 0.3074634612768378,
+            "regret_abs_error_max": 1.9900000095367432,
+            "regret_mse": 0.24802596867084503,
+            "state_value_mse": 0.43447428941726685,
+            "eval_loss_mse": 0.46526312828063965,
+            "rm_policy_l1_mean": 0.765436053276062,
+            "rm_policy_l1_max": 1.5,
+            "sign_margin": {
+              "abs_le_0.01": {
+                "legal_slots": 10002,
+                "sign_flips": 916,
+                "sign_flip_rate": 0.09158168366326734,
+                "mean_abs_error": 0.0007202524682136327
+              },
+              "abs_0.01_0.1": {
+                "legal_slots": 4964,
+                "sign_flips": 2596,
+                "sign_flip_rate": 0.5229653505237711,
+                "mean_abs_error": 0.04504462771603986
+              },
+              "abs_gt_0.1": {
+                "legal_slots": 15355,
+                "sign_flips": 7490,
+                "sign_flip_rate": 0.4877889938130902,
+                "mean_abs_error": 0.5921063476880495
+              },
+              "overall": {
+                "legal_slots": 30321,
+                "sign_flips": 11002,
+                "sign_flip_rate": 0.36285082945813135,
+                "mean_abs_error": 0.3074634612768378
+              }
+            },
+            "target_regret_abs_mean": 0.3074634612768378,
+            "predicted_regret_abs_mean": 0.0,
+            "target_state_value_abs_mean": 0.5181702971458435,
+            "predicted_state_value_abs_mean": 0.0
+          },
+          "initial_by_action": {
+            "fold": {
+              "legal_slots": 7592,
+              "q_abs_error_mean": 0.20106887817382812,
+              "regret_abs_error_mean": 0.45421332120895386,
+              "regret_sign_flip_rate": 0.388962060213089,
+              "sign_margin": {
+                "abs_le_0.01": {
+                  "legal_slots": 1864,
+                  "sign_flips": 113,
+                  "sign_flip_rate": 0.06062231759656652,
+                  "mean_abs_error": 0.0007203550042000963
+                },
+                "abs_0.01_0.1": {
+                  "legal_slots": 883,
+                  "sign_flips": 324,
+                  "sign_flip_rate": 0.3669309173272933,
+                  "mean_abs_error": 0.047877431590856806
+                },
+                "abs_gt_0.1": {
+                  "legal_slots": 4845,
+                  "sign_flips": 2516,
+                  "sign_flip_rate": 0.519298245614035,
+                  "mean_abs_error": 0.7027387589493034
+                },
+                "overall": {
+                  "legal_slots": 7592,
+                  "sign_flips": 2953,
+                  "sign_flip_rate": 0.38896206533192834,
+                  "mean_abs_error": 0.45421334237519756
+                }
+              }
+            },
+            "check": {
+              "legal_slots": 2601,
+              "q_abs_error_mean": 0.47296735644340515,
+              "regret_abs_error_mean": 0.22670727968215942,
+              "regret_sign_flip_rate": 0.410995751619339,
+              "sign_margin": {
+                "abs_le_0.01": {
+                  "legal_slots": 816,
+                  "sign_flips": 104,
+                  "sign_flip_rate": 0.12745098039215685,
+                  "mean_abs_error": 0.0008864857110322691
+                },
+                "abs_0.01_0.1": {
+                  "legal_slots": 616,
+                  "sign_flips": 336,
+                  "sign_flip_rate": 0.5454545454545454,
+                  "mean_abs_error": 0.045363023683622286
+                },
+                "abs_gt_0.1": {
+                  "legal_slots": 1169,
+                  "sign_flips": 629,
+                  "sign_flip_rate": 0.5380667236954663,
+                  "mean_abs_error": 0.4798961995094632
+                },
+                "overall": {
+                  "legal_slots": 2601,
+                  "sign_flips": 1069,
+                  "sign_flip_rate": 0.41099577085736255,
+                  "mean_abs_error": 0.22670728543408786
+                }
+              }
+            },
+            "call": {
+              "legal_slots": 7592,
+              "q_abs_error_mean": 0.7508830428123474,
+              "regret_abs_error_mean": 0.34423524141311646,
+              "regret_sign_flip_rate": 0.3304794430732727,
+              "sign_margin": {
+                "abs_le_0.01": {
+                  "legal_slots": 2508,
+                  "sign_flips": 164,
+                  "sign_flip_rate": 0.06539074960127592,
+                  "mean_abs_error": 0.0006619792615777948
+                },
+                "abs_0.01_0.1": {
+                  "legal_slots": 918,
+                  "sign_flips": 454,
+                  "sign_flip_rate": 0.49455337690631807,
+                  "mean_abs_error": 0.04785905060944734
+                },
+                "abs_gt_0.1": {
+                  "legal_slots": 4166,
+                  "sign_flips": 1891,
+                  "sign_flip_rate": 0.45391262602016325,
+                  "mean_abs_error": 0.6163800661230797
+                },
+                "overall": {
+                  "legal_slots": 7592,
+                  "sign_flips": 2509,
+                  "sign_flip_rate": 0.3304794520547945,
+                  "mean_abs_error": 0.3442352584340424
+                }
+              }
+            },
+            "raise_0.5pot": {
+              "legal_slots": 2226,
+              "q_abs_error_mean": 0.4514044523239136,
+              "regret_abs_error_mean": 0.1931995451450348,
+              "regret_sign_flip_rate": 0.35849058628082275,
+              "sign_margin": {
+                "abs_le_0.01": {
+                  "legal_slots": 928,
+                  "sign_flips": 153,
+                  "sign_flip_rate": 0.1648706896551724,
+                  "mean_abs_error": 0.0010026156388480089
+                },
+                "abs_0.01_0.1": {
+                  "legal_slots": 420,
+                  "sign_flips": 221,
+                  "sign_flip_rate": 0.5261904761904762,
+                  "mean_abs_error": 0.04584624880836124
+                },
+                "abs_gt_0.1": {
+                  "legal_slots": 878,
+                  "sign_flips": 424,
+                  "sign_flip_rate": 0.48291571753986334,
+                  "mean_abs_error": 0.46682947806182373
+                },
+                "overall": {
+                  "legal_slots": 2226,
+                  "sign_flips": 798,
+                  "sign_flip_rate": 0.3584905660377358,
+                  "mean_abs_error": 0.19319952101934523
+                }
+              }
+            },
+            "raise_1pot": {
+              "legal_slots": 4496,
+              "q_abs_error_mean": 0.42111510038375854,
+              "regret_abs_error_mean": 0.19334560632705688,
+              "regret_sign_flip_rate": 0.3796708285808563,
+              "sign_margin": {
+                "abs_le_0.01": {
+                  "legal_slots": 1416,
+                  "sign_flips": 196,
+                  "sign_flip_rate": 0.1384180790960452,
+                  "mean_abs_error": 0.0009732080549843567
+                },
+                "abs_0.01_0.1": {
+                  "legal_slots": 1168,
+                  "sign_flips": 639,
+                  "sign_flip_rate": 0.5470890410958904,
+                  "mean_abs_error": 0.042284743426597285
+                },
+                "abs_gt_0.1": {
+                  "legal_slots": 1912,
+                  "sign_flips": 872,
+                  "sign_flip_rate": 0.4560669456066946,
+                  "mean_abs_error": 0.42809375459679
+                },
+                "overall": {
+                  "legal_slots": 4496,
+                  "sign_flips": 1707,
+                  "sign_flip_rate": 0.37967081850533807,
+                  "mean_abs_error": 0.19334562308423459
+                }
+              }
+            },
+            "all_in": {
+              "legal_slots": 5814,
+              "q_abs_error_mean": 0.6328422427177429,
+              "regret_abs_error_mean": 0.2359420359134674,
+              "regret_sign_flip_rate": 0.3381492793560028,
+              "sign_margin": {
+                "abs_le_0.01": {
+                  "legal_slots": 2470,
+                  "sign_flips": 186,
+                  "sign_flip_rate": 0.07530364372469636,
+                  "mean_abs_error": 0.0004733268065973815
+                },
+                "abs_0.01_0.1": {
+                  "legal_slots": 959,
+                  "sign_flips": 622,
+                  "sign_flip_rate": 0.64859228362878,
+                  "mean_abs_error": 0.04254800360941166
+                },
+                "abs_gt_0.1": {
+                  "legal_slots": 2385,
+                  "sign_flips": 1158,
+                  "sign_flip_rate": 0.48553459119496856,
+                  "mean_abs_error": 0.5575658002489517
+                },
+                "overall": {
+                  "legal_slots": 5814,
+                  "sign_flips": 1966,
+                  "sign_flip_rate": 0.33814929480564154,
+                  "mean_abs_error": 0.23594205191670967
+                }
+              }
+            }
+          },
+          "final": {
+            "samples": 10193,
+            "legal_slots": 30321,
+            "q_abs_error_mean": 0.255921664234359,
+            "q_abs_error_max": 2.1715526580810547,
+            "state_value_abs_error_mean": 0.2740892469882965,
+            "state_value_abs_error_max": 1.8904259204864502,
+            "regret_abs_error_mean": 0.24398799383059597,
+            "regret_abs_error_max": 2.0844826698303223,
+            "regret_mse": 0.14160411059856415,
+            "state_value_mse": 0.15482421219348907,
+            "eval_loss_mse": 0.21901622414588928,
+            "rm_policy_l1_mean": 0.7695059180259705,
+            "rm_policy_l1_max": 2.000000238418579,
+            "sign_margin": {
+              "abs_le_0.01": {
+                "legal_slots": 10002,
+                "sign_flips": 5160,
+                "sign_flip_rate": 0.5158968206358728,
+                "mean_abs_error": 0.09651941681976105
+              },
+              "abs_0.01_0.1": {
+                "legal_slots": 4964,
+                "sign_flips": 2207,
+                "sign_flip_rate": 0.44460112812248187,
+                "mean_abs_error": 0.09710182478887049
+              },
+              "abs_gt_0.1": {
+                "legal_slots": 15355,
+                "sign_flips": 3968,
+                "sign_flip_rate": 0.25841745359817647,
+                "mean_abs_error": 0.3875323400866981
+              },
+              "overall": {
+                "legal_slots": 30321,
+                "sign_flips": 11335,
+                "sign_flip_rate": 0.37383331684311205,
+                "mean_abs_error": 0.24398799383059597
+              }
+            },
+            "target_regret_abs_mean": 0.3074634612768378,
+            "predicted_regret_abs_mean": 0.19851855974407176,
+            "target_state_value_abs_mean": 0.5181702971458435,
+            "predicted_state_value_abs_mean": 0.41251713037490845
+          },
+          "final_by_action": {
+            "fold": {
+              "legal_slots": 7592,
+              "q_abs_error_mean": 0.049035169184207916,
+              "regret_abs_error_mean": 0.2718258500099182,
+              "regret_sign_flip_rate": 0.2945205271244049,
+              "sign_margin": {
+                "abs_le_0.01": {
+                  "legal_slots": 1864,
+                  "sign_flips": 1022,
+                  "sign_flip_rate": 0.5482832618025751,
+                  "mean_abs_error": 0.1318068934100892
+                },
+                "abs_0.01_0.1": {
+                  "legal_slots": 883,
+                  "sign_flips": 376,
+                  "sign_flip_rate": 0.4258210645526614,
+                  "mean_abs_error": 0.12132508568423521
+                },
+                "abs_gt_0.1": {
+                  "legal_slots": 4845,
+                  "sign_flips": 838,
+                  "sign_flip_rate": 0.17296181630546956,
+                  "mean_abs_error": 0.35312358907378744
+                },
+                "overall": {
+                  "legal_slots": 7592,
+                  "sign_flips": 2236,
+                  "sign_flip_rate": 0.2945205479452055,
+                  "mean_abs_error": 0.27182582457274107
+                }
+              }
+            },
+            "check": {
+              "legal_slots": 2601,
+              "q_abs_error_mean": 0.2576074004173279,
+              "regret_abs_error_mean": 0.24579106271266937,
+              "regret_sign_flip_rate": 0.4025374948978424,
+              "sign_margin": {
+                "abs_le_0.01": {
+                  "legal_slots": 816,
+                  "sign_flips": 394,
+                  "sign_flip_rate": 0.48284313725490197,
+                  "mean_abs_error": 0.11095647250904757
+                },
+                "abs_0.01_0.1": {
+                  "legal_slots": 616,
+                  "sign_flips": 278,
+                  "sign_flip_rate": 0.4512987012987013,
+                  "mean_abs_error": 0.11332340983601359
+                },
+                "abs_gt_0.1": {
+                  "legal_slots": 1169,
+                  "sign_flips": 375,
+                  "sign_flip_rate": 0.32078699743370404,
+                  "mean_abs_error": 0.4097132882672156
+                },
+                "overall": {
+                  "legal_slots": 2601,
+                  "sign_flips": 1047,
+                  "sign_flip_rate": 0.40253748558246827,
+                  "mean_abs_error": 0.245791061618428
+                }
+              }
+            },
+            "call": {
+              "legal_slots": 7592,
+              "q_abs_error_mean": 0.34998488426208496,
+              "regret_abs_error_mean": 0.2692975699901581,
+              "regret_sign_flip_rate": 0.34733930230140686,
+              "sign_margin": {
+                "abs_le_0.01": {
+                  "legal_slots": 2508,
+                  "sign_flips": 1212,
+                  "sign_flip_rate": 0.48325358851674644,
+                  "mean_abs_error": 0.11484807454037704
+                },
+                "abs_0.01_0.1": {
+                  "legal_slots": 918,
+                  "sign_flips": 389,
+                  "sign_flip_rate": 0.42374727668845313,
+                  "mean_abs_error": 0.09906341619221473
+                },
+                "abs_gt_0.1": {
+                  "legal_slots": 4166,
+                  "sign_flips": 1036,
+                  "sign_flip_rate": 0.2486797887662026,
+                  "mean_abs_error": 0.3997906754924538
+                },
+                "overall": {
+                  "legal_slots": 7592,
+                  "sign_flips": 2637,
+                  "sign_flip_rate": 0.34733930453108536,
+                  "mean_abs_error": 0.2692975606003853
+                }
+              }
+            },
+            "raise_0.5pot": {
+              "legal_slots": 2226,
+              "q_abs_error_mean": 0.27437543869018555,
+              "regret_abs_error_mean": 0.21472226083278656,
+              "regret_sign_flip_rate": 0.43800538778305054,
+              "sign_margin": {
+                "abs_le_0.01": {
+                  "legal_slots": 928,
+                  "sign_flips": 455,
+                  "sign_flip_rate": 0.49030172413793105,
+                  "mean_abs_error": 0.07403283283628266
+                },
+                "abs_0.01_0.1": {
+                  "legal_slots": 420,
+                  "sign_flips": 201,
+                  "sign_flip_rate": 0.4785714285714286,
+                  "mean_abs_error": 0.09556165422712054
+                },
+                "abs_gt_0.1": {
+                  "legal_slots": 878,
+                  "sign_flips": 319,
+                  "sign_flip_rate": 0.36332574031890663,
+                  "mean_abs_error": 0.42042524124875424
+                },
+                "overall": {
+                  "legal_slots": 2226,
+                  "sign_flips": 975,
+                  "sign_flip_rate": 0.4380053908355795,
+                  "mean_abs_error": 0.21472225549086085
+                }
+              }
+            },
+            "raise_1pot": {
+              "legal_slots": 4496,
+              "q_abs_error_mean": 0.2870505750179291,
+              "regret_abs_error_mean": 0.20170237123966217,
+              "regret_sign_flip_rate": 0.4437277615070343,
+              "sign_margin": {
+                "abs_le_0.01": {
+                  "legal_slots": 1416,
+                  "sign_flips": 750,
+                  "sign_flip_rate": 0.5296610169491526,
+                  "mean_abs_error": 0.06197248340326514
+                },
+                "abs_0.01_0.1": {
+                  "legal_slots": 1168,
+                  "sign_flips": 512,
+                  "sign_flip_rate": 0.4383561643835616,
+                  "mean_abs_error": 0.06374461030306881
+                },
+                "abs_gt_0.1": {
+                  "legal_slots": 1912,
+                  "sign_flips": 733,
+                  "sign_flip_rate": 0.3833682008368201,
+                  "mean_abs_error": 0.3894598094988069
+                },
+                "overall": {
+                  "legal_slots": 4496,
+                  "sign_flips": 1995,
+                  "sign_flip_rate": 0.44372775800711745,
+                  "mean_abs_error": 0.20170237585318895
+                }
+              }
+            },
+            "all_in": {
+              "legal_slots": 5814,
+              "q_abs_error_mean": 0.3713560998439789,
+              "regret_abs_error_mean": 0.21768531203269958,
+              "regret_sign_flip_rate": 0.420536607503891,
+              "sign_margin": {
+                "abs_le_0.01": {
+                  "legal_slots": 2470,
+                  "sign_flips": 1327,
+                  "sign_flip_rate": 0.537246963562753,
+                  "mean_abs_error": 0.0747628524718497
+                },
+                "abs_0.01_0.1": {
+                  "legal_slots": 959,
+                  "sign_flips": 451,
+                  "sign_flip_rate": 0.470281543274244,
+                  "mean_abs_error": 0.10380229611839319
+                },
+                "abs_gt_0.1": {
+                  "legal_slots": 2385,
+                  "sign_flips": 667,
+                  "sign_flip_rate": 0.279664570230608,
+                  "mean_abs_error": 0.41149344454271486
+                },
+                "overall": {
+                  "legal_slots": 5814,
+                  "sign_flips": 2445,
+                  "sign_flip_rate": 0.42053663570691435,
+                  "mean_abs_error": 0.21768533859541625
+                }
+              }
+            }
+          }
+        },
+        "steps_3000": {
+          "name": "steps_3000",
+          "train_samples": 41308,
+          "source_iteration_minimum": 1.0,
+          "source_iteration_maximum": 100.0,
+          "weight_summary": {
+            "normalization": "per_minibatch_mean_1",
+            "batch_mean_minimum": 0.9999998807907104,
+            "batch_mean_maximum": 1.0000001192092896
+          },
+          "initial": {
+            "samples": 10193,
+            "legal_slots": 30321,
+            "q_abs_error_mean": 0.4958580557822961,
+            "q_abs_error_max": 1.0000001192092896,
+            "state_value_abs_error_mean": 0.5181702971458435,
+            "state_value_abs_error_max": 1.0000001192092896,
+            "regret_abs_error_mean": 0.3074634612768378,
+            "regret_abs_error_max": 1.9900000095367432,
+            "regret_mse": 0.24802596867084503,
+            "state_value_mse": 0.43447428941726685,
+            "eval_loss_mse": 0.46526312828063965,
+            "rm_policy_l1_mean": 0.765436053276062,
+            "rm_policy_l1_max": 1.5,
+            "sign_margin": {
+              "abs_le_0.01": {
+                "legal_slots": 10002,
+                "sign_flips": 916,
+                "sign_flip_rate": 0.09158168366326734,
+                "mean_abs_error": 0.0007202524682136327
+              },
+              "abs_0.01_0.1": {
+                "legal_slots": 4964,
+                "sign_flips": 2596,
+                "sign_flip_rate": 0.5229653505237711,
+                "mean_abs_error": 0.04504462771603986
+              },
+              "abs_gt_0.1": {
+                "legal_slots": 15355,
+                "sign_flips": 7490,
+                "sign_flip_rate": 0.4877889938130902,
+                "mean_abs_error": 0.5921063476880495
+              },
+              "overall": {
+                "legal_slots": 30321,
+                "sign_flips": 11002,
+                "sign_flip_rate": 0.36285082945813135,
+                "mean_abs_error": 0.3074634612768378
+              }
+            },
+            "target_regret_abs_mean": 0.3074634612768378,
+            "predicted_regret_abs_mean": 0.0,
+            "target_state_value_abs_mean": 0.5181702971458435,
+            "predicted_state_value_abs_mean": 0.0
+          },
+          "initial_by_action": {
+            "fold": {
+              "legal_slots": 7592,
+              "q_abs_error_mean": 0.20106887817382812,
+              "regret_abs_error_mean": 0.45421332120895386,
+              "regret_sign_flip_rate": 0.388962060213089,
+              "sign_margin": {
+                "abs_le_0.01": {
+                  "legal_slots": 1864,
+                  "sign_flips": 113,
+                  "sign_flip_rate": 0.06062231759656652,
+                  "mean_abs_error": 0.0007203550042000963
+                },
+                "abs_0.01_0.1": {
+                  "legal_slots": 883,
+                  "sign_flips": 324,
+                  "sign_flip_rate": 0.3669309173272933,
+                  "mean_abs_error": 0.047877431590856806
+                },
+                "abs_gt_0.1": {
+                  "legal_slots": 4845,
+                  "sign_flips": 2516,
+                  "sign_flip_rate": 0.519298245614035,
+                  "mean_abs_error": 0.7027387589493034
+                },
+                "overall": {
+                  "legal_slots": 7592,
+                  "sign_flips": 2953,
+                  "sign_flip_rate": 0.38896206533192834,
+                  "mean_abs_error": 0.45421334237519756
+                }
+              }
+            },
+            "check": {
+              "legal_slots": 2601,
+              "q_abs_error_mean": 0.47296735644340515,
+              "regret_abs_error_mean": 0.22670727968215942,
+              "regret_sign_flip_rate": 0.410995751619339,
+              "sign_margin": {
+                "abs_le_0.01": {
+                  "legal_slots": 816,
+                  "sign_flips": 104,
+                  "sign_flip_rate": 0.12745098039215685,
+                  "mean_abs_error": 0.0008864857110322691
+                },
+                "abs_0.01_0.1": {
+                  "legal_slots": 616,
+                  "sign_flips": 336,
+                  "sign_flip_rate": 0.5454545454545454,
+                  "mean_abs_error": 0.045363023683622286
+                },
+                "abs_gt_0.1": {
+                  "legal_slots": 1169,
+                  "sign_flips": 629,
+                  "sign_flip_rate": 0.5380667236954663,
+                  "mean_abs_error": 0.4798961995094632
+                },
+                "overall": {
+                  "legal_slots": 2601,
+                  "sign_flips": 1069,
+                  "sign_flip_rate": 0.41099577085736255,
+                  "mean_abs_error": 0.22670728543408786
+                }
+              }
+            },
+            "call": {
+              "legal_slots": 7592,
+              "q_abs_error_mean": 0.7508830428123474,
+              "regret_abs_error_mean": 0.34423524141311646,
+              "regret_sign_flip_rate": 0.3304794430732727,
+              "sign_margin": {
+                "abs_le_0.01": {
+                  "legal_slots": 2508,
+                  "sign_flips": 164,
+                  "sign_flip_rate": 0.06539074960127592,
+                  "mean_abs_error": 0.0006619792615777948
+                },
+                "abs_0.01_0.1": {
+                  "legal_slots": 918,
+                  "sign_flips": 454,
+                  "sign_flip_rate": 0.49455337690631807,
+                  "mean_abs_error": 0.04785905060944734
+                },
+                "abs_gt_0.1": {
+                  "legal_slots": 4166,
+                  "sign_flips": 1891,
+                  "sign_flip_rate": 0.45391262602016325,
+                  "mean_abs_error": 0.6163800661230797
+                },
+                "overall": {
+                  "legal_slots": 7592,
+                  "sign_flips": 2509,
+                  "sign_flip_rate": 0.3304794520547945,
+                  "mean_abs_error": 0.3442352584340424
+                }
+              }
+            },
+            "raise_0.5pot": {
+              "legal_slots": 2226,
+              "q_abs_error_mean": 0.4514044523239136,
+              "regret_abs_error_mean": 0.1931995451450348,
+              "regret_sign_flip_rate": 0.35849058628082275,
+              "sign_margin": {
+                "abs_le_0.01": {
+                  "legal_slots": 928,
+                  "sign_flips": 153,
+                  "sign_flip_rate": 0.1648706896551724,
+                  "mean_abs_error": 0.0010026156388480089
+                },
+                "abs_0.01_0.1": {
+                  "legal_slots": 420,
+                  "sign_flips": 221,
+                  "sign_flip_rate": 0.5261904761904762,
+                  "mean_abs_error": 0.04584624880836124
+                },
+                "abs_gt_0.1": {
+                  "legal_slots": 878,
+                  "sign_flips": 424,
+                  "sign_flip_rate": 0.48291571753986334,
+                  "mean_abs_error": 0.46682947806182373
+                },
+                "overall": {
+                  "legal_slots": 2226,
+                  "sign_flips": 798,
+                  "sign_flip_rate": 0.3584905660377358,
+                  "mean_abs_error": 0.19319952101934523
+                }
+              }
+            },
+            "raise_1pot": {
+              "legal_slots": 4496,
+              "q_abs_error_mean": 0.42111510038375854,
+              "regret_abs_error_mean": 0.19334560632705688,
+              "regret_sign_flip_rate": 0.3796708285808563,
+              "sign_margin": {
+                "abs_le_0.01": {
+                  "legal_slots": 1416,
+                  "sign_flips": 196,
+                  "sign_flip_rate": 0.1384180790960452,
+                  "mean_abs_error": 0.0009732080549843567
+                },
+                "abs_0.01_0.1": {
+                  "legal_slots": 1168,
+                  "sign_flips": 639,
+                  "sign_flip_rate": 0.5470890410958904,
+                  "mean_abs_error": 0.042284743426597285
+                },
+                "abs_gt_0.1": {
+                  "legal_slots": 1912,
+                  "sign_flips": 872,
+                  "sign_flip_rate": 0.4560669456066946,
+                  "mean_abs_error": 0.42809375459679
+                },
+                "overall": {
+                  "legal_slots": 4496,
+                  "sign_flips": 1707,
+                  "sign_flip_rate": 0.37967081850533807,
+                  "mean_abs_error": 0.19334562308423459
+                }
+              }
+            },
+            "all_in": {
+              "legal_slots": 5814,
+              "q_abs_error_mean": 0.6328422427177429,
+              "regret_abs_error_mean": 0.2359420359134674,
+              "regret_sign_flip_rate": 0.3381492793560028,
+              "sign_margin": {
+                "abs_le_0.01": {
+                  "legal_slots": 2470,
+                  "sign_flips": 186,
+                  "sign_flip_rate": 0.07530364372469636,
+                  "mean_abs_error": 0.0004733268065973815
+                },
+                "abs_0.01_0.1": {
+                  "legal_slots": 959,
+                  "sign_flips": 622,
+                  "sign_flip_rate": 0.64859228362878,
+                  "mean_abs_error": 0.04254800360941166
+                },
+                "abs_gt_0.1": {
+                  "legal_slots": 2385,
+                  "sign_flips": 1158,
+                  "sign_flip_rate": 0.48553459119496856,
+                  "mean_abs_error": 0.5575658002489517
+                },
+                "overall": {
+                  "legal_slots": 5814,
+                  "sign_flips": 1966,
+                  "sign_flip_rate": 0.33814929480564154,
+                  "mean_abs_error": 0.23594205191670967
+                }
+              }
+            }
+          },
+          "final": {
+            "samples": 10193,
+            "legal_slots": 30321,
+            "q_abs_error_mean": 0.2300519532151809,
+            "q_abs_error_max": 2.168382167816162,
+            "state_value_abs_error_mean": 0.23378488421440125,
+            "state_value_abs_error_max": 2.0556201934814453,
+            "regret_abs_error_mean": 0.23233691171135518,
+            "regret_abs_error_max": 2.206516742706299,
+            "regret_mse": 0.13231810927391052,
+            "state_value_mse": 0.1301790028810501,
+            "eval_loss_mse": 0.19740760326385498,
+            "rm_policy_l1_mean": 0.7582116723060608,
+            "rm_policy_l1_max": 2.000000238418579,
+            "sign_margin": {
+              "abs_le_0.01": {
+                "legal_slots": 10002,
+                "sign_flips": 6030,
+                "sign_flip_rate": 0.6028794241151769,
+                "mean_abs_error": 0.11774387065946186
+              },
+              "abs_0.01_0.1": {
+                "legal_slots": 4964,
+                "sign_flips": 2219,
+                "sign_flip_rate": 0.4470185334407736,
+                "mean_abs_error": 0.11727297872809227
+              },
+              "abs_gt_0.1": {
+                "legal_slots": 15355,
+                "sign_flips": 3628,
+                "sign_flip_rate": 0.23627482904591338,
+                "mean_abs_error": 0.3441791023892869
+              },
+              "overall": {
+                "legal_slots": 30321,
+                "sign_flips": 11877,
+                "sign_flip_rate": 0.3917087167309785,
+                "mean_abs_error": 0.23233691171135518
+              }
+            },
+            "target_regret_abs_mean": 0.3074634612768378,
+            "predicted_regret_abs_mean": 0.2442184543354853,
+            "target_state_value_abs_mean": 0.5181702971458435,
+            "predicted_state_value_abs_mean": 0.4415847361087799
+          },
+          "final_by_action": {
+            "fold": {
+              "legal_slots": 7592,
+              "q_abs_error_mean": 0.047539517283439636,
+              "regret_abs_error_mean": 0.22854496538639069,
+              "regret_sign_flip_rate": 0.3007112741470337,
+              "sign_margin": {
+                "abs_le_0.01": {
+                  "legal_slots": 1864,
+                  "sign_flips": 1266,
+                  "sign_flip_rate": 0.6791845493562232,
+                  "mean_abs_error": 0.12262730741705506
+                },
+                "abs_0.01_0.1": {
+                  "legal_slots": 883,
+                  "sign_flips": 344,
+                  "sign_flip_rate": 0.3895809739524349,
+                  "mean_abs_error": 0.124649747716746
+                },
+                "abs_gt_0.1": {
+                  "legal_slots": 4845,
+                  "sign_flips": 673,
+                  "sign_flip_rate": 0.13890608875128999,
+                  "mean_abs_error": 0.2882291969007998
+                },
+                "overall": {
+                  "legal_slots": 7592,
+                  "sign_flips": 2283,
+                  "sign_flip_rate": 0.30071127502634354,
+                  "mean_abs_error": 0.22854496882512018
+                }
+              }
+            },
+            "check": {
+              "legal_slots": 2601,
+              "q_abs_error_mean": 0.23008842766284943,
+              "regret_abs_error_mean": 0.26025956869125366,
+              "regret_sign_flip_rate": 0.3852364420890808,
+              "sign_margin": {
+                "abs_le_0.01": {
+                  "legal_slots": 816,
+                  "sign_flips": 393,
+                  "sign_flip_rate": 0.48161764705882354,
+                  "mean_abs_error": 0.15583687202603208
+                },
+                "abs_0.01_0.1": {
+                  "legal_slots": 616,
+                  "sign_flips": 263,
+                  "sign_flip_rate": 0.42694805194805197,
+                  "mean_abs_error": 0.1438474902858982
+                },
+                "abs_gt_0.1": {
+                  "legal_slots": 1169,
+                  "sign_flips": 346,
+                  "sign_flip_rate": 0.29597946963216426,
+                  "mean_abs_error": 0.39449287460235777
+                },
+                "overall": {
+                  "legal_slots": 2601,
+                  "sign_flips": 1002,
+                  "sign_flip_rate": 0.38523644752018454,
+                  "mean_abs_error": 0.26025956156436225
+                }
+              }
+            },
+            "call": {
+              "legal_slots": 7592,
+              "q_abs_error_mean": 0.3042856454849243,
+              "regret_abs_error_mean": 0.24930553138256073,
+              "regret_sign_flip_rate": 0.3711801767349243,
+              "sign_margin": {
+                "abs_le_0.01": {
+                  "legal_slots": 2508,
+                  "sign_flips": 1476,
+                  "sign_flip_rate": 0.5885167464114832,
+                  "mean_abs_error": 0.12620702618807317
+                },
+                "abs_0.01_0.1": {
+                  "legal_slots": 918,
+                  "sign_flips": 399,
+                  "sign_flip_rate": 0.434640522875817,
+                  "mean_abs_error": 0.12863679441231787
+                },
+                "abs_gt_0.1": {
+                  "legal_slots": 4166,
+                  "sign_flips": 943,
+                  "sign_flip_rate": 0.22635621699471917,
+                  "mean_abs_error": 0.35000286569288586
+                },
+                "overall": {
+                  "legal_slots": 7592,
+                  "sign_flips": 2818,
+                  "sign_flip_rate": 0.3711801896733404,
+                  "mean_abs_error": 0.24930554019136097
+                }
+              }
+            },
+            "raise_0.5pot": {
+              "legal_slots": 2226,
+              "q_abs_error_mean": 0.24683503806591034,
+              "regret_abs_error_mean": 0.23165550827980042,
+              "regret_sign_flip_rate": 0.48382750153541565,
+              "sign_margin": {
+                "abs_le_0.01": {
+                  "legal_slots": 928,
+                  "sign_flips": 537,
+                  "sign_flip_rate": 0.5786637931034483,
+                  "mean_abs_error": 0.11699954394636483
+                },
+                "abs_0.01_0.1": {
+                  "legal_slots": 420,
+                  "sign_flips": 220,
+                  "sign_flip_rate": 0.5238095238095238,
+                  "mean_abs_error": 0.1253024146670387
+                },
+                "abs_gt_0.1": {
+                  "legal_slots": 878,
+                  "sign_flips": 320,
+                  "sign_flip_rate": 0.36446469248291574,
+                  "mean_abs_error": 0.40371592875765233
+                },
+                "overall": {
+                  "legal_slots": 2226,
+                  "sign_flips": 1077,
+                  "sign_flip_rate": 0.4838274932614555,
+                  "mean_abs_error": 0.23165550814591757
+                }
+              }
+            },
+            "raise_1pot": {
+              "legal_slots": 4496,
+              "q_abs_error_mean": 0.2657036781311035,
+              "regret_abs_error_mean": 0.21589252352714539,
+              "regret_sign_flip_rate": 0.4668594300746918,
+              "sign_margin": {
+                "abs_le_0.01": {
+                  "legal_slots": 1416,
+                  "sign_flips": 852,
+                  "sign_flip_rate": 0.6016949152542372,
+                  "mean_abs_error": 0.1090132934225481
+                },
+                "abs_0.01_0.1": {
+                  "legal_slots": 1168,
+                  "sign_flips": 527,
+                  "sign_flip_rate": 0.4511986301369863,
+                  "mean_abs_error": 0.0865463230707874
+                },
+                "abs_gt_0.1": {
+                  "legal_slots": 1912,
+                  "sign_flips": 720,
+                  "sign_flip_rate": 0.37656903765690375,
+                  "mean_abs_error": 0.37406059488591786
+                },
+                "overall": {
+                  "legal_slots": 4496,
+                  "sign_flips": 2099,
+                  "sign_flip_rate": 0.4668594306049822,
+                  "mean_abs_error": 0.21589250666390958
+                }
+              }
+            },
+            "all_in": {
+              "legal_slots": 5814,
+              "q_abs_error_mean": 0.33743205666542053,
+              "regret_abs_error_mean": 0.21561630070209503,
+              "regret_sign_flip_rate": 0.4468524158000946,
+              "sign_margin": {
+                "abs_le_0.01": {
+                  "legal_slots": 2470,
+                  "sign_flips": 1506,
+                  "sign_flip_rate": 0.6097165991902834,
+                  "mean_abs_error": 0.09816534992171685
+                },
+                "abs_0.01_0.1": {
+                  "legal_slots": 959,
+                  "sign_flips": 466,
+                  "sign_flip_rate": 0.4859228362877998,
+                  "mean_abs_error": 0.11643960453546581
+                },
+                "abs_gt_0.1": {
+                  "legal_slots": 2385,
+                  "sign_flips": 626,
+                  "sign_flip_rate": 0.2624737945492662,
+                  "mean_abs_error": 0.37713180318068656
+                },
+                "overall": {
+                  "legal_slots": 5814,
+                  "sign_flips": 2598,
+                  "sign_flip_rate": 0.44685242518059853,
+                  "mean_abs_error": 0.21561631608509632
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

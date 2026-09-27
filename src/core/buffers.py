@@ -106,7 +106,7 @@ class AdvantageBuffer(_BufferAccounting):
 class DuelingAdvantageBuffer(_BufferAccounting):
     """Reservoir буфер ``(state, Q[6], V, regrets[6], legal_mask[6], iteration)``."""
 
-    def __init__(self, capacity, state_dim, num_actions=NUM_ACTIONS):
+    def __init__(self, capacity, state_dim, num_actions=NUM_ACTIONS, *, provenance_enabled: bool = False):
         if int(num_actions) != NUM_ACTIONS:
             raise ValueError(f"DuelingAdvantageBuffer требует ровно {NUM_ACTIONS} действий")
         self._initialize_accounting(capacity)
@@ -117,10 +117,14 @@ class DuelingAdvantageBuffer(_BufferAccounting):
         self._regrets = np.empty((self.capacity, NUM_ACTIONS), dtype=np.float32)
         self._masks = np.empty((self.capacity, NUM_ACTIONS), dtype=np.float32)
         self._iterations = np.empty(self.capacity, dtype=np.float32)
+        self.provenance_enabled = bool(provenance_enabled)
+        self._provenances = (
+            np.empty((self.capacity, 16), dtype=np.uint8) if self.provenance_enabled else None
+        )
         self.eviction_count = 0
         self.skip_count = 0
 
-    def add(self, state, action_values, state_value, regrets, mask, iteration):
+    def add(self, state, action_values, state_value, regrets, mask, iteration, provenance=None):
         state_array = np.asarray(state, dtype=np.float32)
         action_values_array = np.asarray(action_values, dtype=np.float32)
         state_value_array = np.asarray(state_value, dtype=np.float32)
@@ -144,6 +148,13 @@ class DuelingAdvantageBuffer(_BufferAccounting):
             raise ValueError("DuelingAdvantageBuffer принимает только конечные значения")
         if not np.isfinite(iteration_value) or iteration_value < 1.0:
             raise ValueError("iteration DuelingAdvantageBuffer должен быть не меньше 1")
+        provenance_array = None
+        if self.provenance_enabled:
+            if provenance is None:
+                raise ValueError("DuelingAdvantageBuffer требует provenance для audit-режима")
+            provenance_array = np.asarray(provenance, dtype=np.uint8)
+            if provenance_array.shape != (16,):
+                raise ValueError("DuelingAdvantageBuffer provenance должен иметь 16 байт")
 
         position, status = self._next_reservoir_slot()
         if position is None:
@@ -157,7 +168,24 @@ class DuelingAdvantageBuffer(_BufferAccounting):
         self._regrets[position] = regrets_array
         self._masks[position] = mask_array
         self._iterations[position] = iteration_value
+        if provenance_array is not None:
+            assert self._provenances is not None
+            self._provenances[position] = provenance_array
         return status
+
+    def provenances(self) -> np.ndarray | None:
+        if self._provenances is None:
+            return None
+        return self._provenances[:len(self)].copy()
+
+    def enable_provenance_audit(self) -> None:
+        """Включает аудит до первого sample, чтобы не смешивать строки без отпечатка."""
+        if self.provenance_enabled:
+            return
+        if len(self):
+            raise RuntimeError("Нельзя включить replay provenance после записи D2CFR samples")
+        self.provenance_enabled = True
+        self._provenances = np.empty((self.capacity, 16), dtype=np.uint8)
 
     def sample(self, num_samples=-1):
         length = self._size

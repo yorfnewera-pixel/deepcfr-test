@@ -1,4 +1,5 @@
 import importlib
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -192,3 +193,25 @@ def test_run_probe_writes_postflop_action_report(tmp_path):
     trace = report["states"][0]["all_in_trace"]
     assert trace["summary"]["samples"] == 2
     assert len(trace["samples"]) == 2
+
+
+def test_probe_uses_provenance_mode_recorded_in_checkpoint(tmp_path):
+    checkpoint_path = tmp_path / "checkpoint.pt"
+    torch.save({
+        "advantage_legs": [
+            {"buffer": {"provenance_enabled": False}},
+            {"buffer": {"provenance_enabled": False}},
+        ],
+    }, checkpoint_path)
+
+    assert probe._checkpoint_provenance_enabled(checkpoint_path) is False
+
+
+def test_probe_applies_checkpoint_step_budget_before_validating_runtime():
+    agent = SimpleNamespace(advantage_train_steps=3000, strategy_train_steps=5000)
+
+    probe._apply_checkpoint_training_contract(agent, {
+        "config": {"advantage_train_steps": 750, "strategy_train_steps": 5000}
+    })
+
+    assert agent.advantage_train_steps == 750

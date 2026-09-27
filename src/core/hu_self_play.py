@@ -33,6 +33,7 @@ class HuTraversalAdapter(Generic[StateT]):
     normalise_d2cfr_targets: Callable[
         [StateT, np.ndarray, float, np.ndarray], tuple[np.ndarray, np.float32, np.ndarray]
     ] | None = None
+    infoset_fingerprint: Callable[[StateT, int], np.ndarray] | None = None
 
 
 class HuStrategyBuffer(_BufferAccounting):
@@ -323,7 +324,7 @@ class HuCurrentPolicySelfPlayCoordinator(Generic[StateT]):
         self._pending_advantage_samples[actor_id].append(sample)
 
     def _record_d2cfr_advantage(
-        self, actor_id, state, action_values, state_value, regrets, mask, iteration
+        self, actor_id, state, action_values, state_value, regrets, mask, iteration, provenance=None
     ) -> None:
         sample = (
             state.copy(),
@@ -332,11 +333,20 @@ class HuCurrentPolicySelfPlayCoordinator(Generic[StateT]):
             regrets.copy(),
             mask.copy(),
             int(iteration),
+            None if provenance is None else provenance.copy(),
         )
         if self._pending_advantage_samples is None:
             self.advantage_buffers[actor_id].add(*sample)
             return
         self._pending_advantage_samples[actor_id].append(sample)
+
+    def _d2cfr_provenance(self, state: StateT, actor_id: int) -> np.ndarray | None:
+        buffer = self.advantage_buffers[actor_id]
+        if not bool(getattr(buffer, "provenance_enabled", False)):
+            return None
+        if self.adapter.infoset_fingerprint is None:
+            raise RuntimeError("HU provenance audit включён без infoset_fingerprint adapter")
+        return np.asarray(self.adapter.infoset_fingerprint(state, actor_id), dtype=np.uint8)
 
     @staticmethod
     def _validate_d2cfr_targets(action_values, state_value, regrets, mask) -> None:
@@ -426,6 +436,7 @@ class HuCurrentPolicySelfPlayCoordinator(Generic[StateT]):
                     np.asarray(regret_targets, dtype=np.float32),
                     mask,
                     iteration,
+                    self._d2cfr_provenance(state, actor_id),
                 )
             else:
                 regrets = (action_values - expected_value) * mask

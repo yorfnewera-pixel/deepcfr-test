@@ -18,11 +18,12 @@ advantage_batch_size: 256
 strategy_batch_size: 256
 advantage_epochs: 15
 strategy_epochs: 50
-advantage_train_steps: null
+# Фиксированный бюджет исключает рост числа шагов вместе с replay-буфером.
+advantage_train_steps: 3000
 # Average strategy обучается раз в 10 CFR-итераций и дополнительно перед final checkpoint.
-strategy_train_steps: null
+strategy_train_steps: 5000
 strategy_train_every: 10
-strategy_final_train_steps: 10000
+strategy_final_train_steps: 5000
 teacher_strategy_checkpoint: null
 # Stage A: переносит только card_encoder из версионированного полного HU checkpoint.
 teacher_transfer_enabled: false
@@ -59,6 +60,8 @@ d2cfr_state_value_loss_weight: 0.5
 d2cfr_huber_delta: 1.0
 d2cfr_reinitialize_each_iteration: true
 d2cfr_iteration_weight_mode: batch_mean_1
+# Только диагностика: сохраняет 16-байтный отпечаток полного infoset в том же reservoir-слоте.
+d2cfr_replay_provenance_audit: true
 d2cfr_mc_correction_enabled: false
 traversal_baseline_enabled: false
 

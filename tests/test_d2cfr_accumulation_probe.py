@@ -156,6 +156,9 @@ def test_run_weight_mode_fit_ab_keeps_initial_network_equal_and_changes_only_sam
         seed=13,
     )
 
+    assert report["arms"]["uniform"]["final_train"]["samples"] == 4
+    assert "all_in" in report["arms"]["uniform"]["final_train_by_action"]
+
     weighted = report["arms"]["iteration_weighted"]
     uniform = report["arms"]["uniform"]
     assert weighted["initial"]["eval_loss_mse"] == pytest.approx(uniform["initial"]["eval_loss_mse"])

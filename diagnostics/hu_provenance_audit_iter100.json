@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "read_only": true,
+  "checkpoint": "models\\hu_provenance_audit\\run_20260927_065323_4912117c\\hu_checkpoint_final.pt",
+  "checkpoint_iteration": 100,
+  "players": {
+    "P0": {
+      "samples": 63385,
+      "provenance_available": true,
+      "method": "same encoded state + mask + iteration; fingerprints differ only when full infoset differs",
+      "within_iteration": {
+        "different_history_groups": 0,
+        "different_history_samples": 0,
+        "same_history_duplicate_groups": 290,
+        "same_history_duplicate_samples": 587,
+        "same_history_state_value_range_mean": 0.41277138138639513,
+        "same_history_regret_legal_range_mean": 0.3895277031187514
+      },
+      "different_history_examples": []
+    },
+    "P1": {
+      "samples": 51501,
+      "provenance_available": true,
+      "method": "same encoded state + mask + iteration; fingerprints differ only when full infoset differs",
+      "within_iteration": {
+        "different_history_groups": 0,
+        "different_history_samples": 0,
+        "same_history_duplicate_groups": 291,
+        "same_history_duplicate_samples": 590,
+        "same_history_state_value_range_mean": 0.36666799013189255,
+        "same_history_regret_legal_range_mean": 0.3843409159913646
+      },
+      "different_history_examples": []
+    }
+  }
+}

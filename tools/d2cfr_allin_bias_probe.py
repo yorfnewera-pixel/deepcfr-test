@@ -398,6 +398,61 @@ def _trace_all_in_rollouts(
     return traces
 
 
+def _checkpoint_provenance_enabled(checkpoint_path: str | Path) -> bool:
+    """Берёт режим audit из checkpoint, а не из текущего config.yaml."""
+    checkpoint = torch.load(Path(checkpoint_path), map_location="cpu", weights_only=True)
+    legs = checkpoint.get("advantage_legs") if isinstance(checkpoint, dict) else None
+    if not isinstance(legs, list) or len(legs) != 2:
+        raise ValueError("Нужен HU checkpoint с двумя advantage legs")
+    modes = []
+    for leg in legs:
+        buffer = leg.get("buffer") if isinstance(leg, dict) else None
+        if not isinstance(buffer, dict):
+            raise ValueError("HU checkpoint содержит повреждённый advantage buffer")
+        modes.append(bool(buffer.get("provenance_enabled", False)))
+    if modes[0] != modes[1]:
+        raise ValueError("HU checkpoint имеет несогласованный replay provenance режим")
+    return modes[0]
+
+
+_CHECKPOINT_AGENT_CONFIG_FIELDS = (
+    "advantage_regret_norm",
+    "advantage_regret_clip",
+    "advantage_reward_scale",
+    "advantage_loss",
+    "advantage_huber_delta",
+    "advantage_batch_size",
+    "strategy_batch_size",
+    "advantage_epochs",
+    "strategy_epochs",
+    "advantage_train_steps",
+    "strategy_train_steps",
+    "strategy_train_every",
+    "strategy_final_train_steps",
+    "advantage_buffer_reservoir",
+    "clear_strategy_buffer_each_iteration",
+    "strategy_distillation_lambda",
+    "strategy_distillation_temperature",
+    "strategy_distillation_anneal_iterations",
+    "d2cfr_loss_mode",
+    "d2cfr_loss_function",
+    "d2cfr_state_value_loss_weight",
+    "d2cfr_huber_delta",
+    "d2cfr_reinitialize_each_iteration",
+    "d2cfr_iteration_weight_mode",
+)
+
+
+def _apply_checkpoint_training_contract(agent: Any, checkpoint: dict[str, Any]) -> None:
+    """Настраивает временный diagnostic runtime под contract checkpoint, не меняя YAML."""
+    contract = checkpoint.get("config")
+    if not isinstance(contract, dict):
+        raise ValueError("HU checkpoint не содержит training contract")
+    for field in _CHECKPOINT_AGENT_CONFIG_FIELDS:
+        if field in contract and hasattr(agent, field):
+            setattr(agent, field, contract[field])
+
+
 def run_probe(
     checkpoint_path: str | Path,
     *,
@@ -417,7 +472,12 @@ def run_probe(
     np.random.seed(seed)
     torch.manual_seed(seed)
     config_mod.load_config(config_path)
+    checkpoint_contract = torch.load(Path(checkpoint_path), map_location="cpu", weights_only=True)
+    if not isinstance(checkpoint_contract, dict):
+        raise ValueError("Не удалось прочитать HU checkpoint")
     agent = DeepCFRAgent(player_id=0, num_players=2, device=device)
+    _apply_checkpoint_training_contract(agent, checkpoint_contract)
+    agent.d2cfr_replay_provenance_audit = _checkpoint_provenance_enabled(checkpoint_path)
     coordinator = train_mod._create_hu_current_policy_coordinator(agent)
     checkpoint = train_mod._load_hu_checkpoint(agent, checkpoint_path)
     if not bool(agent.d2cfr_enabled):
