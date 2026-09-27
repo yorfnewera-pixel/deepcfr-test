@@ -44,3 +44,15 @@ def test_margin_flip_counts_only_strong_opposite_regrets():
     result = probe.margin_flip_counts(historical, predicted, margin=0.1)
 
     assert result == {"historical_negative_predicted_positive": 1, "historical_positive_predicted_negative": 1}
+
+
+def test_margin_flip_summary_reports_denominators_and_rates():
+    historical = np.array([-0.2, -0.05, 0.2, 0.3], dtype=np.float32)
+    predicted = np.array([0.3, 0.2, -0.2, 0.01], dtype=np.float32)
+
+    result = probe.margin_flip_summary(historical, predicted, margin=0.1)
+
+    assert result["strongly_negative_historical"] == 1
+    assert result["strongly_positive_historical"] == 2
+    assert result["historical_negative_predicted_positive_rate"] == 1.0
+    assert result["historical_positive_predicted_negative_rate"] == 0.5

@@ -98,6 +98,28 @@ def margin_flip_counts(
     }
 
 
+def margin_flip_summary(
+    historical: np.ndarray, predicted: np.ndarray, *, margin: float,
+) -> dict[str, float | int]:
+    """Возвращает margin-aware flips вместе с их знаменателями и долями."""
+    historical = np.asarray(historical, dtype=np.float64)
+    predicted = np.asarray(predicted, dtype=np.float64)
+    counts = margin_flip_counts(historical, predicted, margin=margin)
+    negative = int(np.count_nonzero(historical < -margin))
+    positive = int(np.count_nonzero(historical > margin))
+    return {
+        **counts,
+        "strongly_negative_historical": negative,
+        "strongly_positive_historical": positive,
+        "historical_negative_predicted_positive_rate": (
+            counts["historical_negative_predicted_positive"] / negative if negative else 0.0
+        ),
+        "historical_positive_predicted_negative_rate": (
+            counts["historical_positive_predicted_negative"] / positive if positive else 0.0
+        ),
+    }
+
+
 def _batch_mean_effective_weights(
     iterations: np.ndarray, *, batch_size: int, batches: int, seed: int,
 ) -> np.ndarray:
@@ -157,6 +179,7 @@ def _summarize_leg(
     buffer: Any,
     batch_size: int,
     mc_batches: int,
+    mc_replicates: int,
     seed: int,
     device: str,
 ) -> dict[str, Any]:
@@ -170,9 +193,12 @@ def _summarize_leg(
     # Одиночные samples не входят ни в один отчётный порог и не дают estimate target variance.
     group_items = [rows for rows in groups.values() if len(rows) >= min(_GROUP_THRESHOLDS)]
     paper_weights = iterations.astype(np.float64)
-    effective_weights = _batch_mean_effective_weights(
-        iterations, batch_size=batch_size, batches=mc_batches, seed=seed,
-    )
+    effective_weight_sets = [
+        _batch_mean_effective_weights(
+            iterations, batch_size=batch_size, batches=mc_batches, seed=seed + replicate,
+        )
+        for replicate in range(mc_replicates)
+    ]
     mask_variants = sum(len({masks[index].tobytes() for index in rows}) > 1 for rows in groups.values())
     device_object = torch.device(device)
     network.eval()
@@ -193,19 +219,25 @@ def _summarize_leg(
         predicted_v = float(all_predicted_values[group_index])
         predicted_regrets = all_predicted_regrets[group_index]
         paper_v = weighted_target_statistics(values[indices], iterations[indices], paper_weights[indices])
-        effective_v = weighted_target_statistics(values[indices], iterations[indices], effective_weights[indices])
+        effective_vs = [
+            weighted_target_statistics(values[indices], iterations[indices], weights[indices])
+            for weights in effective_weight_sets
+        ]
         paper_actions = [
             action_target_statistics(regrets[indices], masks[indices], iterations[indices], paper_weights[indices], action_index=action)
             for action in range(regrets.shape[1])
         ]
         effective_actions = [
-            action_target_statistics(regrets[indices], masks[indices], iterations[indices], effective_weights[indices], action_index=action)
-            for action in range(regrets.shape[1])
+            [
+                action_target_statistics(regrets[indices], masks[indices], iterations[indices], weights[indices], action_index=action)
+                for action in range(regrets.shape[1])
+            ]
+            for weights in effective_weight_sets
         ]
         records.append({
             "samples": int(len(indices)), "masks": masks[indices].copy(),
             "predicted_v": predicted_v, "predicted_regrets": predicted_regrets,
-            "paper_v": paper_v, "effective_v": effective_v,
+            "paper_v": paper_v, "effective_vs": effective_vs,
             "paper_actions": paper_actions, "effective_actions": effective_actions,
         })
 
@@ -214,16 +246,19 @@ def _summarize_leg(
         selected = [record for record in records if record["samples"] >= minimum]
         allin = [record for record in selected if int(record["paper_actions"][_ALL_IN_INDEX]["samples"]) > 0]
         v_errors = [abs(record["predicted_v"] - float(record["paper_v"]["mean"])) for record in selected]
-        effective_v_errors = [abs(record["predicted_v"] - float(record["effective_v"]["mean"])) for record in selected]
+        effective_v_errors = [[] for _ in range(mc_replicates)]
         r_errors: list[float] = []
-        effective_r_errors: list[float] = []
+        effective_r_errors = [[] for _ in range(mc_replicates)]
         policy_l1: list[float] = []
+        strong_policy_l1: list[float] = []
         allin_hist: list[float] = []
         allin_pred: list[float] = []
         within_variances: list[float] = []
         between_variances: list[float] = []
-        effective_deltas: list[float] = []
+        effective_deltas = [[] for _ in range(mc_replicates)]
         for record in selected:
+            for replicate, effective_v in enumerate(record["effective_vs"]):
+                effective_v_errors[replicate].append(abs(record["predicted_v"] - float(effective_v["mean"])))
             historical = np.zeros(regrets.shape[1], dtype=np.float64)
             present = np.zeros(regrets.shape[1], dtype=bool)
             for action, stats in enumerate(record["paper_actions"]):
@@ -231,38 +266,54 @@ def _summarize_leg(
                     historical[action] = float(stats["mean"])
                     present[action] = True
                     r_errors.append(abs(record["predicted_regrets"][action] - historical[action]))
-                    effective_r_errors.append(abs(
-                        record["predicted_regrets"][action]
-                        - float(record["effective_actions"][action]["mean"])
-                    ))
+                    for replicate, effective_actions in enumerate(record["effective_actions"]):
+                        effective_r_errors[replicate].append(abs(
+                            record["predicted_regrets"][action] - float(effective_actions[action]["mean"])
+                        ))
                     within_variances.append(float(stats["within_iteration_variance"]))
                     between_variances.append(float(stats["between_iteration_variance"]))
-                    effective_deltas.append(abs(float(record["effective_actions"][action]["mean"]) - historical[action]))
+                    for replicate, effective_actions in enumerate(record["effective_actions"]):
+                        effective_deltas[replicate].append(abs(
+                            float(effective_actions[action]["mean"]) - historical[action]
+                        ))
             for mask in {row.tobytes(): row for row in record["masks"]}.values():
                 legal = np.asarray(mask, dtype=bool)
                 if np.any(legal & ~present):
                     continue
-                policy_l1.append(float(np.abs(
+                distance = float(np.abs(
                     _regret_matching(record["predicted_regrets"], legal) - _regret_matching(historical, legal)
-                ).sum()))
+                ).sum())
+                policy_l1.append(distance)
+                if float(np.max(np.abs(historical[legal]))) > 0.1:
+                    strong_policy_l1.append(distance)
         for record in allin:
             allin_hist.append(float(record["paper_actions"][_ALL_IN_INDEX]["mean"]))
             allin_pred.append(float(record["predicted_regrets"][_ALL_IN_INDEX]))
-        flips = margin_flip_counts(np.asarray(allin_hist), np.asarray(allin_pred), margin=0.1) if allin else {
-            "historical_negative_predicted_positive": 0, "historical_positive_predicted_negative": 0,
+        flips = margin_flip_summary(np.asarray(allin_hist), np.asarray(allin_pred), margin=0.1) if allin else {
+            "historical_negative_predicted_positive": 0,
+            "historical_positive_predicted_negative": 0,
+            "strongly_negative_historical": 0,
+            "strongly_positive_historical": 0,
+            "historical_negative_predicted_positive_rate": 0.0,
+            "historical_positive_predicted_negative_rate": 0.0,
         }
         by_threshold[str(minimum)] = {
             "groups": int(len(selected)),
             "replay_samples": int(sum(record["samples"] for record in selected)),
             "groups_with_legal_all_in": int(len(allin)),
             "v_mae_paper_weighted": float(np.mean(v_errors)) if v_errors else 0.0,
-            "v_mae_batch_mean_1_effective": float(np.mean(effective_v_errors)) if effective_v_errors else 0.0,
+            "v_mae_batch_mean_1_effective_mean": float(np.mean([np.mean(errors) for errors in effective_v_errors])) if selected else 0.0,
+            "v_mae_batch_mean_1_effective_std": float(np.std([np.mean(errors) for errors in effective_v_errors])) if selected else 0.0,
             "regret_mae_paper_weighted": float(np.mean(r_errors)) if r_errors else 0.0,
-            "regret_mae_batch_mean_1_effective": float(np.mean(effective_r_errors)) if effective_r_errors else 0.0,
+            "regret_mae_batch_mean_1_effective_mean": float(np.mean([np.mean(errors) for errors in effective_r_errors])) if r_errors else 0.0,
+            "regret_mae_batch_mean_1_effective_std": float(np.std([np.mean(errors) for errors in effective_r_errors])) if r_errors else 0.0,
             "rm_policy_l1": float(np.mean(policy_l1)) if policy_l1 else 0.0,
+            "rm_policy_l1_strong_margin": float(np.mean(strong_policy_l1)) if strong_policy_l1 else 0.0,
+            "rm_policy_strong_margin_groups": int(len(strong_policy_l1)),
             "action_within_iteration_variance": float(np.mean(within_variances)) if within_variances else 0.0,
             "action_between_iteration_variance": float(np.mean(between_variances)) if between_variances else 0.0,
-            "paper_vs_batch_mean_1_target_mae": float(np.mean(effective_deltas)) if effective_deltas else 0.0,
+            "paper_vs_batch_mean_1_target_mae_mean": float(np.mean([np.mean(deltas) for deltas in effective_deltas])) if r_errors else 0.0,
+            "paper_vs_batch_mean_1_target_mae_std": float(np.std([np.mean(deltas) for deltas in effective_deltas])) if r_errors else 0.0,
             "all_in_margin_flips": flips,
         }
     return {
@@ -275,9 +326,11 @@ def _summarize_leg(
 
 def run_probe(
     checkpoint_path: str | Path, *, config_path: str | Path, output_path: str | Path,
-    mc_batches: int = 4096, seed: int = 20261001, device: str = "cpu",
+    mc_batches: int = 4096, mc_replicates: int = 3, seed: int = 20261001, device: str = "cpu",
 ) -> dict[str, Any]:
     """Сравнивает финальную сеть с paper-weighted target сохранённого reservoir."""
+    if int(mc_replicates) < 1:
+        raise ValueError("mc_replicates должен быть положительным")
     agent, checkpoint = _restore_agent(checkpoint_path, config_path=config_path, device=device)
     report = {
         "schema_version": 1,
@@ -290,12 +343,14 @@ def run_probe(
             "iteration_weight_mode": str(agent.d2cfr_iteration_weight_mode),
             "batch_size": int(agent.advantage_batch_size),
             "batch_mean_1_mc_batches": int(mc_batches),
+            "batch_mean_1_mc_replicates": int(mc_replicates),
         },
         "grouping": "player plus exact encoded state; action targets condition on that action being legal",
         "players": {
             f"P{player}": _summarize_leg(
                 network=network, buffer=buffer, batch_size=int(agent.advantage_batch_size),
-                mc_batches=mc_batches, seed=seed + player, device=device,
+                mc_batches=mc_batches, mc_replicates=mc_replicates,
+                seed=seed + player * mc_replicates, device=device,
             )
             for player, (network, buffer) in enumerate(zip(agent.hu_advantage_nets, agent.hu_advantage_buffers, strict=True))
         },
@@ -314,6 +369,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--config", default="config.yaml")
     parser.add_argument("--output", required=True)
     parser.add_argument("--mc-batches", type=int, default=4096)
+    parser.add_argument("--mc-replicates", type=int, default=3)
     parser.add_argument("--seed", type=int, default=20261001)
     parser.add_argument("--device", default="cpu")
     return parser.parse_args(argv)
@@ -323,7 +379,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     report = run_probe(
         args.checkpoint, config_path=args.config, output_path=args.output,
-        mc_batches=args.mc_batches, seed=args.seed, device=args.device,
+        mc_batches=args.mc_batches, mc_replicates=args.mc_replicates,
+        seed=args.seed, device=args.device,
     )
     print(f"Отчёт сохранён: {args.output}")
     for player, result in report["players"].items():
