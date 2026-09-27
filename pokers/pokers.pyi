@@ -10,6 +10,10 @@ def parallel_apply_action(
     states: list[State], actions: list[Action]
 ) -> list[State]: ...
 
+def compare_showdown(
+    hero: tuple[Card, Card], opponent: tuple[Card, Card], board: list[Card]
+) -> int: ...
+
 # state.rs --------------------------------------------------------------------
 
 class State:

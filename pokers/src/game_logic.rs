@@ -21,6 +21,44 @@ macro_rules! verbose_println {
 
 const CHIP_EPSILON: f64 = 1e-9;
 
+#[pyfunction]
+pub fn compare_showdown(
+    hero: (Card, Card),
+    opponent: (Card, Card),
+    board: Vec<Card>,
+) -> PyResult<i8> {
+    if board.len() != 5 {
+        return Err(PyValueError::new_err("Showdown требует ровно пять карт board"));
+    }
+
+    let cards = vec![
+        hero.0,
+        hero.1,
+        opponent.0,
+        opponent.1,
+        board[0],
+        board[1],
+        board[2],
+        board[3],
+        board[4],
+    ];
+    let unique_cards: std::collections::HashSet<(CardRank, CardSuit)> = cards
+        .iter()
+        .map(|card| (card.rank, card.suit))
+        .collect();
+    if unique_cards.len() != cards.len() {
+        return Err(PyValueError::new_err("Карты showdown содержат дубликат"));
+    }
+
+    let hero_rank = rank_cards(hero, &board);
+    let opponent_rank = rank_cards(opponent, &board);
+    Ok(match hero_rank.cmp(&opponent_rank) {
+        std::cmp::Ordering::Less => 1,
+        std::cmp::Ordering::Equal => 0,
+        std::cmp::Ordering::Greater => -1,
+    })
+}
+
 pub struct InitStateError {
     msg: String,
 }
@@ -684,6 +722,10 @@ fn runout_forced_checkdown(state: &mut State) {
 
 // Modified to accept state parameter for verbose control
 fn rank_hand(_state: &State, private_cards: (Card, Card), public_cards: &Vec<Card>) -> (u64, u64, u64) {
+    rank_cards(private_cards, public_cards)
+}
+
+fn rank_cards(private_cards: (Card, Card), public_cards: &Vec<Card>) -> (u64, u64, u64) {
     let mut cards = public_cards.clone();
     cards.append(&mut vec![private_cards.0, private_cards.1]);
 

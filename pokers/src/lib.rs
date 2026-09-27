@@ -23,5 +23,6 @@ fn pokers(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(visualization::visualize_state, m)?)?;
     m.add_function(wrap_pyfunction!(visualization::visualize_trace, m)?)?;
     m.add_function(wrap_pyfunction!(parallel::parallel_apply_action, m)?)?;
+    m.add_function(wrap_pyfunction!(game_logic::compare_showdown, m)?)?;
     Ok(())
 }
