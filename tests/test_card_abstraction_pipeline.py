@@ -1,3 +1,6 @@
+import subprocess
+import sys
+
 from src.card_abstraction.domain import Street
 
 
@@ -25,4 +28,22 @@ def test_cli_smoke_builds_artifacts(tmp_path):
     exit_code = main(["--smoke", "--output", str(tmp_path)])
 
     assert exit_code == 0
+    assert (tmp_path / "preflop" / "lossless_classes.parquet").is_file()
+
+
+def test_cli_smoke_runs_as_script_from_project_root(tmp_path):
+    result = subprocess.run(
+        [
+            sys.executable,
+            "tools/build_hu_postflop_abstraction.py",
+            "--smoke",
+            "--output",
+            str(tmp_path),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
     assert (tmp_path / "preflop" / "lossless_classes.parquet").is_file()
