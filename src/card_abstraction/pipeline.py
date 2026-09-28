@@ -54,6 +54,7 @@ def _validation(
     scaler: StandardScaler,
     model: KMeans,
     master_seed: int,
+    measure_stability: bool,
 ) -> dict[str, object]:
     train_labels, train_distances = _distances(train_points, model)
     holdout_labels, holdout_distances = _distances(holdout_points, model)
@@ -63,7 +64,7 @@ def _validation(
         silhouette = float(silhouette_score(holdout_points[:10_000], holdout_labels[:10_000]))
     stability_count = min(1_000, len(holdout))
     stability = 1.0
-    if stability_count and street is not Street.RIVER:
+    if measure_stability and stability_count and street is not Street.RIVER:
         refined = np.vstack([
             build_feature(item, master_seed, runout_samples=256, opponent_samples=256)
             for item in holdout[:stability_count]
@@ -116,7 +117,9 @@ def _build_street(
         "canonical_key": [canonicalize(item).as_string() for item in train],
         "bucket_id": labels.astype(np.int32),
     }).to_parquet(directory / "train_assignments.parquet", index=False)
-    validation = _validation(street, train, train_points, holdout, holdout_points, scaler, model, master_seed)
+    validation = _validation(
+        street, train, train_points, holdout, holdout_points, scaler, model, master_seed, enforce_quality
+    )
     if enforce_quality:
         _validate_quality(validation, sample_count)
     (directory / "validation.json").write_text(json.dumps(validation, sort_keys=True), encoding="utf-8")
