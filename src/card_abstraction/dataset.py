@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from src.runtime_search.cards import full_deck
+from src.cards import full_deck
 
 from .canonical import canonicalize
 from .domain import CardSituation, Street

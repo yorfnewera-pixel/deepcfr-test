@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from itertools import permutations
 
-from src.runtime_search.cards import card_key
+from src.cards import card_key
 
 from .domain import CanonicalCardKey, CardSituation
 

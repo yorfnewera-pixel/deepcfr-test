@@ -7,7 +7,7 @@ from typing import Sequence
 
 import pokers as pkrs
 
-from src.runtime_search.cards import card_key
+from src.cards import card_key
 
 
 class Street(str, Enum):

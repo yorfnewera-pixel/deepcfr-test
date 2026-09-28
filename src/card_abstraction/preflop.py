@@ -5,7 +5,7 @@ from itertools import combinations
 
 import pandas as pd
 
-from src.runtime_search.cards import card_key, full_deck
+from src.cards import card_key, full_deck
 
 from .canonical import canonicalize
 from .domain import CardSituation

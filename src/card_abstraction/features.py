@@ -7,9 +7,14 @@ from .domain import CardSituation
 from .equity import conditional_equities
 
 
-def build_feature(situation: CardSituation, master_seed: int = 20260927) -> np.ndarray:
+def build_feature(
+    situation: CardSituation,
+    master_seed: int = 20260927,
+    runout_samples: int = 128,
+    opponent_samples: int = 128,
+) -> np.ndarray:
     """Строит 27-мерный profile из summary statistics и 20-bin histogram."""
-    equities = conditional_equities(situation, master_seed)
+    equities = conditional_equities(situation, master_seed, runout_samples, opponent_samples)
     summaries = np.asarray(
         [
             np.mean(equities),
