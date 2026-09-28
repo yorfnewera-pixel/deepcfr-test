@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "read_only": true,
+  "checkpoint": "models\\hu_halfpot_reraise\\run_20260927_163159_7c22c8e1\\hu_checkpoint_final.pt",
+  "checkpoint_iteration": 100,
+  "objective_scope": "iteration-weighted historical strategy policies retained in checkpoint reservoir",
+  "loss_contract": {
+    "loss": "masked policy MSE",
+    "iteration_weight_mode": "batch_mean_1"
+  },
+  "players": {
+    "replay_samples": 100000,
+    "unique_actor_conditioned_encodings": 92034,
+    "group_size_thresholds": {
+      "2": {
+        "groups": 3557,
+        "replay_samples": 11523,
+        "policy_l1": 0.2402895644841779,
+        "policy_mae": 0.06757770793009395,
+        "all_in_probability_bias": -0.0019020855160181518,
+        "groups_with_legal_all_in": 2403,
+        "all_in_extremes": {
+          "historical_low_count": 776,
+          "historical_high_count": 548,
+          "historical_low_predicted_high": 2,
+          "historical_high_predicted_low": 2,
+          "historical_low_predicted_high_rate": 0.002577319587628866,
+          "historical_high_predicted_low_rate": 0.0036496350364963502
+        }
+      },
+      "5": {
+        "groups": 727,
+        "replay_samples": 4456,
+        "policy_l1": 0.19169254231190533,
+        "policy_mae": 0.0539200893798742,
+        "all_in_probability_bias": -0.009773835551218014,
+        "groups_with_legal_all_in": 540,
+        "all_in_extremes": {
+          "historical_low_count": 134,
+          "historical_high_count": 128,
+          "historical_low_predicted_high": 0,
+          "historical_high_predicted_low": 0,
+          "historical_low_predicted_high_rate": 0.0,
+          "historical_high_predicted_low_rate": 0.0
+        }
+      },
+      "10": {
+        "groups": 17,
+        "replay_samples": 185,
+        "policy_l1": 0.1727478153264801,
+        "policy_mae": 0.053410830138862074,
+        "all_in_probability_bias": -0.0033860951649098575,
+        "groups_with_legal_all_in": 14,
+        "all_in_extremes": {
+          "historical_low_count": 5,
+          "historical_high_count": 1,
+          "historical_low_predicted_high": 0,
+          "historical_high_predicted_low": 0,
+          "historical_low_predicted_high_rate": 0.0,
+          "historical_high_predicted_low_rate": 0.0
+        }
+      },
+      "20": {
+        "groups": 0,
+        "replay_samples": 0,
+        "policy_l1": 0.0,
+        "policy_mae": 0.0,
+        "all_in_probability_bias": 0.0,
+        "groups_with_legal_all_in": 0,
+        "all_in_extremes": {
+          "historical_low_count": 0,
+          "historical_high_count": 0,
+          "historical_low_predicted_high": 0,
+          "historical_high_predicted_low": 0,
+          "historical_low_predicted_high_rate": 0.0,
+          "historical_high_predicted_low_rate": 0.0
+        }
+      }
+    },
+    "street_breakdown": "unavailable: strategy replay stores encoded states, not raw pokers.State"
+  }
+}

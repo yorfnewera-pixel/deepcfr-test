@@ -68,14 +68,6 @@ def _current_player_state(state):
     return state.players_state[int(state.current_player)]
 
 
-def has_raise_on_current_street(state) -> bool:
-    """Проверяет, был ли добровольный рейз на текущей улице."""
-    return any(
-        getattr(player_state, "last_stage_action", None) == pkrs.ActionEnum.Raise
-        for player_state in state.players_state
-    )
-
-
 def call_amount(state) -> float:
     """Чипсы, нужные игроку для колла до применения действия."""
     player_state = _current_player_state(state)
@@ -134,9 +126,6 @@ def resolve_action(slot: int | ActionSlot, state) -> ResolvedAction:
             raise ValueError("Call недоступен в текущем состоянии")
         return ResolvedAction(action_slot, pkrs.Action(pkrs.ActionEnum.Call))
 
-    if action_slot is ActionSlot.RAISE_HALF_POT and has_raise_on_current_street(state):
-        raise ValueError("Рейз в полпота недоступен после рейза на текущей улице")
-
     if pkrs.ActionEnum.Raise not in legal_actions:
         raise ValueError("Raise недоступен в текущем состоянии")
 
@@ -186,7 +175,6 @@ __all__ = [
     "NUM_ACTIONS",
     "ResolvedAction",
     "call_amount",
-    "has_raise_on_current_street",
     "is_raise_slot",
     "legal_action_mask",
     "min_raise_increment",

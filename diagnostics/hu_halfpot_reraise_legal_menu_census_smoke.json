@@ -1,0 +1,149 @@
+{
+  "schema_version": 1,
+  "read_only": true,
+  "checkpoint": "models\\hu_halfpot_reraise\\run_20260927_163159_7c22c8e1\\hu_checkpoint_final.pt",
+  "checkpoint_iteration": 100,
+  "policy_source": "checkpoint HU advantage nets with regret matching",
+  "hands": 16,
+  "seed": 20260927,
+  "max_decisions_per_hand": 128,
+  "summary": {
+    "overall": {
+      "visits": 31,
+      "menu_counts": {
+        "all_three_raise_sizes": 7,
+        "half_pot_and_all_in_without_pot": 0,
+        "all_in_only_raise": 0,
+        "other": 24
+      },
+      "half_pot_legal_visits": 7,
+      "legacy_all_in_only_raise_visits": 0,
+      "policy_mass_mean": {
+        "fold": 0.2902099446904275,
+        "check": 0.018976358156050404,
+        "call": 0.25363910054006883,
+        "raise_0.5pot": 0.024372939981760516,
+        "raise_1pot": 0.12180614363281958,
+        "all_in": 0.29099551576279825
+      },
+      "sampled_action_counts": {
+        "fold": 11,
+        "check": 1,
+        "call": 9,
+        "raise_0.5pot": 0,
+        "raise_1pot": 2,
+        "all_in": 8
+      }
+    },
+    "after_raise": {
+      "visits": 10,
+      "menu_counts": {
+        "all_three_raise_sizes": 2,
+        "half_pot_and_all_in_without_pot": 0,
+        "all_in_only_raise": 0,
+        "other": 8
+      },
+      "half_pot_legal_visits": 2,
+      "legacy_all_in_only_raise_visits": 0,
+      "policy_mass_mean": {
+        "fold": 0.41521515846252444,
+        "check": 0.0,
+        "call": 0.47841280698776245,
+        "raise_0.5pot": 0.0400242879986763,
+        "raise_1pot": 0.038212326169013974,
+        "all_in": 0.028135424852371214
+      },
+      "sampled_action_counts": {
+        "fold": 4,
+        "check": 0,
+        "call": 6,
+        "raise_0.5pot": 0,
+        "raise_1pot": 0,
+        "all_in": 0
+      }
+    },
+    "by_street": {
+      "Flop": {
+        "visits": 2,
+        "menu_counts": {
+          "all_three_raise_sizes": 2,
+          "half_pot_and_all_in_without_pot": 0,
+          "all_in_only_raise": 0,
+          "other": 0
+        },
+        "half_pot_legal_visits": 2,
+        "legacy_all_in_only_raise_visits": 0,
+        "policy_mass_mean": {
+          "fold": 0.0,
+          "check": 0.22766026854515076,
+          "call": 0.14206403493881226,
+          "raise_0.5pot": 0.26544247567653656,
+          "raise_1pot": 0.22415606677532196,
+          "all_in": 0.14067712426185608
+        },
+        "sampled_action_counts": {
+          "fold": 0,
+          "check": 0,
+          "call": 1,
+          "raise_0.5pot": 0,
+          "raise_1pot": 1,
+          "all_in": 0
+        }
+      },
+      "Preflop": {
+        "visits": 27,
+        "menu_counts": {
+          "all_three_raise_sizes": 4,
+          "half_pot_and_all_in_without_pot": 0,
+          "all_in_only_raise": 0,
+          "other": 23
+        },
+        "half_pot_legal_visits": 4,
+        "legacy_all_in_only_raise_visits": 0,
+        "policy_mass_mean": {
+          "fold": 0.3332040105704908,
+          "check": 0.004923946879528187,
+          "call": 0.24365496469868553,
+          "raise_0.5pot": 0.008321340299314924,
+          "raise_1pot": 0.12324734515062084,
+          "all_in": 0.2866483977823346
+        },
+        "sampled_action_counts": {
+          "fold": 11,
+          "check": 1,
+          "call": 7,
+          "raise_0.5pot": 0,
+          "raise_1pot": 1,
+          "all_in": 7
+        }
+      },
+      "Turn": {
+        "visits": 2,
+        "menu_counts": {
+          "all_three_raise_sizes": 1,
+          "half_pot_and_all_in_without_pot": 0,
+          "all_in_only_raise": 0,
+          "other": 1
+        },
+        "half_pot_legal_visits": 1,
+        "legacy_all_in_only_raise_visits": 0,
+        "policy_mass_mean": {
+          "fold": 0.0,
+          "check": 0.0,
+          "call": 0.5,
+          "raise_0.5pot": 0.0,
+          "raise_1pot": 0.0,
+          "all_in": 0.5
+        },
+        "sampled_action_counts": {
+          "fold": 0,
+          "check": 0,
+          "call": 1,
+          "raise_0.5pot": 0,
+          "raise_1pot": 0,
+          "all_in": 1
+        }
+      }
+    }
+  }
+}

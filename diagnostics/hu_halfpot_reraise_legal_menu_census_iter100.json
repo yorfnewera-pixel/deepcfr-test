@@ -1,0 +1,176 @@
+{
+  "schema_version": 1,
+  "read_only": true,
+  "checkpoint": "models\\hu_halfpot_reraise\\run_20260927_163159_7c22c8e1\\hu_checkpoint_final.pt",
+  "checkpoint_iteration": 100,
+  "policy_source": "checkpoint HU advantage nets with regret matching",
+  "hands": 10000,
+  "seed": 20260927,
+  "max_decisions_per_hand": 128,
+  "summary": {
+    "overall": {
+      "visits": 22555,
+      "menu_counts": {
+        "all_three_raise_sizes": 8158,
+        "half_pot_and_all_in_without_pot": 32,
+        "all_in_only_raise": 23,
+        "other": 14342
+      },
+      "half_pot_legal_visits": 8190,
+      "legacy_all_in_only_raise_visits": 32,
+      "policy_mass_mean": {
+        "fold": 0.3569367503104621,
+        "check": 0.03311050598151615,
+        "call": 0.18922030371986195,
+        "raise_0.5pot": 0.06505354742679148,
+        "raise_1pot": 0.16072730172507485,
+        "all_in": 0.19495159142243274
+      },
+      "sampled_action_counts": {
+        "fold": 8061,
+        "check": 755,
+        "call": 4297,
+        "raise_0.5pot": 1404,
+        "raise_1pot": 3696,
+        "all_in": 4342
+      }
+    },
+    "after_raise": {
+      "visits": 9442,
+      "menu_counts": {
+        "all_three_raise_sizes": 5055,
+        "half_pot_and_all_in_without_pot": 25,
+        "all_in_only_raise": 20,
+        "other": 4342
+      },
+      "half_pot_legal_visits": 5080,
+      "legacy_all_in_only_raise_visits": 25,
+      "policy_mass_mean": {
+        "fold": 0.4591588784379338,
+        "check": 0.0,
+        "call": 0.24834387641894834,
+        "raise_0.5pot": 0.08269610039016291,
+        "raise_1pot": 0.07949958989500555,
+        "all_in": 0.13030155585125247
+      },
+      "sampled_action_counts": {
+        "fold": 4369,
+        "check": 0,
+        "call": 2356,
+        "raise_0.5pot": 771,
+        "raise_1pot": 728,
+        "all_in": 1218
+      }
+    },
+    "by_street": {
+      "Flop": {
+        "visits": 1828,
+        "menu_counts": {
+          "all_three_raise_sizes": 1388,
+          "half_pot_and_all_in_without_pot": 15,
+          "all_in_only_raise": 7,
+          "other": 418
+        },
+        "half_pot_legal_visits": 1403,
+        "legacy_all_in_only_raise_visits": 15,
+        "policy_mass_mean": {
+          "fold": 0.22633681317110682,
+          "check": 0.18117109848213375,
+          "call": 0.12979422836633006,
+          "raise_0.5pot": 0.12426698074219605,
+          "raise_1pot": 0.1157224498395605,
+          "all_in": 0.22270842954254413
+        },
+        "sampled_action_counts": {
+          "fold": 427,
+          "check": 345,
+          "call": 231,
+          "raise_0.5pot": 194,
+          "raise_1pot": 213,
+          "all_in": 418
+        }
+      },
+      "Preflop": {
+        "visits": 20412,
+        "menu_counts": {
+          "all_three_raise_sizes": 6510,
+          "half_pot_and_all_in_without_pot": 15,
+          "all_in_only_raise": 13,
+          "other": 13874
+        },
+        "half_pot_legal_visits": 6525,
+        "legacy_all_in_only_raise_visits": 15,
+        "policy_mass_mean": {
+          "fold": 0.37098233206369347,
+          "check": 0.017266303985935365,
+          "call": 0.19554973168008202,
+          "raise_0.5pot": 0.05807219016045502,
+          "raise_1pot": 0.16504967381817423,
+          "all_in": 0.19307976894283174
+        },
+        "sampled_action_counts": {
+          "fold": 7567,
+          "check": 346,
+          "call": 4028,
+          "raise_0.5pot": 1155,
+          "raise_1pot": 3442,
+          "all_in": 3874
+        }
+      },
+      "River": {
+        "visits": 58,
+        "menu_counts": {
+          "all_three_raise_sizes": 47,
+          "half_pot_and_all_in_without_pot": 0,
+          "all_in_only_raise": 1,
+          "other": 10
+        },
+        "half_pot_legal_visits": 47,
+        "legacy_all_in_only_raise_visits": 0,
+        "policy_mass_mean": {
+          "fold": 0.1929598651055632,
+          "check": 0.16396539568387228,
+          "call": 0.13759239968554726,
+          "raise_0.5pot": 0.17460764315107774,
+          "raise_1pot": 0.15364622106326037,
+          "all_in": 0.17722847441147113
+        },
+        "sampled_action_counts": {
+          "fold": 12,
+          "check": 10,
+          "call": 7,
+          "raise_0.5pot": 10,
+          "raise_1pot": 9,
+          "all_in": 10
+        }
+      },
+      "Turn": {
+        "visits": 257,
+        "menu_counts": {
+          "all_three_raise_sizes": 213,
+          "half_pot_and_all_in_without_pot": 2,
+          "all_in_only_raise": 2,
+          "other": 40
+        },
+        "half_pot_legal_visits": 215,
+        "legacy_all_in_only_raise_visits": 2,
+        "policy_mass_mean": {
+          "fold": 0.20732169072161852,
+          "check": 0.20885955049486013,
+          "call": 0.12085065646785591,
+          "raise_0.5pot": 0.17364176092053318,
+          "raise_1pot": 0.13913707900429978,
+          "all_in": 0.15018926129281404
+        },
+        "sampled_action_counts": {
+          "fold": 55,
+          "check": 54,
+          "call": 31,
+          "raise_0.5pot": 45,
+          "raise_1pot": 32,
+          "all_in": 40
+        }
+      }
+    }
+  }
+}

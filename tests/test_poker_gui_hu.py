@@ -1,10 +1,15 @@
 """Регрессии двухместного режима графического клиента."""
 from __future__ import annotations
 
+import random
+
+import numpy as np
+
 from scripts.poker_gui import (
     create_game_state,
     is_policy_runtime_checkpoint,
     parse_arguments,
+    preserve_application_rng,
     table_player_ids,
 )
 
@@ -34,6 +39,32 @@ def test_hu_flag_selects_two_player_launch_mode(monkeypatch) -> None:
     args = parse_arguments()
 
     assert args.hu is True
+
+
+def test_advantage_flag_selects_regret_matching_mode(monkeypatch) -> None:
+    """Падёт, если GUI перестанет принимать явный выбор advantage policy."""
+    monkeypatch.setattr("sys.argv", ["poker_gui", "--hu", "--policy-source", "advantage"])
+
+    args = parse_arguments()
+
+    assert args.policy_source == "advantage"
+
+
+def test_checkpoint_load_does_not_reset_gui_random_sequence() -> None:
+    """Падёт, если загрузка checkpoint снова задаст одинаковую первую раздачу GUI."""
+    random.seed(123)
+    np.random.seed(456)
+    expected_python = random.Random(123).randint(0, 10_000)
+    expected_numpy = np.random.RandomState(456).randint(0, 10_000)
+
+    def loader() -> None:
+        random.seed(1)
+        np.random.seed(2)
+
+    preserve_application_rng(loader)
+
+    assert random.randint(0, 10_000) == expected_python
+    assert np.random.randint(0, 10_000) == expected_numpy
 
 
 def test_hu_light_checkpoint_uses_policy_runtime_without_monolithic_weights() -> None:

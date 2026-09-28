@@ -1,0 +1,185 @@
+## Короткий вывод
+
+**Схлопывание есть, но пока доказано именно схлопывание аппроксимации policy, а не систематическая подделка положительного all-in.**
+
+Главная поправка к предыдущему расследованию: сеть обучается **не на свежем regret текущей policy**, а на взвешенной исторической смеси instantaneous regrets. Поэтому target drift между итерациями сам по себе ожидаем и не доказывает, что старый replay вреден. Fresh-target probes полезны для оценки текущей policy, но не полностью соответствуют training objective.
+
+При этом objective-alignment действительно обнаружил серьёзный fitting gap: `RM-L1 ≈ 0.93–1.06` даже на strong-margin historical groups. Значит, обученная сеть плохо воспроизводит policy, оптимальную **даже для собственного replay-objective**. Но сильные false-positive all-in почти отсутствуют; чаще сеть, наоборот, теряет исторически положительный all-in.
+
+Самая подозрительная конкретная причина all-in-heavy поведения сейчас — **action abstraction**: код безусловно запрещает half-pot после любого рейза на улице. Если pot-size затем не проходит min-raise или совпадает с all-in, all-in остаётся единственным raise. Это правило закреплено тестом, но технического или покерного обоснования в истории репозитория нет.[[1]](https://github.com/yorfnewera-pixel/deepcfr-test/blob/main/src/core/action_space.py#L71-L76) [[2]](https://github.com/yorfnewera-pixel/deepcfr-test/blob/main/src/core/action_space.py#L137-L138)
+
+---
+
+## Что происходит с сигналом
+
+Фактическая цепочка такая:
+
+1. На frozen snapshots выполняются обе traversal-фазы P0 и P1.
+2. В посещённом infoset traverser перебирает все legal actions и получает:
+    - `Q_t(I,a)`;
+    - `V_t(I)=Σπ_t(a)Q_t(I,a)`;
+    - `r_t(I,a)=Q_t(I,a)-V_t(I)`.
+3. В reservoir сохраняются независимые копии `Q`, `V`, `r`, mask и номер итерации.
+4. При обучении minibatch выбирается равномерно, а loss умножается на номер исходной итерации.
+5. Сеть учит:
+
+```
+MSE(Q̂ − V̂, r_target) + 0.5 × MSE(V̂, V_target)
+```
+
+`Q_target` сохраняется, но **не участвует в loss напрямую**.[[3]](https://github.com/yorfnewera-pixel/deepcfr-test/blob/main/src/core/deep_cfr.py#L1889-L1910)
+
+Следовательно:
+
+- `Q MAE` — вторичная диагностическая метрика, а не прямой training error;
+- основной показатель — regret error и resulting RM-policy;
+- исторический weighted target — не старый ошибочный `Q`, а выборка instant regrets для приближения накопленного CFR-сигнала;
+- recent-window меняет алгоритм, а не просто «очищает плохие labels».
+
+Обе стороны действительно собираются до обучения: coordinator делает frozen snapshots, проходит P0 и P1, коммитит samples и лишь затем обучает обе advantage-сети.[[4]](https://github.com/yorfnewera-pixel/deepcfr-test/blob/main/src/core/hu_self_play.py#L285-L294) [[5]](https://github.com/yorfnewera-pixel/deepcfr-test/blob/main/src/core/hu_self_play.py#L470-L539)
+
+---
+
+## Матрица гипотез
+
+| Гипотеза | Текущее состояние | Чего не хватает |
+| --- | --- | --- |
+| **NN искусственно делает отрицательный all-in положительным** | Сильно ослаблена. На repeated historical groups при `n≥10`: `0` strong negative → positive у обоих игроков. Есть единичный случай P1 при `n≥5`. | Census всей visitation distribution, включая узлы с урезанным raise-menu. |
+| **Сеть плохо воспроизводит собственный historical objective** | **Подтверждено.** Strong-margin `RM-L1` около `0.93–1.06`; это уже не near-zero instability. | Разложение ошибки по legal-menu pattern, street, stack/pot и числу legal actions. |
+| **Fresh targets конфликтуют со старыми labels** | Drift подтверждён, но интерпретация «старые labels вредны» не подтверждена. Историческая смесь — ожидаемая семантика Deep CFR/D2CFR. | Только полноценный controlled variant может оценить recent-window, но сейчас это не первый шаг. |
+| **External-sampling noise разрушает сигнал** | Не главная причина. Direct fit noisy labels остаётся хорошим; within-iteration variance заметно меньше between-iteration variance. | Можно оставить как вторичный источник variance, не повторять текущие probes. |
+| **Недостаточно optimizer steps** | Как единственная причина опровергнуто: 3000 steps не устранили проблему. | Не нужен ещё один step-budget sweep. |
+| **Недостаточная capacity вообще** | Опровергнуто только на 64 фиксированных states: mean targets сеть запоминает почти идеально. | Wide-distribution generalization остаётся открытым вопросом. |
+| **Encoder aliasing** | Structural aliasing наблюдаемым provenance не подтверждён. Exact encoding repeats сами по себе не aliasing. | Ничего срочного; не повторять collision audit. |
+| **Reservoir скрыто дважды предпочитает recent samples** | Не подтверждается. Admission и minibatch uniform; temporal weighting один — через iteration в loss. | Ничего. `batch_mean_1` слегка меняет effective target, но найденная разница слишком мала. |
+| **Action menu структурно толкает policy в all-in** | **Очень вероятно.** Half-pot запрещён после любого raise; pot-size отдельно может стать illegal, тогда остаётся только all-in. | Visit-weighted legal-menu census. |
+| **Баг mutable references / смешение snapshots** | Опровергнуто кодом: buffer копирует NumPy values; обе стороны используют snapshots начала итерации. | Ничего. |
+| **Полное соответствие D2CFR paper** | **Нет.** Реализован отдельный anchored-вариант. | Не нужно называть его точной репликацией paper. |
+
+---
+
+## Расхождения со статьёй D2CFR
+
+### 1. Replay и iteration weighting — в основном соответствуют
+
+В статье используется reservoir и loss с весом исходной итерации `t′`. Здесь тот же общий принцип. Нормализация веса на среднее minibatch слегка изменяет stochastic objective, но objective-alignment показывает разницу всего порядка `0.014–0.028`, существенно меньше fitting gap.
+
+Это **вариант реализации**, не вероятный источник коллапса.
+
+### 2. Objective — не буквальный objective статьи
+
+В псевдокоде статьи основным objective является weighted MSE по instant regret. Здесь добавлена отдельная `0.5 × V-loss`, при этом `Q` получает gradient только через `Q̂−V̂`.
+
+Это не обязательно баг, но:
+
+- расходует capacity и gradient budget на `V`;
+- привязывает идентификацию `Q` к качеству `V`;
+- делает прямую интерпретацию `Q MAE` опасной;
+- не является независимым Q/V/R supervised learning.
+
+### 3. Rectification module фактически отсутствует
+
+Статья смешивает `V_NN` и Monte-Carlo `V_MC` с меняющимися `α/β` непосредственно при построении regret/policy. В текущей конфигурации:
+
+```yaml
+d2cfr_mc_correction_enabled: false
+traversal_baseline_enabled: false
+```
+
+а checkpoint metadata жёстко пишет `mc_correction_enabled: false`.[[6]](https://github.com/yorfnewera-pixel/deepcfr-test/blob/main/config.yaml#L65-L66) [[7]](https://github.com/yorfnewera-pixel/deepcfr-test/blob/main/src/core/deep_cfr.py#L517-L529)
+
+Это **крупнейшее расхождение со статьёй**, но пока не доказано, что оно вызывает именно all-in-heavy направление ошибки. Корректнее называть текущий алгоритм `anchored dueling Deep CFR`, а не полной реализацией paper D2CFR.
+
+### 4. Update order отличается от буквального Algorithm 1
+
+Статья проходит игроков последовательно и обучает сеть игрока после его traversal-фазы. Здесь обе стороны собираются с одного синхронного snapshot, затем обучаются.
+
+Это меняет алгоритм, но выглядит осознанной и внутренне согласованной синхронной схемой, а не очевидным багом. Зато гипотеза о случайном смешивании snapshots внутри iteration опровергнута.
+
+---
+
+## Почему текущий all-in probe не проверяет наиболее опасную область
+
+`d2cfr_allin_bias_probe.py` специально принимает только states, где одновременно legal:
+
+- half-pot;
+- pot;
+- all-in.[[8]](https://github.com/yorfnewera-pixel/deepcfr-test/blob/main/tools/d2cfr_allin_bias_probe.py#L32-L38)
+
+Поэтому все 16 состояний baseline probe имели все три raise-size. Этот probe **по конструкции исключает** состояния, где all-in стал единственным raise. Следовательно, хорошие выводы objective-alignment не закрывают action-menu гипотезу.
+
+---
+
+## Что показывает оригинальный репозиторий
+
+В первом проекте я не нашёл доказательства точно такого же all-in collapse. Там расследуется скорее общий разрыв между replay fitting и реальной силой policy.
+
+Но action abstraction устроена существенно безопаснее:
+
+- всегда добавляются `min_raise` и `max_raise/all-in`;
+- добавляется несколько pot fractions;
+- размеры clamp’ятся в legal interval;
+- дубликаты после clamp удаляются;
+- нет общего запрета half-pot после предыдущего raise.[[9]](https://github.com/dberweger2017/deepcfr-texas-no-limit-holdem-6-players/blob/main/src/holdem/actions.py#L58-L74)
+
+Это не доказывает, что их алгоритм сильнее, но показывает, что фиксированное меню вашего проекта действительно может создавать искусственные all-in-only узлы.
+
+У автора также правильная методологическая оговорка: снижение in-sample replay loss нельзя автоматически превращать в вывод о качестве policy; отдельно нужно проверять сыгранную policy и coverage.[[10]](https://github.com/dberweger2017/deepcfr-texas-no-limit-holdem-6-players/blob/main/docs/reports/holdem-frozen-fitting.md)
+
+---
+
+## Рейтинг вероятных причин
+
+1. **Action abstraction / legal-action menu — высокая вероятность.**
+2. **Wide-distribution fitting/generalization исторического regret-objective — высокая вероятность.**
+3. **Target/replay non-stationarity как сложность оптимизации — средняя**, но не как «старые labels являются ошибкой».
+4. **External-sampling noise — средне-низкая.**
+5. **Систематическая NN inflation именно all-in — низкая по текущим данным.**
+6. **Mutable data или mixed snapshots — практически исключено.**
+7. **Отсутствие paper rectification — реальное расхождение**, но направление его влияния на all-in пока неизвестно.
+
+---
+
+## Один следующий шаг
+
+### Visit-weighted legal-action-menu census
+
+Не новое обучение и не очередной all-in/Q probe. Нужно пройти существующим checkpoint по фиксированным deals и на каждом decision node записать:
+
+- street;
+- `pot`, `call`, `min_raise_increment`, remaining stack;
+- был ли raise на текущей улице;
+- фактический legal mask;
+- число legal raises;
+- policy probability каждого слота;
+- counterfactual mask, если убрать **только** специальный запрет half-pot после raise;
+- долю nodes, где:
+    - all-in — единственный raise;
+    - half-pot был бы математически legal без специального запрета;
+    - пот-сайзинг исчез из-за `min_raise`;
+    - all-in получает mass потому, что альтернативы отсутствуют.
+
+### Какие исходы что означают
+
+- **All-in-only nodes часты, а после удаления запрета резко исчезают:** найден структурный источник all-in-heavy поведения. Тогда action abstraction нужно исправлять, а последующее переобучение уже оправдано.
+- **All-in-only nodes редки:** legal menu не объясняет collapse; основной фокус переходит на objective-aligned fitting/generalization.
+- **Nodes часты, но checkpoint почти не посещает их:** правило плохое, но не объясняет наблюдаемую policy.
+- **Half-pot всё равно обычно меньше min-raise:** проблема шире одного `if`; фиксированные half/pot slots нужно заменить legal candidate construction с min/max raise, как в оригинальном репозитории.
+
+### Стоимость и семантика
+
+- Выполняется на существующем checkpoint, без optimizer и нового обучения.
+- Диагностика CFR-семантику не меняет.
+- Counterfactual mask используется только для отчёта.
+- Для реального исправления abstraction потребуется новое обучение, потому что изменится игра.
+
+### Точные места
+
+- `src/core/action_space.py`:
+    - `has_raise_on_current_street`;
+    - `resolve_action`;
+    - `legal_action_mask`.
+- Новый read-only инструмент: `tools/d2cfr_legal_menu_census.py`.
+- Не переиспользовать `_is_candidate` из `d2cfr_allin_bias_probe.py`, потому что он отбрасывает как раз нужные состояния.
+
+И ещё одна деталь: в репозитории отчёты и checkpoint names относятся к **27.09.2026**, а не к 17.09.2026. Вероятно, в сообщении была опечатка.

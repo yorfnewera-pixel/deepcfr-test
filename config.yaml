@@ -19,7 +19,7 @@ strategy_batch_size: 256
 advantage_epochs: 15
 strategy_epochs: 50
 # Фиксированный бюджет исключает рост числа шагов вместе с replay-буфером.
-advantage_train_steps: 3000
+advantage_train_steps: 750
 # Average strategy обучается раз в 10 CFR-итераций и дополнительно перед final checkpoint.
 strategy_train_steps: 5000
 strategy_train_every: 10
@@ -65,7 +65,7 @@ d2cfr_replay_provenance_audit: true
 d2cfr_mc_correction_enabled: false
 traversal_baseline_enabled: false
 
-policy_runtime_min_action_prob: 0.05
+policy_runtime_min_action_prob: 0.0
 checkpoint_save_every: 500
 # HU full и light checkpoint сохраняются отдельно от six-max каждые 5000 итераций.
 hu_checkpoint_save_every: 100

@@ -5,6 +5,7 @@ import torch
 from src.core.action_space import ActionSlot, NUM_ACTIONS, legal_action_mask, resolve_action
 from src.core.deep_cfr import DeepCFRAgent
 from src.core.model import CARD_CONTEXT_ARCHITECTURE, encode_state_for_version as encode_training_state
+from src.utils import config as config_mod
 from policy_runtime.core import PolicyRuntimeAgent, encode_state_for_version as encode_runtime_state
 
 
@@ -39,14 +40,20 @@ def test_invalid_fixed_size_is_masked_instead_of_clamped():
         resolve_action(ActionSlot.RAISE_POT, state)
 
 
-def test_half_pot_raise_is_illegal_after_raise_on_current_street():
-    state = _state().apply_action(pkrs.Action(pkrs.ActionEnum.Raise, 2.0))
+def test_half_pot_raise_is_legal_after_raise_when_common_rules_allow_it(tmp_path):
+    config_path = tmp_path / "action-space.yaml"
+    config_path.write_text("", encoding="utf-8")
+    config_mod.load_config(config_path)
+    try:
+        state = _state().apply_action(pkrs.Action(pkrs.ActionEnum.Raise, 2.0))
 
-    mask = legal_action_mask(state)
+        mask = legal_action_mask(state)
 
-    assert mask[ActionSlot.RAISE_HALF_POT] == 0.0
-    assert mask[ActionSlot.RAISE_POT] == 1.0
-    assert mask[ActionSlot.ALL_IN] == 1.0
+        assert mask[ActionSlot.RAISE_HALF_POT] == 1.0
+        assert mask[ActionSlot.RAISE_POT] == 1.0
+        assert mask[ActionSlot.ALL_IN] == 1.0
+    finally:
+        config_mod.load_config("config.yaml")
 
 
 def test_policy_runtime_uses_the_same_slot_mask_as_training(tmp_path):

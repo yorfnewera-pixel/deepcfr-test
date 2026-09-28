@@ -4,6 +4,7 @@ import os
 import random
 import glob
 import torch
+import numpy as np
 import pokers as pkrs
 import argparse
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -17,6 +18,7 @@ from PyQt5.QtGui import QPixmap, QIcon, QFont, QColor, QPalette
 from src.core.deep_cfr import DeepCFRAgent
 from src.core.action_space import resolve_action
 from src.core.checkpoint_kinds import (
+    HU_CURRENT_POLICY_SELF_PLAY_CHECKPOINT_KIND,
     HU_STRATEGY_ONLY_CHECKPOINT_KIND,
     STRATEGY_ONLY_CHECKPOINT_KIND,
 )
@@ -24,6 +26,76 @@ from src.core.game_contract import FIXED_HU_GAME_CONTRACT
 from src.core.model import set_verbose
 from src.agents.random_agent import RandomAgent
 from policy_runtime.core import PolicyRuntimeAgent
+
+
+def preserve_application_rng(loader):
+    """Изолирует training RNG checkpoint от генератора случайных раздач GUI."""
+    python_state = random.getstate()
+    numpy_state = np.random.get_state()
+    torch_state = torch.get_rng_state()
+    cuda_states = torch.cuda.get_rng_state_all() if torch.cuda.is_available() else None
+    try:
+        return loader()
+    finally:
+        random.setstate(python_state)
+        np.random.set_state(numpy_state)
+        torch.set_rng_state(torch_state)
+        if cuda_states is not None:
+            torch.cuda.set_rng_state_all(cuda_states)
+
+
+class HuAdvantageAdapter:
+    """Играет HU checkpoint через advantage leg и regret matching, минуя strategy_net."""
+
+    def __init__(self, checkpoint_path, player_id, device):
+        self.player_id = int(player_id)
+        if self.player_id not in (0, 1):
+            raise ValueError("advantage-режим поддерживает только HU P0/P1")
+        self.agent, self.network = preserve_application_rng(
+            lambda: self._load_checkpoint(checkpoint_path, device)
+        )
+
+    def _load_checkpoint(self, checkpoint_path, device):
+        from src.training import train as train_mod
+
+        checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
+        if not is_hu_training_checkpoint(checkpoint):
+            raise ValueError("advantage-режим GUI требует полный HU training checkpoint")
+        contract = checkpoint.get("config")
+        if not isinstance(contract, dict):
+            raise ValueError("HU checkpoint не содержит training contract")
+        self.agent = DeepCFRAgent(player_id=self.player_id, num_players=2, device=device)
+        for field, value in contract.items():
+            if hasattr(self.agent, field):
+                setattr(self.agent, field, value)
+        legs = checkpoint.get("advantage_legs")
+        if not isinstance(legs, list) or len(legs) != 2:
+            raise ValueError("HU checkpoint не содержит две advantage legs")
+        provenance_modes = [
+            bool(leg.get("buffer", {}).get("provenance_enabled", False))
+            for leg in legs if isinstance(leg, dict)
+        ]
+        if len(provenance_modes) != 2 or provenance_modes[0] != provenance_modes[1]:
+            raise ValueError("HU checkpoint имеет несогласованный replay provenance режим")
+        self.agent.d2cfr_replay_provenance_audit = provenance_modes[0]
+        train_mod._create_hu_current_policy_coordinator(self.agent)
+        train_mod._load_hu_checkpoint(self.agent, checkpoint_path)
+        network = self.agent.hu_advantage_nets[self.player_id]
+        network.eval()
+        return self.agent, network
+
+    def choose_action(self, state):
+        mask = self.agent.get_legal_action_mask(state)
+        encoded = self.agent._encode_state(state, self.player_id)
+        state_tensor = torch.from_numpy(encoded).float().unsqueeze(0).to(self.agent.device)
+        with torch.inference_mode():
+            regrets = self.network.forward_components(state_tensor).regrets[0].cpu().numpy()
+        probabilities = self.agent._regret_matching(regrets, mask)
+        legal_slots = np.flatnonzero(probabilities > 0.0).astype(int)
+        if not legal_slots.size:
+            raise ValueError("advantage policy не вернула допустимое действие")
+        slot = int(np.random.choice(legal_slots, p=probabilities[legal_slots] / probabilities[legal_slots].sum()))
+        return self.agent.action_type_to_pokers_action(slot, state)
 
 class PolicyRuntimeAdapter:
     """Адаптер PolicyRuntimeAgent → интерфейс pkrs.Action для GUI."""
@@ -39,9 +111,11 @@ class PolicyRuntimeAdapter:
         return resolve_action(action_type, state).action
 
 
-def create_playing_agent(model_path, player_id, device):
+def create_playing_agent(model_path, player_id, device, policy_source="strategy"):
     """Загружает модель в адаптер, совместимый с игровым движком GUI."""
     checkpoint = torch.load(model_path, map_location="cpu", weights_only=False)
+    if policy_source == "advantage":
+        return HuAdvantageAdapter(model_path, player_id=player_id, device=device)
     if is_policy_runtime_checkpoint(checkpoint):
         return PolicyRuntimeAdapter(model_path, player_id=player_id, device=str(device))
 
@@ -57,6 +131,16 @@ def is_policy_runtime_checkpoint(checkpoint):
         and checkpoint.get("checkpoint_kind")
         in {STRATEGY_ONLY_CHECKPOINT_KIND, HU_STRATEGY_ONLY_CHECKPOINT_KIND}
         and isinstance(checkpoint.get("strategy_net"), dict)
+    )
+
+
+def is_hu_training_checkpoint(checkpoint):
+    """Определяет полный checkpoint, содержащий обе HU advantage legs."""
+    return (
+        isinstance(checkpoint, dict)
+        and checkpoint.get("checkpoint_kind") == HU_CURRENT_POLICY_SELF_PLAY_CHECKPOINT_KIND
+        and isinstance(checkpoint.get("advantage_legs"), list)
+        and len(checkpoint["advantage_legs"]) == 2
     )
 
 
@@ -676,13 +760,14 @@ class ModelSelectionDialog(QWidget):
 
 class PokerGUI(QMainWindow):
     """Main window for the poker GUI application"""
-    def __init__(self, num_players=6):
+    def __init__(self, num_players=6, policy_source="strategy"):
         super().__init__()
         if num_players not in (2, 6):
             raise ValueError("GUI поддерживает только HU или 6-max")
         
         # Initialize variables
         self.num_players = num_players
+        self.policy_source = policy_source
         self.agents = None  # Initialize to None instead of empty list
         self.state = None
         self.human_player_id = 0
@@ -829,7 +914,7 @@ class PokerGUI(QMainWindow):
                 model_path = selected_models[model_idx]
                 
                 try:
-                    agent = create_playing_agent(model_path, player_id=pos, device=device)
+                    agent = create_playing_agent(model_path, player_id=pos, device=device, policy_source=self.policy_source)
                     self.agents[pos] = agent
                     self.log_message(f"Loaded model for Player {pos}")
                     model_idx += 1
@@ -1215,6 +1300,7 @@ def parse_arguments():
     
     # Game settings
     parser.add_argument('--hu', action='store_true', help='Запустить двухместный HU-стол')
+    parser.add_argument('--policy-source', choices=('strategy', 'advantage'), default='strategy', help='Источник policy: финальная strategy или advantage regret matching')
     parser.add_argument('--position', type=int, default=0, help='Your position at the table (0-5)')
     parser.add_argument('--stake', type=float, default=200.0, help='Initial chip stack')
     parser.add_argument('--sb', type=float, default=1.0, help='Small blind amount')
@@ -1225,11 +1311,13 @@ def parse_arguments():
 if __name__ == "__main__":
     # Parse command line arguments
     args = parse_arguments()
+    if args.policy_source == "advantage" and not args.hu:
+        raise SystemExit("--policy-source advantage поддерживается только вместе с --hu")
     
     # Set up the application
     app = QApplication(sys.argv)
     num_players = 2 if args.hu else 6
-    window = PokerGUI(num_players=num_players)
+    window = PokerGUI(num_players=num_players, policy_source=args.policy_source)
     
     # Initialize with command line arguments if provided
     if args.models or args.models_folder:
@@ -1251,7 +1339,7 @@ if __name__ == "__main__":
                     model_path = args.models[model_idx]
                     
                     try:
-                        agent = create_playing_agent(model_path, player_id=pos, device=device)
+                        agent = create_playing_agent(model_path, player_id=pos, device=device, policy_source=args.policy_source)
                         window.agents[pos] = agent
                         window.log_message(f"Loaded model for Player {pos}: {os.path.basename(model_path)}")
                         model_idx += 1
@@ -1297,7 +1385,7 @@ if __name__ == "__main__":
                         model_path = selected_models[model_idx]
                         
                         try:
-                            agent = create_playing_agent(model_path, player_id=pos, device=device)
+                            agent = create_playing_agent(model_path, player_id=pos, device=device, policy_source=args.policy_source)
                             window.agents[pos] = agent
                             window.log_message(f"Loaded model for Player {pos}: {os.path.basename(model_path)}")
                             model_idx += 1
