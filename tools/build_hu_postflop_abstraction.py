@@ -18,10 +18,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--smoke", action="store_true")
     arguments = parser.parse_args(argv)
+    report = lambda message: print(message, flush=True)
     if arguments.smoke:
-        build_all(arguments.output, sample_count=5, holdout_count=3, clusters=2)
+        build_all(arguments.output, sample_count=5, holdout_count=3, clusters=2, progress=report)
         return 0
-    build_all(arguments.output, sample_count=100_000, holdout_count=20_000, clusters=200)
+    build_all(arguments.output, sample_count=100_000, holdout_count=20_000, clusters=200, progress=report)
     return 0
 
 

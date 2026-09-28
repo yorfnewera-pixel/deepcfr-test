@@ -5,6 +5,7 @@ import json
 import platform
 import shutil
 import tempfile
+from collections.abc import Callable
 from pathlib import Path
 
 import numpy as np
@@ -26,6 +27,26 @@ _FEATURE_VERSION = "hu_postflop_abstraction_v1"
 _CANONICALIZER_VERSION = "v1"
 _FEATURE_SIZE = 27
 _KMEANS_PARAMETERS = {"init": "k-means++", "n_init": 20, "max_iter": 500, "tol": 1e-4}
+
+ProgressReporter = Callable[[str], None]
+
+
+def _report(progress: ProgressReporter | None, message: str) -> None:
+    if progress is not None:
+        progress(message)
+
+
+def _build_features(
+    situations: list[CardSituation], master_seed: int, street: Street,
+    dataset_name: str, progress: ProgressReporter | None,
+) -> np.ndarray:
+    features = []
+    step = max(1, len(situations) // 10)
+    for index, situation in enumerate(situations, start=1):
+        features.append(build_feature(situation, master_seed))
+        if index == len(situations) or index % step == 0:
+            _report(progress, f"{street.value}: {dataset_name} feature {index}/{len(situations)}")
+    return np.vstack(features)
 
 
 def _distances(points: np.ndarray, model: KMeans) -> tuple[np.ndarray, np.ndarray]:
@@ -100,15 +121,18 @@ def _validate_quality(validation: dict[str, object], sample_count: int) -> None:
 
 def _build_street(
     street: Street, output_root: Path, sample_count: int, holdout_count: int,
-    clusters: int, master_seed: int, enforce_quality: bool,
+    clusters: int, master_seed: int, enforce_quality: bool, progress: ProgressReporter | None,
 ) -> tuple[Path, str]:
+    _report(progress, f"{street.value}: выборка train={sample_count}, holdout={holdout_count}")
     train = sample_unique_situations(street, sample_count, master_seed)
     holdout = sample_unique_situations(street, holdout_count, master_seed + 1)
-    train_features = np.vstack([build_feature(item, master_seed) for item in train])
-    holdout_features = np.vstack([build_feature(item, master_seed) for item in holdout])
+    _report(progress, f"{street.value}: построение feature")
+    train_features = _build_features(train, master_seed, street, "train", progress)
+    holdout_features = _build_features(holdout, master_seed, street, "holdout", progress)
     scaler = StandardScaler().fit(train_features)
     train_points = scaler.transform(train_features)
     holdout_points = scaler.transform(holdout_features)
+    _report(progress, f"{street.value}: KMeans(k={clusters})")
     model = KMeans(n_clusters=clusters, random_state=master_seed, **_KMEANS_PARAMETERS).fit(train_points)
     artifact = StreetArtifact(model=model, scaler_mean=scaler.mean_, scaler_scale=scaler.scale_)
     directory = publish_street_artifact(output_root, street, artifact, Manifest("v1", _FEATURE_SIZE, master_seed))
@@ -117,12 +141,14 @@ def _build_street(
         "canonical_key": [canonicalize(item).as_string() for item in train],
         "bucket_id": labels.astype(np.int32),
     }).to_parquet(directory / "train_assignments.parquet", index=False)
+    _report(progress, f"{street.value}: validation")
     validation = _validation(
         street, train, train_points, holdout, holdout_points, scaler, model, master_seed, enforce_quality
     )
     if enforce_quality:
         _validate_quality(validation, sample_count)
     (directory / "validation.json").write_text(json.dumps(validation, sort_keys=True), encoding="utf-8")
+    _report(progress, f"{street.value}: готово")
     return directory, sha256_file(directory / "model.joblib")
 
 
@@ -142,6 +168,7 @@ def _global_manifest(master_seed: int, sample_count: int, holdout_count: int, cl
 def build_all(
     output_root: Path, sample_count: int, holdout_count: int, clusters: int,
     master_seed: int = 20260927, enforce_quality: bool | None = None,
+    progress: ProgressReporter | None = None,
 ) -> dict[Street, Path]:
     """Строит набор артефактов и публикует его только после полной проверки."""
     if clusters < 2 or sample_count < clusters or holdout_count < 1:
@@ -151,19 +178,22 @@ def build_all(
     output_root = Path(output_root)
     temporary = Path(tempfile.mkdtemp(prefix=f".{output_root.name}-", dir=output_root.parent))
     try:
+        _report(progress, "preflop: построение lossless 169-class таблицы")
         preflop_directory = temporary / Street.PREFLOP.value
         preflop_directory.mkdir(parents=True)
         build_lossless_preflop_table().to_parquet(preflop_directory / "lossless_classes.parquet", index=False)
         model_sha256 = {}
         for street in (Street.FLOP, Street.TURN, Street.RIVER):
             _, model_sha256[street.value] = _build_street(
-                street, temporary, sample_count, holdout_count, clusters, master_seed, enforce_quality
+                street, temporary, sample_count, holdout_count, clusters, master_seed, enforce_quality, progress
             )
         (temporary / "manifest.json").write_text(
             json.dumps(_global_manifest(master_seed, sample_count, holdout_count, clusters, model_sha256), sort_keys=True),
             encoding="utf-8",
         )
+        _report(progress, "Публикация артефактов")
         publish_directory(temporary, output_root)
+        _report(progress, "Публикация артефактов завершена")
     except Exception:
         shutil.rmtree(temporary, ignore_errors=True)
         raise

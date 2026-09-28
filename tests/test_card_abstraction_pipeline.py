@@ -31,13 +31,16 @@ def test_build_all_smoke_writes_preflop_and_three_postflop_artifacts(tmp_path):
     assert set(manifest["model_sha256"]) == {"flop", "turn", "river"}
 
 
-def test_cli_smoke_builds_artifacts(tmp_path):
+def test_cli_smoke_builds_artifacts(tmp_path, capsys):
     from tools.build_hu_postflop_abstraction import main
 
     exit_code = main(["--smoke", "--output", str(tmp_path)])
 
     assert exit_code == 0
     assert (tmp_path / "preflop" / "lossless_classes.parquet").is_file()
+    output = capsys.readouterr().out
+    assert "flop: построение feature" in output
+    assert "Публикация артефактов завершена" in output
 
 
 def test_cli_smoke_runs_as_script_from_project_root(tmp_path):
