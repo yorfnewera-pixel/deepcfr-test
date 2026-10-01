@@ -6,7 +6,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from decimal import Decimal, ROUND_FLOOR
 from enum import IntEnum
+from math import isfinite
 
 import numpy as np
 import pokers as pkrs
@@ -22,7 +24,7 @@ class ActionSlot(IntEnum):
 
 
 NUM_ACTIONS = len(ActionSlot)
-ACTION_SPACE_VERSION = "six_fixed_v2"
+ACTION_SPACE_VERSION = "six_fixed_v3"
 ACTION_LABELS = (
     "fold",
     "check",
@@ -81,13 +83,21 @@ def remaining_after_call(state) -> float:
 
 def min_raise_increment(state) -> float:
     """Минимальная добавка сверх колла по доступному состоянию движка."""
-    last_increment = getattr(state, "last_raise_increment", None)
-    if last_increment is not None and float(last_increment) > 0.0:
-        return max(1.0, float(last_increment))
-    big_blind = getattr(state, "bb", None)
-    if big_blind is not None and float(big_blind) > 0.0:
-        return max(1.0, float(big_blind))
-    return 1.0
+    minimum = float(state.min_raise)
+    if not isfinite(minimum) or minimum <= 0.0:
+        raise ValueError("Движок вернул недопустимый минимальный рейз")
+    return minimum
+
+
+def _floor_to_chip_unit(amount: float, state) -> float:
+    """Округляет размер вниз к ближайшей целой единице фишек."""
+    chip_unit = float(state.chip_unit)
+    if not isfinite(amount) or not isfinite(chip_unit) or chip_unit <= 0.0:
+        raise ValueError("Невозможно квантовать размер действия")
+    units = (Decimal(str(amount)) / Decimal(str(chip_unit))).to_integral_value(
+        rounding=ROUND_FLOOR
+    )
+    return float(units * Decimal(str(chip_unit)))
 
 
 def _raise_amount(slot: ActionSlot, state) -> float:
@@ -131,7 +141,7 @@ def resolve_action(slot: int | ActionSlot, state) -> ResolvedAction:
 
     amount_to_call = call_amount(state)
     remaining = remaining_after_call(state)
-    amount = _raise_amount(action_slot, state)
+    amount = _floor_to_chip_unit(_raise_amount(action_slot, state), state)
     if amount <= 0.0:
         raise ValueError("Для рейза не осталось фишек после колла")
 

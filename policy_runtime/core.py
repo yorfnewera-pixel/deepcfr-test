@@ -5,6 +5,7 @@ Input: dict via choose_action_from_dict() or GameState Protocol via choose_actio
 Output: {"action_type": int} — adapter converts the fixed action slot to engine Action.
 """
 import json
+from decimal import Decimal, ROUND_FLOOR
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -15,7 +16,8 @@ from typing import Protocol, runtime_checkable, Optional
 LEGACY_ENCODING_VERSION = "legacy_v2"
 HISTORY_SUMMARY_V3_ENCODING_VERSION = "history_summary_v3"
 CHECKPOINT_FORMAT_VERSION = 7
-GAME_RULES_VERSION = "holdem_standard_hu_v2"
+GAME_RULES_VERSION = "mtt_per_player_ante_v1"
+ACTION_SPACE_VERSION = "six_fixed_v3"
 INPUT_SIZE = 157
 NUM_ACTIONS = 6
 DEFAULT_HIDDEN = 256
@@ -518,8 +520,8 @@ class PolicyRuntimeAgent:
         if checkpoint.get('checkpoint_format_version') != CHECKPOINT_FORMAT_VERSION:
             raise ValueError("Нужен checkpoint формата history_summary_v3")
         if checkpoint.get('game_rules_version') != GAME_RULES_VERSION:
-            raise ValueError("Checkpoint создан до исправления правил HU")
-        if checkpoint.get('action_space_version') != 'six_fixed_v2':
+            raise ValueError("Checkpoint создан для другой версии правил MTT")
+        if checkpoint.get('action_space_version') != ACTION_SPACE_VERSION:
             raise ValueError("Checkpoint имеет другое пространство действий")
 
         strategy_sd = checkpoint['strategy_net']
@@ -644,16 +646,21 @@ class PolicyRuntimeAgent:
             player = state.players_state[int(state.current_player)]
             call_amount = max(0.0, float(state.min_bet) - float(player.bet_chips))
             remaining = max(0.0, float(player.stake) - call_amount)
-            min_raise = max(1.0, float(getattr(state, 'last_raise_increment', 0.0) or getattr(state, 'bb', 1.0)))
+            min_raise = float(state.min_raise)
             pot = float(state.pot)
-            has_raise_on_current_street = any(
-                player_state.last_stage_action is not None
-                and int(player_state.last_stage_action) == 3
-                for player_state in state.players_state
-            )
-            if not has_raise_on_current_street and 0.5 * pot >= min_raise and 0.5 * pot < remaining:
+            chip_unit = Decimal(str(state.chip_unit))
+
+            def floor_to_chip_unit(amount: float) -> float:
+                units = (Decimal(str(amount)) / chip_unit).to_integral_value(
+                    rounding=ROUND_FLOOR
+                )
+                return float(units * chip_unit)
+
+            half_pot = floor_to_chip_unit(0.5 * pot)
+            pot_raise = floor_to_chip_unit(pot)
+            if half_pot >= min_raise and half_pot < remaining:
                 mask[self.ACTION_RAISE_HALF_POT] = 1.0
-            if pot >= min_raise and pot < remaining:
+            if pot_raise >= min_raise and pot_raise < remaining:
                 mask[self.ACTION_RAISE_POT] = 1.0
             if remaining > 0.0:
                 mask[self.ACTION_ALL_IN] = 1.0

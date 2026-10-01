@@ -94,7 +94,7 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="Deep CFR Policy Runtime (pokers)")
-    parser.add_argument("checkpoint", help="Путь к checkpoint формата six_fixed_v2")
+    parser.add_argument("checkpoint", help="Путь к checkpoint формата six_fixed_v3")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--player", type=int, default=0)
     parser.add_argument("--deterministic", action="store_true")

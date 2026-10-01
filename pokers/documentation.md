@@ -1,6 +1,18 @@
 # Pokers Python Library Documentation
 
-**Embarrassingly simple No Limit Texas Holdem environment for RL**
+**Локальный 2--8-max No Limit Texas Holdem MTT-движок для RL**
+
+> Игровой контракт: `mtt_per_player_ante_v1`. Он не совместим с HU checkpoint и legacy `from_mid_hand`.
+
+## MTT Contract v1
+
+Конструктор принимает `chip_unit`, `stakes` и `ante`. Каждая денежная величина должна быть положительной/неотрицательной по смыслу параметра и кратной `chip_unit`; внутри Rust она хранится как целое число chip-единиц. `stakes` содержит отдельный положительный стек на каждое место.
+
+Перед раздачей движок всегда собирает `ante`, затем SB и BB. Короткий игрок платит доступный остаток. Ante учитывается в общем вкладе и side pots, однако не входит в `bet_chips`: он не снижает сумму колла и не меняет `min_raise`. Big-blind ante не поддерживается этой версией контракта.
+
+`State.min_raise` задаёт минимальную добавку полного рейза. Внешний action-space обязан квантовать pot-size ставки вниз: `floor(size / chip_unit) * chip_unit`, после чего отклонять размер ниже `min_raise` либо равный all-in без неявного fallback.
+
+После settlement внешний MTT-контур использует ненулевые `PlayerState.stake` как `stakes` следующей раздачи; он не передаёт выбывшего игрока в новый `State`. `action_history` содержит только успешные публичные действия и пригодна для policy-наблюдения; она не раскрывает карты, колоду или seed.
 
 ## Table of Contents
 
@@ -102,8 +114,11 @@ state = pkrs.State.from_seed(
     button=0, 
     sb=0.5, 
     bb=1.0, 
-    stake=100, 
-    seed=42
+    stake=0,
+    stakes=[40, 23, 11, 7],
+    ante=1,
+    chip_unit=1,
+    seed=42,
 )
 
 # Display the initial game state

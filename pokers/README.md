@@ -1,9 +1,18 @@
 [![CI](https://github.com/Reinforcement-Poker/pokers/actions/workflows/CI.yml/badge.svg)](https://github.com/Reinforcement-Poker/pokers/actions/workflows/CI.yml)
 [![PyPI version](https://badge.fury.io/py/pokers.svg)](https://badge.fury.io/py/pokers)
 
-# Pokers
+# Pokers — локальный MTT-контракт v1
 
-Embarrassingly simple no limit texas holdem environment for RL.
+Локальный движок одной 2--8-max NLHE MTT-раздачи для RL. Контракт `mtt_per_player_ante_v1` несовместим со старыми HU checkpoint: обучение, replay и оценку необходимо начать заново.
+
+## Правила MTT v1
+
+- Внутри движка суммы -- целые единицы `chip_unit`; Python-величина обязана быть кратна `chip_unit`.
+- `stakes` задаёт отдельный положительный стек каждого раздаваемого игрока.
+- Перед раздачей собираются `ante -> SB -> BB`. Ante участвует в банках, но не является ставкой улицы и не уменьшает колл.
+- Поддерживаются короткие обязательные взносы, all-in, side pots, возврат непокрытого избытка и odd chips.
+- `min_raise` -- единственный публичный источник минимального полного рейза для action-space.
+- `action_history` содержит только успешные публичные действия; карт, колоды и seed в ней нет.
 
 ## Why another poker environment?
 
@@ -28,7 +37,11 @@ Just create the initial state and act over it. Easy peasy.
 import pokers as pkrs
 
 agents = [agent0, agent1, agent2, agent3, agent4, agent5] # Build the agents however you want
-initial_state = pkrs.State.from_seed(n_players=len(agents), button=0, sb=0.5, bb=1.0, stake=100.0, seed=1234)
+initial_state = pkrs.State.from_seed(
+    n_players=len(agents), button=0, sb=1.0, bb=2.0, stake=0.0,
+    stakes=[31.0, 28.0, 24.0, 19.0, 13.0, 8.0], ante=0.25,
+    chip_unit=0.25, seed=1234,
+)
 trace = [initial_state]
 
 while not trace[-1].final_state:
@@ -38,7 +51,7 @@ while not trace[-1].final_state:
     trace.append(new_state)
 ```
 
-The initial state can also be declared with a fixed deck with `State.from_deck()`.
+Начальное состояние также создаётся через `State.from_deck()`. Для следующей раздачи внешний MTT-контур передаёт только ненулевые конечные `player.stake` как новые `stakes`.
 
 Curious about what info a state contains? Just go to [pokers.pyi](pokers.pyi) and see it yourself, I bet there's all you need.
 
@@ -49,7 +62,7 @@ print(pkrs.visualize_trace(trace))
 
 ### Error handling
 
-There are two possible types of erroneous states: when an illegal action is performed and when a player bets more chips than he has available. These cases are represented by the enum `StateStatus` with the values `IllegalAction` and `HighBet`, the value `Ok` is used for correct states. This information is stored in the field `status` of the state so you can filter them.
+Ошибочные состояния представлены `StateStatus`: `IllegalAction`, `LowBet`, `HighBet` и `InvalidAmount`; корректное состояние -- `Ok`. Некратные `chip_unit`, отрицательные и не конечные суммы отклоняются.
 
 Every erroneous state is also final. So applying an action over it will return the same exact state.
 

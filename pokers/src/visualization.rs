@@ -4,6 +4,9 @@ use pyo3::prelude::*;
 
 #[pyfunction]
 pub fn visualize_trace(trace: Vec<State>) -> String {
+    if trace.is_empty() {
+        return String::new();
+    }
     let players = trace[0]
         .players_state
         .iter()
@@ -60,11 +63,11 @@ pub fn visualize_state(state: &State) -> String {
             format!(
                 "{0:>4}/{1:<3}",
                 if ps.active {
-                    ps.bet_chips.to_string()
+                    ps.bet_chips().to_string()
                 } else {
-                    format!("x{}", ps.bet_chips)
+                    format!("x{}", ps.bet_chips())
                 },
-                ps.bet_chips + ps.stake,
+                ps.bet_chips() + ps.stake(),
             )
         })
         .fold("".to_owned(), |s1, s2| format!("{s1}  {s2}"));
@@ -75,6 +78,7 @@ pub fn visualize_state(state: &State) -> String {
         .fold("".to_owned(), |c1, c2| format!("{0} {1}", c1, c2));
     format!(
         "{action}{0:<9?}:{players_bets}  {1:>4}    |{public_cards}|",
-        state.stage, state.pot
+        state.stage,
+        state.pot()
     )
 }

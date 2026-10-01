@@ -59,7 +59,7 @@ from src.utils.traversal_profiler import TRAVERSAL_PROFILER, profile_section
 
 
 CHECKPOINT_FORMAT_VERSION = 7
-GAME_RULES_VERSION = "holdem_standard_hu_v2"
+GAME_RULES_VERSION = "mtt_per_player_ante_v1"
 _D2CFR_TARGET_SEMANTICS = "counterfactual_q_v_regret_q_minus_v1"
 
 

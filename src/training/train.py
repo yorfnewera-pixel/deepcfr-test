@@ -2529,7 +2529,7 @@ def train_against_checkpoint(checkpoint_path: str, additional_iterations: int = 
 
 
 def train_with_mixed_checkpoints(*_args, **_kwargs):
-    raise NotImplementedError("Смешивание старых sizing/Q checkpoint удалено; используйте six_fixed_v2.")
+    raise NotImplementedError("Смешивание старых sizing/Q checkpoint удалено; используйте six_fixed_v3.")
 
 
 def _add_optional_boolean_flag(

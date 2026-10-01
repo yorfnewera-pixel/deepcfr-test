@@ -23,20 +23,32 @@ class State:
     stage: Stage
     button: int
     from_action: Optional[ActionRecord]
+    action_history: list[PublicActionRecord]
+    action_history_complete: bool
     legal_actions: list[ActionEnum]
     deck: list[Card]
     pot: float
     min_bet: float
-    sb: float
-    bb: float
-    last_raise_increment: float
     final_state: bool
     status: StateStatus
-    verbose: bool  # New field for verbosity control
+    verbose: bool
+    bb: float
+    ante: float
+    min_raise: float
+    chip_unit: float
 
     @staticmethod
     def from_seed(
-        n_players: int, button: int, sb: float, bb: float, stake: float, seed: int, verbose: bool = False
+        n_players: int,
+        button: int,
+        sb: float,
+        bb: float,
+        stake: float,
+        seed: int,
+        verbose: bool = False,
+        chip_unit: float = 0.01,
+        stakes: Optional[list[float]] = None,
+        ante: float = 0.0,
     ) -> State: ...
     @staticmethod
     def from_deck(
@@ -47,30 +59,11 @@ class State:
         stake: float,
         deck: list[Card],
         verbose: bool = False,
-    ) -> State: ...
-    @staticmethod
-    def from_mid_hand(
-        n_players: int,
-        button: int,
-        sb: float,
-        bb: float,
-        stake: float,
-        deck: list[Card],
-        hole_cards: list[tuple[Card, Card]],
-        public_cards: list[Card],
-        stage: Stage,
-        pot: float,
-        bet_chips: list[float],
-        pot_chips: list[float],
-        active: list[bool],
-        last_stage_action: list[Optional[ActionEnum]],
-        current_player: int,
-        last_raise_increment: float,
-        verbose: bool = False,
+        chip_unit: float = 0.01,
+        stakes: Optional[list[float]] = None,
+        ante: float = 0.0,
     ) -> State: ...
     def apply_action(self, action: Action) -> State: ...
-    def __copy__(self) -> State: ...
-    def __deepcopy__(self, memo: object) -> State: ...
     def __str__(self) -> str: ...
 
 class PlayerState:
@@ -81,13 +74,14 @@ class PlayerState:
     stake: float
     reward: float
     active: bool
-    last_stage_action: Optional[ActionEnum]
     def __str__(self) -> str: ...
 
 class StateStatus(Enum):
     Ok = 0
     IllegalAction = 1
-    HighBet = 2
+    LowBet = 2
+    HighBet = 3
+    InvalidAmount = 4
 
     def __int__(self): ...
 
@@ -98,6 +92,14 @@ class ActionRecord:
     stage: Stage
     action: Action
     legal_actions: list[ActionEnum]
+
+class PublicActionRecord:
+    actor_id: int
+    street: Stage
+    requested_action: Action
+    paid_amount: float
+    applied_raise_increment: float
+    is_effective_raise: bool
 
 class ActionEnum(Enum):
     Fold = 0
@@ -119,7 +121,8 @@ class Card:
     rank: CardRank
     @staticmethod
     def from_string(string: str) -> Card | None: ...
-    def collect(self) -> list[Card]: ...
+    @staticmethod
+    def collect() -> list[Card]: ...
 
 class CardSuit(Enum):
     Clubs = 0

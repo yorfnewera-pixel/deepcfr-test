@@ -2,7 +2,13 @@ import pytest
 import pokers as pkrs
 import torch
 
-from src.core.action_space import ActionSlot, NUM_ACTIONS, legal_action_mask, resolve_action
+from src.core.action_space import (
+    ActionSlot,
+    NUM_ACTIONS,
+    legal_action_mask,
+    min_raise_increment,
+    resolve_action,
+)
 from src.core.deep_cfr import DeepCFRAgent
 from src.core.model import CARD_CONTEXT_ARCHITECTURE, encode_state_for_version as encode_training_state
 from src.utils import config as config_mod
@@ -28,6 +34,31 @@ def test_fixed_slots_have_exact_preflop_semantics():
     assert pot_raise.action == pkrs.ActionEnum.Raise
     assert pot_raise.amount == pytest.approx(float(state.pot))
     assert all_in.amount == pytest.approx(198.0)
+
+
+def test_minimum_raise_comes_from_new_engine_contract():
+    state = _state()
+
+    assert min_raise_increment(state) == pytest.approx(state.min_raise)
+
+
+def test_pot_raise_is_rounded_down_to_chip_unit():
+    class Player:
+        stake = 20.0
+        bet_chips = 0.0
+
+    class State:
+        current_player = 0
+        players_state = [Player()]
+        legal_actions = [pkrs.ActionEnum.Raise]
+        min_bet = 0.0
+        min_raise = 2.0
+        pot = 5.0
+        chip_unit = 2.0
+
+    action = resolve_action(ActionSlot.RAISE_HALF_POT, State()).action
+
+    assert action.amount == 2.0
 
 
 def test_invalid_fixed_size_is_masked_instead_of_clamped():

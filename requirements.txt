@@ -4,11 +4,8 @@ matplotlib==3.9.0
 tensorboard==2.18.0
 argparse
 tqdm==4.67.0
-# pokers собирается из локального pokers/ (патченный форк):
-#   cd pokers && maturin develop --release
-# Или: py -m pip install pokers/
-# НЕ ставить с GitHub — там нет патчей (clamp, bb, last_raise_increment, all_broke)
-# pokers @ git+https://github.com/dberweger2017/pokers.git@b1a48bd2067176cb73f95286d2e8878e3a2eb3d1
+# Локальный патченный MTT-движок; путь вычисляется относительно requirements.txt.
+./pokers
 python-dotenv==1.0.1
 requests==2.32.3
 seaborn==0.13.2

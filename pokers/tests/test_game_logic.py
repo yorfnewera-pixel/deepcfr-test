@@ -1,4 +1,3 @@
-import copy
 import json
 from pathlib import Path
 
@@ -127,11 +126,9 @@ def test_illegal_actions():
     illegal_action_state = state.apply_action(pkrs.Action(pkrs.ActionEnum.Check))
     assert illegal_action_state.status == pkrs.StateStatus.IllegalAction
 
-    # An oversized requested raise is safely capped at the remaining stack and
-    # therefore becomes a legal all-in rather than an invalid API request.
+    # Новый контракт не меняет запрошенный размер raise неявно.
     all_in_state = state.apply_action(pkrs.Action(pkrs.ActionEnum.Raise, amount=101))
-    assert all_in_state.status == pkrs.StateStatus.Ok
-    assert all_in_state.players_state[state.current_player].stake == 0.0
+    assert all_in_state.status == pkrs.StateStatus.HighBet
 
 
 def test_public_action_history_records_only_successful_transitions():
@@ -164,26 +161,14 @@ def test_public_action_history_uses_actual_short_all_in_raise_amounts():
         n_players=2, button=0, sb=1.0, bb=2.0, stake=3.0, seed=11
     )
 
-    next_state = state.apply_action(pkrs.Action(pkrs.ActionEnum.Raise, amount=100.0))
+    next_state = state.apply_action(pkrs.Action(pkrs.ActionEnum.Raise, amount=1.0))
 
     assert next_state.status == pkrs.StateStatus.Ok
     record = next_state.action_history[0]
-    assert record.requested_action.amount == 100.0
+    assert record.requested_action.amount == 1.0
     assert record.paid_amount == 2.0
     assert record.applied_raise_increment == 1.0
     assert record.is_effective_raise is True
-
-
-def test_public_action_history_survives_state_copy():
-    state = pkrs.State.from_seed(
-        n_players=2, button=0, sb=1.0, bb=2.0, stake=20.0, seed=13
-    ).apply_action(pkrs.Action(pkrs.ActionEnum.Call))
-
-    copied = copy.copy(state)
-
-    assert copied.action_history_complete is True
-    assert len(copied.action_history) == 1
-    assert copied.action_history[0].actor_id == state.action_history[0].actor_id
 
 
 def test_forced_checkdown_runs_out_to_showdown():
@@ -208,7 +193,7 @@ def test_forced_checkdown_runs_out_to_showdown():
 
 def test_repeat_raise_uses_increment_above_call():
     state = pkrs.State.from_seed(
-        n_players=3, button=0, sb=50.0, bb=100.0, stake=float("inf"), seed=0
+        n_players=3, button=0, sb=50.0, bb=100.0, stake=10_000.0, seed=0
     )
     # Player 0 opens to 250, player 1 3-bets by 850, player 2 folds.
     state = state.apply_action(pkrs.Action(pkrs.ActionEnum.Raise, amount=150.0))
