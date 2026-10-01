@@ -16,17 +16,19 @@
 - Preflop остаётся 169-class; postflop feature имеет `(189,)`, `float32`.
 - Один sample раздаёт 14 разных карт, первые `2*k` образуют nested scenario для `k=1..7`; pairwise averaging запрещён.
 - River feature для `k=1..7` использует nested MC; exact HU river -- только validation oracle.
-- RNG не зависит от workers, chunking и resume; больший budget сохраняет prefix consistency.
+- Master seed, evaluator revision, estimator version и sampling budgets входят в feature-generation identity/cache key; KMeans и quality settings входят только в build-config identity.
+- RNG не зависит от workers, chunking и resume. Prefix consistency относится к raw runout/deal samples, а не к итоговому feature при другом budget.
 - Train/holdout canonical keys дизъюнктны. Pilot фиксирует thresholds до production holdout.
 - Runtime resolver, MTT policy, side-pot utility и production build вне этого плана.
 
 ## Review Focus
 
 - Повтор карты у opponents или ненулевая доля банка при проигрыше одному из opponents -- Task 2 tests.
-- Смена workers/chunk или рост budget меняет feature prefix -- Task 3 tests.
+- Смена workers/chunk меняет feature при одинаковом budget, либо рост budget меняет prefix raw samples -- Task 3 tests.
 - Exact HU river попадает в feature вместо независимого oracle -- Task 3 tests.
 - Holdout пересекается с train -- Task 4 tests.
 - Resume принимает shard от другого estimator spec -- Task 5 tests.
+- Production запускается без явно утверждённого compatible quality policy -- Task 7 tests.
 
 ---
 
@@ -74,9 +76,9 @@ Commit task-owned files with message `feat: define 8max abstraction contract`.
 
 **Interfaces:** Produces `deal_nested_opponents(available_cards, rng) -> tuple[Hand, ...]`, `common_pot_share(hero, opponents, board) -> np.ndarray`, and `exact_hu_river_equity(situation) -> float`.
 
-- [ ] **Step 1: Write failing payoff tests**
+- [ ] **Step 1: Write failing evaluator-adapter and payoff tests**
 
-Test sole win, one stronger opponent after weaker opponents, one/two-way split, all 14 cards unique, and `w(k+1) <= w(k)` for each fixed deal.
+First pin the public `pkrs.compare_showdown` sign on known rank fixtures through one local adapter. Then test sole win, one stronger opponent after weaker opponents, one/two-way split, all 14 cards unique, and `w(k+1) <= w(k)` for each fixed deal.
 
 ```python
 def test_common_pot_share_is_zero_when_any_opponent_beats_hero():
@@ -91,7 +93,7 @@ Expected: FAIL because multiway functions do not exist.
 
 - [ ] **Step 3: Implement common-pot semantics**
 
-Use public `pkrs.compare_showdown` against each opponent: any loss yields zero; when no loss occurs, divide by hero plus tied opponents. Do not average pairwise outcomes. Keep exact HU enumeration independent from MC code.
+Use the adapter around public `pkrs.compare_showdown` against each opponent: any loss yields zero; when no loss occurs, divide by hero plus tied opponents. Do not average pairwise outcomes. Keep exact HU enumeration independent from MC code; hand-ranking correctness remains covered by known fixtures.
 
 - [ ] **Step 4: Verify and commit**
 
@@ -109,7 +111,7 @@ Commit with `feat: add multiway common pot equity`.
 
 - [ ] **Step 1: Write failing feature tests**
 
-Assert seven 27-value blocks, finite values, every histogram sum, quantile order, suit invariance, exact same-seed identity, prefix consistency for larger budget, and river `k=1` MC agreement with exact oracle under a fixed statistical tolerance.
+Assert seven 27-value blocks, finite values, every histogram sum, quantile order, suit invariance, and byte identity for identical seed/budget. Add direct tests for `sample_runouts` and `sample_nested_deals`: a larger runout, opponent or river budget retains the earlier raw samples as a prefix. Test river `k=1` MC agreement with exact oracle under a fixed statistical tolerance, and convergence rather than equality for larger budgets.
 
 - [ ] **Step 2: Run RED**
 
@@ -119,7 +121,7 @@ Expected: FAIL because the existing feature is 27-dimensional HU equity.
 
 - [ ] **Step 3: Implement per-runout RNG and profile layout**
 
-Derive one runout stream and one opponent stream per stable runout index from canonical key and estimator version. Process all seven coordinates from each nested deal. River calculates all coordinates through MC; exact HU remains diagnostic only.
+Derive one runout stream and one opponent stream per stable runout index from canonical key, feature-generation identity and estimator version. Expose small pure sample-generation helpers so prefix contracts are testable directly. Process all seven coordinates from each nested deal. River calculates all coordinates through MC; exact HU remains diagnostic only.
 
 - [ ] **Step 4: Verify and commit**
 
@@ -161,11 +163,11 @@ Commit with `feat: sample disjoint 8max card datasets`.
 
 **Files:** Create `src/card_abstraction/feature_store.py`, `tests/test_card_abstraction_feature_store.py`.
 
-**Interfaces:** Produces `FeatureStore(root, spec)` and `FeatureStore.build(situations, *, workers, chunk_size, resume) -> FeatureBatch`; batch reports ordered keys, features, elapsed seconds and peak RSS.
+**Interfaces:** Produces `FeatureGenerationConfig(spec, master_seed)`, `FeatureStore(root, generation_config)`, and `FeatureStore.build(situations, *, workers, chunk_size, resume) -> FeatureBatch`; batch reports ordered keys, features, elapsed seconds and peak RSS.
 
 - [ ] **Step 1: Write failing store tests**
 
-On a tiny fixed dataset assert resume skips completed shards, worker/chunk choices produce byte-identical ordered features, and a changed spec cannot reuse old shards.
+On a tiny fixed dataset assert resume skips completed records after workers/chunk size change, worker/chunk choices produce byte-identical ordered features for identical generation config, different master seed cannot reuse cache, and a corrupted/incomplete shard is rejected and rebuilt.
 
 - [ ] **Step 2: Run RED**
 
@@ -175,7 +177,7 @@ Expected: FAIL because the store does not exist.
 
 - [ ] **Step 3: Implement atomic shards and workers**
 
-Pass serializable canonical keys to workers; reconstruct cards inside each worker. Name shards by ordered key range plus full spec hash, atomically write them, merge by canonical-key order, and record speed/RSS. Only exact spec hash may resume.
+Pass serializable canonical keys to workers; reconstruct cards inside each worker. Use fixed storage-shard boundaries and a key index independent from processing `chunk_size`; atomically write checksumed shape/dtype-validated shards and merge by canonical-key order. The feature-generation hash, including master seed, controls reuse; changing KMeans/quality config does not invalidate expensive feature records. Record throughput and peak RSS.
 
 - [ ] **Step 4: Verify and commit**
 
@@ -189,11 +191,11 @@ Commit with `feat: add resumable multiway feature batches`.
 
 **Files:** Modify `src/card_abstraction/pipeline.py`, `src/card_abstraction/artifacts.py`; replace `tests/test_card_abstraction_pipeline.py`.
 
-**Interfaces:** Produces `run_pilot(output_root, spec, ...) -> PilotReport` and `build_all(output_root, spec, *, workers, chunk_size, resume, quality_thresholds) -> dict[Street, Path]`.
+**Interfaces:** Produces `run_pilot(output_root, spec, ...) -> PilotReport`, `QualityPolicy.load(path, expected_spec) -> QualityPolicy`, and `build_all(output_root, spec, *, workers, chunk_size, resume, quality_policy) -> dict[Street, Path]`.
 
 - [ ] **Step 1: Write failing pipeline tests**
 
-Assert smoke emits 8-max artifacts; rejected gate does not publish; validation contains original-equity per-opponent errors, scaling contribution diagnostics, enlarged-budget and independent-seed stability, bounded silhouette sample, and production refuses implicit post-hoc thresholds.
+Assert smoke emits 8-max artifacts; rejected gate does not publish; validation contains original-equity per-opponent errors, scaling contribution diagnostics, enlarged-budget and independent-seed stability, bounded silhouette sample; production refuses no policy, candidate policy, or a policy incompatible with feature/scaling/clustering spec.
 
 - [ ] **Step 2: Run RED**
 
@@ -203,7 +205,7 @@ Expected: FAIL because the pipeline assumes HU features and implicit thresholds.
 
 - [ ] **Step 3: Implement pilot and production lifecycle**
 
-Fit scaler/KMeans only on train. Pilot emits immutable thresholds. Production consumes those thresholds with a separate holdout; report exact-HU river oracle error, MC errors `k=1..7`, two stability measures, bucket metrics and scaling diagnostics. Publish all streets atomically only after full pass.
+Fit scaler/KMeans only on train. Pilot emits report plus a candidate policy; a separate explicit approval/freeze command converts the candidate to immutable `QualityPolicy`. Production consumes that compatible policy with a separate holdout; report exact-HU river oracle error, MC errors `k=1..7`, two stability measures, bucket metrics, scaling diagnostics, measured throughput and full-build estimate. Publish all streets atomically only after full pass.
 
 - [ ] **Step 4: Verify and commit**
 
@@ -217,11 +219,11 @@ Commit with `feat: validate 8max card abstraction artifacts`.
 
 **Files:** Create `tools/build_8max_postflop_abstraction.py`, `docs/superpowers/reports/2026-10-01-8max-postflop-card-abstraction-pilot.md`; delete `tools/build_hu_postflop_abstraction.py`; modify `tests/test_card_abstraction_pipeline.py`.
 
-**Interfaces:** CLI accepts `--output`, `--seed`, `--train-count`, `--holdout-count`, `--clusters`, `--runout-samples`, `--opponent-samples`, `--river-samples`, `--workers`, `--chunk-size`, `--resume`, `--pilot`, `--smoke`.
+**Interfaces:** CLI accepts `--output`, `--seed`, `--train-count`, `--holdout-count`, `--clusters`, `--runout-samples`, `--opponent-samples`, `--river-samples`, `--workers`, `--chunk-size`, `--resume`, `--pilot`, `--quality-thresholds PATH`, `--freeze-quality-policy`, `--smoke`.
 
 - [ ] **Step 1: Write failing CLI tests**
 
-Assert `--smoke` reports progress and writes only 8-max layout; `--pilot` produces threshold/report candidate; malformed counts or incompatible resume exit nonzero without publication.
+Assert `--smoke` reports progress and writes only 8-max layout; `--pilot` produces a candidate report; `--freeze-quality-policy` requires explicit candidate path; production rejects missing, candidate, malformed or incompatible `--quality-thresholds`; malformed counts or incompatible resume exit nonzero without publication.
 
 - [ ] **Step 2: Run RED**
 
@@ -231,7 +233,7 @@ Expected: FAIL because the new CLI does not exist.
 
 - [ ] **Step 3: Implement CLI and remove HU card CLI**
 
-Flush progress after each feature shard/stage. Production requires a pilot threshold file and never derives thresholds from its own holdout. Report command, spec hash, budgets, workers/chunks, speed, memory, metrics, thresholds and pass/reject. Do not run production in this task.
+Flush progress after each feature shard/stage. Pilot creates a candidate, and only explicit `--freeze-quality-policy` produces a production-eligible file. Production requires `--quality-thresholds PATH`, validates compatibility before work, and never derives thresholds from its own holdout. Report command, generation/build hashes, budgets, workers/chunks, speed, memory, metrics, thresholds and pass/reject. Do not run production in this task.
 
 - [ ] **Step 4: Verify and commit**
 
